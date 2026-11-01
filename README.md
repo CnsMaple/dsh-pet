@@ -1,5 +1,9 @@
 # dsh-pet 🐾
 
+> **这是 [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet) 的 fork（维护者 CnsMaple）。**
+> 内置（main）宠物形象已替换为 [CnsMaple/dsh-pet-sticker](https://github.com/CnsMaple/dsh-pet-sticker) 的「Maid DeepSeek Sticker」。
+> 素材署名与许可见 [NOTICE.md](NOTICE.md)；上游更新可用 `git fetch upstream` 拉取。
+
 <p align="center">
   <a href="https://www.npmjs.com/package/dsh-pet"><img alt="npm version" src="https://img.shields.io/npm/v/dsh-pet?label=npm&color=blue"></a>
   <a href="https://www.npmjs.com/package/dsh-pet"><img alt="npm monthly downloads" src="https://img.shields.io/npm/dm/dsh-pet?label=%E6%9C%88%E4%B8%8B%E8%BD%BD&color=brightgreen"></a>
@@ -45,7 +49,7 @@ AI 生成动画的配方     源视频 → 透明动画的管线    运行在 DS
 
 - **100+ 段动画资产**：待机、走动漫游、玩耍、工作、对话等全部表现都由视频动画驱动，按权重首尾相接，也可换成自己的素材。
 - **多开与种类**：同时养多只，各自大小与位置；也能自定义宠物种类（pet pack），一类一套动画与素材。
-- **三种运行形态**：DSH web 的浏览器 overlay、DSH 桌面应用的透明置顶窗、完全不依赖 DSH 的独立模式。
+- **三种运行形态**：DSH web 的浏览器 overlay、DSH 桌面应用的透明置顶窗、完全不依赖 DSH 的独立模式；另支持「宿主在 WSL、显示层在 Windows」的**远程显示层**（见 [REMOTE-DISPLAY.md](REMOTE-DISPLAY.md)）。
 - **交互与物理**：点击回应、拖拽甩抛、双击弹弓、宠物互撞，同一套物理与 Q 弹挤压手感，参数可调。
 - **碎碎念与对话**：按周期自动说一句，也能随时聊；记忆持久化、可配图、可念出来。
 - **语音（说与听）**：对话回复与手动碎碎念会念出来，音色、音量与总开关可配；按住对话窗的话筒说一句，录音转成文字直接填进输入框。

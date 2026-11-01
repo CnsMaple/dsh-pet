@@ -281,7 +281,7 @@ describe('createChatMemory —— 对话动作联动', () => {
     const ws = tempWorkspace();
     const records: Records = [];
     try {
-      const r = await createMemory('好呀～看我转一圈！\n[动作:优雅女仆舞]', ws, undefined, { records }).chatWithPet(
+      const r = await createMemory('好呀～看我转一圈！\n[动作:庆祝]', ws, undefined, { records }).chatWithPet(
         'main',
         '跳个舞吧',
       );
@@ -292,14 +292,14 @@ describe('createChatMemory —— 对话动作联动', () => {
         '先写动作再写气泡：渲染端先收到动作，气泡不会把它顶掉',
       );
       const anim = records[0];
-      assert.equal(anim?.data.name, '优雅女仆舞');
+      assert.equal(anim?.data.name, '庆祝');
       assert.match(String(anim?.data.playbackId), /^pb-/);
       const say = records[1];
       assert.equal(say?.data.anim, false, '带动作时气泡不联动碎碎念动画');
       assert.equal(say?.data.text, '好呀～看我转一圈！');
       const assistant = readMessages(ws.userRoot)[1];
       assert.equal(assistant?.content, '好呀～看我转一圈！', '记忆正文不得留标记');
-      assert.equal(assistant?.action, '优雅女仆舞', '记忆要能还原这一轮演了什么');
+      assert.equal(assistant?.action, '庆祝', '记忆要能还原这一轮演了什么');
     } finally {
       rmSync(ws.dir, { recursive: true, force: true });
     }
@@ -309,7 +309,7 @@ describe('createChatMemory —— 对话动作联动', () => {
     const ws = tempWorkspace();
     const records: Records = [];
     try {
-      const r = await createMemory('[动作:原地小憩沉眠]', ws, undefined, { records }).chatWithPet('main', '累了吧');
+      const r = await createMemory('[动作:呆 1]', ws, undefined, { records }).chatWithPet('main', '累了吧');
       assert.equal(r.ok, true);
       assert.deepEqual(
         records.map((x) => x.leaf),
@@ -342,17 +342,14 @@ describe('createChatMemory —— 对话动作联动', () => {
     const ws = tempWorkspace({ chatAnimationEnabled: false });
     const records: Records = [];
     try {
-      const r = await createMemory('好的\n[动作:优雅女仆舞]', ws, undefined, { records }).chatWithPet(
-        'main',
-        '跳个舞吧',
-      );
+      const r = await createMemory('好的\n[动作:庆祝]', ws, undefined, { records }).chatWithPet('main', '跳个舞吧');
       assert.equal(r.ok, true);
       assert.equal(
         records.some((x) => x.leaf === 'anim'),
         false,
         '关闭时不得写动作叶子',
       );
-      assert.equal(r.ok === true ? r.text : '', '好的\n[动作:优雅女仆舞]', '关闭时不解析，标记原样保留');
+      assert.equal(r.ok === true ? r.text : '', '好的\n[动作:庆祝]', '关闭时不解析，标记原样保留');
     } finally {
       rmSync(ws.dir, { recursive: true, force: true });
     }
@@ -371,7 +368,7 @@ describe('createChatMemory —— 提示词注入（配图 / 动作各自独立�
       assert.ok(text.includes('[配图]'), '应注入配图指令');
       assert.ok(text.includes('[动作]'), '应注入动作指令');
       assert.ok(text.includes('- 可爱：卖萌立绘'), '配图清单要带上描述');
-      assert.ok(text.includes('- 优雅女仆舞'), '动作清单要带上名字');
+      assert.ok(text.includes('- 庆祝'), '动作清单要带上名字');
     } finally {
       rmSync(ws.dir, { recursive: true, force: true });
     }

@@ -25,11 +25,12 @@
 
 ## 启用
 
-宿主侧设环境变量后重启 DSH（或重跑 standalone）：
+**WSL 下默认自动启用**远程显示（无需设任何环境变量）；其它平台默认走原本机 Electron，只有显式 `DSH_PET_REMOTE=1` 才强制远程。`DSH_PET_REMOTE=0` 可在 WSL 上强制回本地（例如你打算用 WSLg 直接本机跑）。
 
 ```sh
-export DSH_PET_REMOTE=1
-# 重启 dsh web / 桌面应用；standalone 则：DSH_PET_REMOTE=1 node lib/standalone.js
+# WSL：直接重启 DSH / standalone 即可
+# 非 WSL 强制远程：export DSH_PET_REMOTE=1
+# WSL 强制本地：export DSH_PET_REMOTE=0
 ```
 
 启用后：
@@ -43,15 +44,15 @@ export DSH_PET_REMOTE=1
 
 ## 环境变量
 
-| 变量                                                   | 作用                                                  | 默认                 |
-| ------------------------------------------------------ | ----------------------------------------------------- | -------------------- |
-| `DSH_PET_REMOTE`                                       | `1` = 启用远程显示（宿主不 spawn 本机 Electron）      | 关                   |
-| `DSH_PET_REMOTE_PORT`                                  | RPC 服务端口偏好                                      | `7341`               |
-| `DSH_PET_REMOTE_HOST`                                  | 写进连接文件、给显示层连的宿主地址（WSL IP）          | 第一块非回环 IPv4    |
-| `DSH_PET_REMOTE_LAUNCH`                                | `0` = 只开 RPC 服务、不自动拉起显示层（调试/手动）    | 自动拉起             |
-| `DSH_PET_WIN_ELECTRON_PATH`                            | 指定现成的 Windows `electron.exe`（WSL 或 /mnt 路径） | 自动下载             |
-| `DSH_PET_ALLOW_WIN_ELECTRON_DOWNLOAD`                  | `0` = 禁止自动下载 Windows Electron                   | 允许                 |
-| `DSH_PET_ELECTRON_VERSION` / `DSH_PET_ELECTRON_MIRROR` | 复用原有 Electron 版本/镜像配置                       | `43.3.0` / npmmirror |
+| 变量                                                   | 作用                                                  | 默认                   |
+| ------------------------------------------------------ | ----------------------------------------------------- | ---------------------- |
+| `DSH_PET_REMOTE`                                       | `1` 强制远程 / `0` 强制本地；**WSL 未设 = 自动远程**  | WSL 自动开，其它平台关 |
+| `DSH_PET_REMOTE_PORT`                                  | RPC 服务端口偏好                                      | `7341`                 |
+| `DSH_PET_REMOTE_HOST`                                  | 写进连接文件、给显示层连的宿主地址（WSL IP）          | 第一块非回环 IPv4      |
+| `DSH_PET_REMOTE_LAUNCH`                                | `0` = 只开 RPC 服务、不自动拉起显示层（调试/手动）    | 自动拉起               |
+| `DSH_PET_WIN_ELECTRON_PATH`                            | 指定现成的 Windows `electron.exe`（WSL 或 /mnt 路径） | 自动下载               |
+| `DSH_PET_ALLOW_WIN_ELECTRON_DOWNLOAD`                  | `0` = 禁止自动下载 Windows Electron                   | 允许                   |
+| `DSH_PET_ELECTRON_VERSION` / `DSH_PET_ELECTRON_MIRROR` | 复用原有 Electron 版本/镜像配置                       | `43.3.0` / npmmirror   |
 
 ## 前置条件与限制
 

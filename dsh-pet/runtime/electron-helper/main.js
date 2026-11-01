@@ -24,6 +24,7 @@ try {
 }
 const { app, BrowserWindow, ipcMain, screen, shell, protocol, Tray, Menu, nativeImage, powerMonitor } = electronApi;
 const path = require('node:path');
+const fsSync = require('node:fs');
 const fsPromises = require('node:fs/promises');
 // 点击穿透兜底通道的纯判定（不依赖 Electron 的 forward 鼠标钩子；见文件头）
 // Linux 专用：X11 指针实时查询。穿透窗收不到鼠标事件，Chromium 的 screen.getCursorScreenPoint()
@@ -52,6 +53,8 @@ const { createWindows } = require('./main/windows.js');
 const { registerIpc } = require('./main/ipc.js');
 const { createDisplaySync } = require('./main/displays.js');
 const { dshHomeDir, resolveUserDataDir } = require('./main/user-data.js');
+const { readRemoteConfig } = require('./main/remote-config.js');
+const { createRemoteSupervisor } = require('./main/remote.js');
 
 /** Linux 指针提供者：仅在 Linux 创建；查询失败时 get() 返回 null（调用方回退 Electron 原生 API） */
 const linuxPointer = process.platform === 'linux' ? createLinuxPointer() : null;
@@ -76,6 +79,11 @@ if (process.platform === 'win32') {
 }
 // 应用模式只改数据目录、不改应用名：共用同一个 userData 时两个 Chromium 进程会抢同一份 profile 互踢。
 if (APP_MODE) app.setPath('userData', path.join(app.getPath('appData'), 'dsh-pet'));
+// 远程显示层单独一份 userData：本机可能同时存在另一个桌面 Helper（DSH 桌面版 / 独立应用），
+// 同名 profile 会互相抢缓存（表现为 Gpu Cache 拒绝访问、偶发互踢），分开即可各跑各的。
+if (process.argv.includes('--remote-config')) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'dsh-pet-remote-helper'));
+}
 
 /** DPI 探测子进程模式：不建窗口，只把主屏 scaleFactor 打到 stdout 就退出（见 probePrimaryScale） */
 const DPI_PROBE = process.env.DSH_PET_DPI_PROBE === '1';
@@ -160,6 +168,14 @@ const dpi = createDpi({
   forceDsf: process.env.DSH_PET_FORCE_DSF,
 });
 
+// 远程显示模式：由 `--remote-config <file>` 指定连接信息。Windows 进程拿不到 WSL 的环境变量，
+// 所以连接参数走命令行指向的本机 JSON 文件；读到后等价于宿主注入的 bridge / config url 两个 env。
+const REMOTE = readRemoteConfig(process.argv);
+if (REMOTE) {
+  process.env.DSH_PET_BRIDGE = '1';
+  process.env.DSH_PET_CONFIG_URL = REMOTE.configUrl;
+}
+
 /** bridge 模式：DSH_PET_BRIDGE=1（宿主注入）。开启时注册 dsh-pet-bridge scheme + 管道转发 */
 const BRIDGE = process.env.DSH_PET_BRIDGE === '1';
 
@@ -207,7 +223,13 @@ const ORIGIN = new URL(process.env.DSH_PET_CONFIG_URL || 'http://127.0.0.1:3080/
 const TRAY_PLATFORM = trayPlatform(process.platform);
 
 /** 与宿主的通道：bridge 走管道 + 本地回调，否则 HTTP 直连。 */
-const bridge = createBridge({ isBridge: BRIDGE, prefix: BRIDGE_PREFIX, origin: ORIGIN, token: APP_TOKEN });
+const bridge = createBridge({
+  isBridge: BRIDGE,
+  prefix: BRIDGE_PREFIX,
+  origin: ORIGIN,
+  token: APP_TOKEN,
+  remote: REMOTE ? { rpcUrl: REMOTE.rpcUrl, token: REMOTE.token } : undefined,
+});
 
 /** 窗口能力：建窗、整窗穿透镜像、宠物状态广播、两条实时泵。 */
 const petWindows = createWindows({
@@ -233,6 +255,7 @@ const tray = createTray({
   callbackUrl: bridge.callbackUrl,
   isBridge: BRIDGE,
   appMode: APP_MODE,
+  remote: Boolean(REMOTE),
   petRoute: PET_ROUTE,
   platform: TRAY_PLATFORM,
   helperDir: __dirname,
@@ -291,7 +314,25 @@ app.whenReady().then(() => {
   void tray.start();
 
   linuxPointer?.start();
-  petWindows.create();
+  if (REMOTE) {
+    // 远程模式：把自己的 Windows PID 写到连接文件旁边，宿主收尾时可 taskkill /T /F 精确结束整棵进程树。
+    try {
+      fsSync.writeFileSync(path.join(REMOTE.configDir, 'display.pid'), String(process.pid), 'utf8');
+    } catch (error) {
+      console.error('[dsh-pet] 写 display.pid 失败：' + String(error && error.message ? error.message : error));
+    }
+    // 窗口列表由宿主 /config 拉取并轮询重建；宿主消失（连续拉取失败）则自行退出。
+    const supervisor = createRemoteSupervisor({
+      bridge,
+      petWindows,
+      petRoute: REMOTE.petRoute,
+      onHostGone: () => app.exit(0),
+    });
+    supervisor.start();
+    app.on('before-quit', () => supervisor.stop());
+  } else {
+    petWindows.create();
+  }
 
   // 合盖/唤醒是任务栏按钮重建最集中的时刻：resume / unlock-screen 后把每只宠物重新摘一次。
   // powerMonitor 只能在 ready 之后使用，所以挂在这里而不是模块顶层。

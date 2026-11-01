@@ -20,6 +20,7 @@ const path = require('node:path');
  * @param deps.callbackUrl - bridge 回调地址（建托盘前要等它就绪）。
  * @param deps.isBridge - 是否由宿主以 bridge 模式拉起。
  * @param deps.appMode - 是否同进程应用模式。
+ * @param deps.remote - 是否远程显示模式（进程由 WSL 宿主拉起，退出由自己 app.quit 决定）。
  * @param deps.petRoute - 宠物路由前缀。
  * @param deps.platform - 托盘平台差异（tray-platform.js 的判定结果）。
  * @param deps.helperDir - runtime/electron-helper 的绝对目录（图标在包的 assets/ 下）。
@@ -33,6 +34,7 @@ function createTray({
   callbackUrl,
   isBridge,
   appMode,
+  remote,
   petRoute,
   platform,
   helperDir,
@@ -74,7 +76,8 @@ function createTray({
    * @returns 可以自己退出时为 true；探测失败按不支持处理，菜单项因此不出现。
    */
   async function canQuitSelf() {
-    if (appMode || !isBridge) return true;
+    // 远程显示层进程由 WSL 拉起，但「退出」是用户关掉桌宠窗口的正当入口：自己 app.quit 即可，不用问宿主。
+    if (appMode || remote || !isBridge) return true;
     try {
       return JSON.parse((await hostRequest('GET', petRoute + '/quit')).body || '{}').canQuit === true;
     } catch (e) {
@@ -108,7 +111,7 @@ function createTray({
     if (!pets.length) return null; // 配置里没有任何宠物：没有可切换的对象，不建托盘
     const canQuit = await canQuitSelf();
     const quitApp = () => {
-      if (!isBridge || appMode) {
+      if (!isBridge || appMode || remote) {
         app.quit();
         return;
       }

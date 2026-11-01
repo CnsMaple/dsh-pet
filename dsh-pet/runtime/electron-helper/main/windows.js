@@ -281,12 +281,23 @@ function createWindows({
     };
   }
 
-  /** 按 DSH_PET_PETS 建齐所有窗口。 */
-  function createPetWindows() {
+  /**
+   * 建齐所有宠物窗口。
+   *
+   * @param pets - 显式宠物列表（远程模式从宿主 /config 拉）；缺省读 DSH_PET_PETS（本地模式）。
+   */
+  function createPetWindows(pets) {
+    const list = Array.isArray(pets) ? pets : petsFromEnv();
     const geo = deskGeometry();
     const scale = dpi.petScale();
-    for (const pet of petsFromEnv()) windows.set(pet.id, createPetWindow(pet, geo, scale));
+    for (const pet of list) windows.set(pet.id, createPetWindow(pet, geo, scale));
     startTaskbarWatchdog();
+  }
+
+  /** 按新列表重建全部窗口（远程模式配置变化时用）：先关旧窗再建，位置回到配置角落。 */
+  function rebuildPetWindows(pets) {
+    closeAllPetWindows();
+    createPetWindows(pets);
   }
 
   /**
@@ -310,6 +321,7 @@ function createWindows({
   return {
     state: { windows, lastRequestedBounds, winMargins, windowIgnore, inputBusy, inputRegions, offBodyMs, petStates },
     create: createPetWindows,
+    rebuild: rebuildPetWindows,
     closeAll: closeAllPetWindows,
     geometry: deskGeometry,
     setWindowIgnore,

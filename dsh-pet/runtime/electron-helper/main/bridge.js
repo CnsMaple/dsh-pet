@@ -17,15 +17,37 @@ const { parseRange } = require('../range.js');
  * @param deps.prefix - 协议行前缀（与宿主 helper-process 的 prefix 一致）。
  * @param deps.origin - 非 bridge 模式下的宿主 HTTP 源。
  * @param deps.token - 独立应用的访问凭据（只进请求头）。
+ * @param deps.remote - 远程显示模式 `{ rpcUrl, token }`：请求改走宿主 /rpc，不走 stdout 管道。
  */
-function createBridge({ isBridge, prefix, origin, token }) {
+function createBridge({ isBridge, prefix, origin, token, remote }) {
   let bridgeSeq = 0;
   /** id -> {resolve, reject}：一个请求对应宿主的一次回调应答 */
   const bridgePending = new Map();
   let bridgeCallbackUrl = '';
 
+  /** 远程模式：把一条请求 POST 到宿主 /rpc，返回宿主应答（BridgeResponse 形状，素材多一个 assetUrl）。 */
+  async function remoteRpc(method, url, body) {
+    const id = ++bridgeSeq;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error('remote rpc timeout')), 60000);
+    timer.unref?.();
+    try {
+      const res = await fetch(remote.rpcUrl + '/rpc', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-dsh-pet-remote-token': remote.token },
+        body: JSON.stringify({ id, method, url, body }),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error('remote rpc http ' + res.status);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   /** 渲染端请求 → 宿主（请求行带回调 URL）；返回宿主应答（{status, contentType?, body?, file?}），超时抛错 */
   function bridgeRequest(method, url, body) {
+    if (remote) return remoteRpc(method, url, body);
     return new Promise((resolve, reject) => {
       const id = ++bridgeSeq;
       bridgePending.set(id, { resolve, reject });
@@ -40,6 +62,21 @@ function createBridge({ isBridge, prefix, origin, token }) {
     });
   }
 
+  /** 远程模式：短超时健康探测（宿主 /health），用于判断宿主是否还活着；非远程返回 true。 */
+  async function probe(timeoutMs) {
+    if (!remote) return true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error('probe timeout')), timeoutMs || 3000);
+    timer.unref?.();
+    try {
+      const res = await fetch(remote.rpcUrl + '/health', { signal: controller.signal });
+      if (!res.ok) throw new Error('health ' + res.status);
+      return true;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   /** 把宿主回调应答（{id, status, ...}）派发给对应请求 */
   function bridgeResolve(resp) {
     const p = resp && bridgePending.get(resp.id);
@@ -50,6 +87,7 @@ function createBridge({ isBridge, prefix, origin, token }) {
 
   /** 本地回调服务器：宿主把应答 POST 到这里（127.0.0.1 随机端口，绕开 stdin/DSH 闸门） */
   function startBridgeCallback() {
+    if (remote) return undefined; // 远程模式应答走 /rpc 的 HTTP 响应，不需要本地回调服务器
     const http = require('node:http');
     const server = http.createServer((req, res) => {
       if (req.method !== 'POST' || req.url !== '/respond') {
@@ -96,6 +134,17 @@ function createBridge({ isBridge, prefix, origin, token }) {
     }
     const resp = await bridgeRequest(method, url.pathname + url.search, body);
     const headers = { 'access-control-allow-origin': '*' }; // 渲染端页面是 file:// 源，scheme 跨源需 CORS
+    if (resp.assetUrl) {
+      // 远程模式：素材在宿主机器上，读不到本地绝对路径，改为带 Range 向宿主 /asset 拉流再原样转发。
+      const range = request.headers.get('range');
+      const upstream = await fetch(resp.assetUrl, { headers: range ? { range } : {} });
+      const outHeaders = { ...headers };
+      for (const name of ['content-type', 'content-range', 'accept-ranges', 'content-length']) {
+        const value = upstream.headers.get(name);
+        if (value) outHeaders[name] = value;
+      }
+      return new Response(upstream.body, { status: upstream.status, headers: outHeaders });
+    }
     if (resp.contentType) headers['content-type'] = resp.contentType;
     if (resp.file) {
       // 素材：直接读盘返回（宿主已解析好绝对路径）。视频会中途按 `Range: bytes=N-` 补数据，
@@ -149,6 +198,7 @@ function createBridge({ isBridge, prefix, origin, token }) {
 
   return {
     hostRequest,
+    probe,
     handle: handleBridgeRequest,
     startCallback: startBridgeCallback,
     callbackUrl: () => bridgeCallbackUrl,

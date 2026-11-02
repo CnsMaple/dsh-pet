@@ -201,12 +201,12 @@
   //   两个体感开关都只在 HTTPS / localhost 下有效（传感器 API 只在安全上下文存在）。
   "physics": {
     "gravity": 1400,
-    "restitution": 0.78,
+    "restitution": 0,
     "groundFriction": 2.5,
-    "ceilingBounce": true,
+    "ceilingBounce": false,
     "throwPower": 1.0,
-    "petCollision": true,
-    "hapticEnabled": true,
+    "petCollision": false,
+    "hapticEnabled": false,
     "tiltGravity": true,
     "shakeThrow": true
   },
@@ -224,9 +224,9 @@
   // 注意（对象字段都是整段替换）：要写就三个子键写全——只写一半会被判为整段非法，
   //   告警后整段回退默认值。设置页「外观与字体」区改这三项会整段写回，不受此影响。
   "font": {
-    "family": "candy",
+    "family": "",
     "size": 21,
-    "followPet": true
+    "followPet": false
   },
   // ===================== 默认宠物列表（多开） =====================
   // pets 数组定义默认宠物；「设置页 → 添加宠物」的默认模板取 pets[0]（main）。
@@ -245,12 +245,12 @@
     {
       "name": "Maid DeepSeek Sticker",
       "id": "main",
-      "size": 240,
-      "balanceEnabled": true,
+      "size": 260,
+      "balanceEnabled": false,
       // 碎碎念默认开启：每次生成都会调用当前对话的模型。本地 LLM 单并发时，
       // 后台碎碎念会顶掉正在跑的任务的 KV cache（与 DSH 多子代理同因）。
       // 不需要碎碎念的宠物改为 false（设置页也可开关）。
-      "whisperEnabled": true,
+      "whisperEnabled": false,
       // 工作状态联动默认开启：监听 DSH 会话事件（工具调用等），按
       // animations.events.workStatus 数组切档位动画 + 气泡（仅监听，不调用模型）。
       "workStatusEnabled": true,

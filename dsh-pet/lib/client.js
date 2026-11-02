@@ -2013,45 +2013,17 @@ async function postAction(baseUrl, body) {
 
 //#endregion
 //#region src/shared/fonts.ts
-const FONT_PRESETS = [
-	{
-		id: "candy",
-		stack: "\"ShangshouSoftCandy\",\"Yuanti SC\",\"YouYuan\",\"幼圆\",\"Comic Sans MS\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif"
-	},
-	{
-		id: "yahei",
-		stack: "\"Microsoft YaHei\",\"PingFang SC\",sans-serif"
-	},
-	{
-		id: "youyuan",
-		stack: "\"YouYuan\",\"Yuanti SC\",sans-serif"
-	},
-	{
-		id: "kaiti",
-		stack: "\"KaiTi\",\"STKaiti\",serif"
-	},
-	{
-		id: "simsun",
-		stack: "\"SimSun\",\"Songti SC\",serif"
-	},
-	{
-		id: "comic",
-		stack: "\"Comic Sans MS\",\"Comic Sans\",cursive"
-	},
-	{
-		id: "system",
-		stack: "system-ui,sans-serif"
-	}
-];
 const FONT_SIZE_MIN = 4;
 const FONT_SIZE_MAX = 200;
+const DEFAULT_FONT_STACK = "var(--dsw-font-family, system-ui, -apple-system, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif)";
 const DEFAULT_FONT = {
-	family: "candy",
+	family: "",
 	size: 21,
-	followPet: true
+	followPet: false
 };
-function fontStackOf(id) {
-	return (FONT_PRESETS.find((p) => p.id === id) ?? FONT_PRESETS[0]).stack;
+function fontStackOf(family) {
+	const value = (family ?? "").trim();
+	return value === "" ? DEFAULT_FONT_STACK : value;
 }
 const FONT_REF_SIZE = 462;
 const BUBBLE_FONT_BASE_PX = .0455 * FONT_REF_SIZE;
@@ -2060,7 +2032,7 @@ function resolveFontPx(font, size) {
 	const own = Number(font?.size);
 	const ratio = Number.isFinite(own) && own > 0 ? own / DEFAULT_FONT.size : 1;
 	const w = Number(size);
-	const follow = font?.followPet !== false;
+	const follow = font?.followPet === true;
 	const scale = follow && Number.isFinite(w) && w > 0 ? w / FONT_REF_SIZE : 1;
 	return {
 		bubble: BUBBLE_FONT_BASE_PX * ratio * scale,
@@ -4036,7 +4008,7 @@ const petValid = (pet) => Number.isFinite(pet.size) && pet.size > 0 && (pet.size
 /** 物理参数：与宿主 `physicsValid` 同名规则，客户端只覆盖数值字段（布尔项由宿主兜底）。 */
 const physicsValid = (physics) => Number.isFinite(physics.gravity) && physics.gravity >= 0 && Number.isFinite(physics.restitution) && physics.restitution >= 0 && physics.restitution <= 1 && Number.isFinite(physics.groundFriction) && physics.groundFriction >= 0 && Number.isFinite(physics.throwPower) && physics.throwPower > 0;
 /** 字体：种类必须在预设白名单内，字号在闭区间内。 */
-const fontValid = (font) => FONT_PRESETS.some((preset) => preset.id === font.family) && Number.isFinite(font.size) && font.size >= FONT_SIZE_MIN && font.size <= FONT_SIZE_MAX;
+const fontValid = (font) => typeof font.family === "string" && font.family.length <= 200 && Number.isFinite(font.size) && font.size >= FONT_SIZE_MIN && font.size <= FONT_SIZE_MAX;
 function validateForm(values) {
 	if (!values.pets.every(petValid)) return "invalid";
 	if (!physicsValid(values.physics)) return "invalidPhysics";
@@ -4275,6 +4247,273 @@ function makeDialog(rt) {
 }
 
 //#endregion
+//#region src/client/settings/font-card.ts
+function makeFontCard(rt) {
+	const { h, t } = rt;
+	const { cardHead, field, toggleCell } = makeUiKit({
+		h,
+		t
+	});
+	return function FontCard(props) {
+		const { busy, font } = props;
+		return h("div", {
+			className: "dsh-pet-cfg__card",
+			children: [
+				cardHead(t("fontTitle"), t("fontHint")),
+				h("div", {
+					className: "dsh-pet-cfg__grid2",
+					children: [field(t("fontFamilyLabel"), h("input", {
+						type: "text",
+						className: INPUT_CLASS,
+						value: String(font.family ?? ""),
+						disabled: busy,
+						maxLength: 200,
+						onChange: (e) => props.onChange({ family: e.target.value })
+					}), t("fontFamilyHint")), field(t("fontSizeLabel"), h("input", numberInputProps(font.size, (v) => props.onChange({ size: v }), {
+						step: "1",
+						min: String(FONT_SIZE_MIN),
+						max: String(FONT_SIZE_MAX),
+						disabled: busy
+					})), t("fontSizeHint"))]
+				}),
+				h("div", {
+					className: "dsh-pet-cfg__grid2",
+					children: [toggleCell("fontFollowToggle", font.followPet, busy, (v) => props.onChange({ followPet: v }))]
+				})
+			]
+		});
+	};
+}
+
+//#endregion
+//#region src/client/settings/global-card.ts
+/** 开关的展示顺序与文案键。 */
+const TOGGLES = [
+	{
+		key: "notificationsEnabled",
+		label: "notifyToggle"
+	},
+	{
+		key: "clickSoundEnabled",
+		label: "clickSoundToggle"
+	},
+	{
+		key: "confineToScreen",
+		label: "confineToggle"
+	},
+	{
+		key: "trayEnabled",
+		label: "trayToggle"
+	}
+];
+function makeGlobalCard(rt) {
+	const { h, t } = rt;
+	const { cardHead, toggleCell } = makeUiKit({
+		h,
+		t
+	});
+	return function GlobalCard(props) {
+		return h("div", {
+			className: "dsh-pet-cfg__card",
+			children: [cardHead(t("globalTitle"), t("globalHint")), h("div", {
+				className: "dsh-pet-cfg__grid4",
+				children: TOGGLES.map((toggle) => toggleCell(toggle.label, props.values[toggle.key], props.busy, (value) => props.onChange(toggle.key, value)))
+			})]
+		});
+	};
+}
+
+//#endregion
+//#region src/client/settings/load-status.ts
+function makeLoadStatus(rt) {
+	const { h, t } = rt;
+	return function LoadStatus(props) {
+		if (props.loadState === "ready") return null;
+		const failed = props.loadState === "error";
+		return h("div", {
+			role: failed ? "alert" : "status",
+			className: "dsh-pet-cfg__actions",
+			children: [h("span", { children: t(failed ? "loadError" : "loading") }), failed ? h("button", {
+				type: "button",
+				className: "dsh-pet-cfg__btn",
+				onClick: props.onRetry,
+				children: t("retry")
+			}) : null]
+		});
+	};
+}
+
+//#endregion
+//#region src/client/settings/notify-test.ts
+async function runNotificationTest(deps) {
+	const { t, report } = deps;
+	report({
+		kind: "",
+		text: ""
+	});
+	const result = await requestNotificationPermission();
+	if (!result.ok) {
+		const reason = result.reason === "unsupported" ? t("notifyDenyUnsupported") : result.reason === "denied" ? t("notifyDenyBlocked") : result.reason === "rejected" ? t("notifyDenyRejected") : t("notifyDenyError") + (result.message ? "：" + result.message : "");
+		report({
+			kind: "err",
+			text: reason + (result.reason === "unsupported" ? "" : " " + t("notifyGuide"))
+		});
+		return;
+	}
+	try {
+		wireNotificationClick(new Notification("测试通知", {
+			body: "【dsh-pet】系统通知已就绪。",
+			icon: NOTIFY_ICONS.test
+		}));
+	} catch {}
+	report({
+		kind: "ok",
+		text: t("notifyTestOk")
+	});
+}
+
+//#endregion
+//#region src/client/settings/paths-cards.ts
+/** 折叠正文的 id：与按钮的 `aria-controls` 成对，两张卡各一份。 */
+const BODY_ID$1 = {
+	meta: "pet-cfg-paths-meta",
+	storage: "pet-cfg-paths-storage"
+};
+function makePathsCards(rt) {
+	const { h, t, useState } = rt;
+	const { foldCard } = makeUiKit({
+		h,
+		t
+	});
+	function ConfigMetaCard(props) {
+		const { paths } = props;
+		const [open, setOpen] = useState(false);
+		const line = (key, value, suffix = "") => value === void 0 ? null : h("div", {
+			key,
+			className: "dsh-pet-cfg__path",
+			children: t(key) + "：" + value + suffix
+		});
+		const body = [
+			line("defaultConfig", paths.default),
+			line("userConfig", paths.user),
+			line("todosFile", paths.todos),
+			line("animationDir", paths.animations),
+			line("memesDir", paths.memes),
+			line("logFile", paths.logs),
+			paths.logs ? h("div", {
+				key: "logNote",
+				className: "dsh-pet-cfg__note",
+				children: t("logFileNote")
+			}) : null
+		];
+		return foldCard({
+			id: BODY_ID$1.meta,
+			title: t("configMeta"),
+			hint: t("configMetaHint"),
+			body,
+			open,
+			onToggle: () => setOpen(!open)
+		});
+	}
+	function StorageCard(props) {
+		const { paths } = props;
+		const [open, setOpen] = useState(false);
+		const storage = paths.storage ?? [];
+		if (storage.length === 0) return null;
+		const body = [
+			...storage.map((entry) => h("div", {
+				key: entry.key,
+				className: "dsh-pet-cfg__path",
+				children: [h("b", {
+					key: "p",
+					style: { fontFamily: MONO_STACK },
+					children: entry.path
+				}), h("span", {
+					key: "d",
+					children: " — " + t("storage." + entry.key) + (entry.exists === false ? t("storageMissing") : "")
+				})]
+			})),
+			h("div", {
+				key: "ut",
+				className: "dsh-pet-cfg__cardTitle",
+				style: { marginTop: "4px" },
+				children: t("uninstallTitle")
+			}),
+			h("div", {
+				key: "u1",
+				className: "dsh-pet-cfg__note",
+				children: t("uninstallStep1")
+			}),
+			h("div", {
+				key: "u2",
+				className: "dsh-pet-cfg__note",
+				children: t("uninstallStep2")
+			}),
+			h("div", {
+				key: "cmd",
+				className: "dsh-pet-cfg__cmd",
+				children: t("uninstallCmd").replace("{profile}", paths.profile || "<profile>")
+			}),
+			h("div", {
+				key: "u3",
+				className: "dsh-pet-cfg__note",
+				children: t("uninstallStep3")
+			})
+		];
+		return foldCard({
+			id: BODY_ID$1.storage,
+			title: t("storageTitle"),
+			hint: t("storageHint"),
+			body,
+			open,
+			onToggle: () => setOpen(!open)
+		});
+	}
+	return {
+		ConfigMetaCard,
+		StorageCard
+	};
+}
+
+//#endregion
+//#region src/shared/config.ts
+const PET_DISPLAYS = [
+	"web",
+	"desktop",
+	"both",
+	"none"
+];
+const isWebVisible = (display) => display === "web" || display === "both";
+function flattenConfigPets(merged) {
+	const out = [];
+	for (const [entry, conf] of Object.entries(merged)) {
+		const list = Array.isArray(conf?.pets) ? conf.pets : [];
+		for (const p of list) out.push({
+			...p,
+			animations: conf.animations,
+			animationWeights: conf.animationWeights,
+			eventsRefreshSec: conf.eventsRefreshSec,
+			physics: conf.physics,
+			font: conf.font,
+			confineToScreen: conf.confineToScreen,
+			workStatusTexts: conf.workStatusTexts,
+			sleepStartTexts: conf.sleepStartTexts,
+			sleepEndTexts: conf.sleepEndTexts,
+			sleepRefuseTexts: conf.sleepRefuseTexts,
+			whisperModel: conf.whisperModel,
+			chatModel: conf.chatModel,
+			memes: conf.memes,
+			chatImageEnabled: conf.chatImageEnabled,
+			chatAnimationEnabled: conf.chatAnimationEnabled,
+			chatImageLimit: conf.chatImageLimit,
+			assetRoot: entry,
+			extra: entry !== "main"
+		});
+	}
+	return out;
+}
+
+//#endregion
 //#region src/client/settings/panel/placement.ts
 /**
 * 设置页浮层的定位计算：把触发器的实测矩形与视口尺寸换算成浮层的 fixed 坐标。
@@ -4470,818 +4709,6 @@ function makeSelect(rt) {
 }
 
 //#endregion
-//#region src/client/settings/font-card.ts
-function makeFontCard(rt) {
-	const { h, t } = rt;
-	const { cardHead, field, toggleCell } = makeUiKit({
-		h,
-		t
-	});
-	const Select = makeSelect(rt);
-	return function FontCard(props) {
-		const { busy, font } = props;
-		return h("div", {
-			className: "dsh-pet-cfg__card",
-			children: [
-				cardHead(t("fontTitle"), t("fontHint")),
-				h("div", {
-					className: "dsh-pet-cfg__grid2",
-					children: [field(t("fontFamilyLabel"), h(Select, {
-						label: t("fontFamilyLabel"),
-						value: font.family,
-						options: FONT_PRESETS.map((preset) => ({
-							id: preset.id,
-							label: t("font." + preset.id)
-						})),
-						disabled: busy,
-						onChange: (id) => props.onChange({ family: id })
-					}), t("fontFamilyHint")), field(t("fontSizeLabel"), h("input", numberInputProps(font.size, (v) => props.onChange({ size: v }), {
-						step: "1",
-						min: String(FONT_SIZE_MIN),
-						max: String(FONT_SIZE_MAX),
-						disabled: busy
-					})), t("fontSizeHint"))]
-				}),
-				h("div", {
-					className: "dsh-pet-cfg__grid2",
-					children: [toggleCell("fontFollowToggle", font.followPet, busy, (v) => props.onChange({ followPet: v }))]
-				})
-			]
-		});
-	};
-}
-
-//#endregion
-//#region src/client/settings/global-card.ts
-/** 开关的展示顺序与文案键。 */
-const TOGGLES = [
-	{
-		key: "notificationsEnabled",
-		label: "notifyToggle"
-	},
-	{
-		key: "clickSoundEnabled",
-		label: "clickSoundToggle"
-	},
-	{
-		key: "confineToScreen",
-		label: "confineToggle"
-	},
-	{
-		key: "trayEnabled",
-		label: "trayToggle"
-	}
-];
-function makeGlobalCard(rt) {
-	const { h, t } = rt;
-	const { cardHead, toggleCell } = makeUiKit({
-		h,
-		t
-	});
-	return function GlobalCard(props) {
-		return h("div", {
-			className: "dsh-pet-cfg__card",
-			children: [cardHead(t("globalTitle"), t("globalHint")), h("div", {
-				className: "dsh-pet-cfg__grid4",
-				children: TOGGLES.map((toggle) => toggleCell(toggle.label, props.values[toggle.key], props.busy, (value) => props.onChange(toggle.key, value)))
-			})]
-		});
-	};
-}
-
-//#endregion
-//#region src/client/settings/load-status.ts
-function makeLoadStatus(rt) {
-	const { h, t } = rt;
-	return function LoadStatus(props) {
-		if (props.loadState === "ready") return null;
-		const failed = props.loadState === "error";
-		return h("div", {
-			role: failed ? "alert" : "status",
-			className: "dsh-pet-cfg__actions",
-			children: [h("span", { children: t(failed ? "loadError" : "loading") }), failed ? h("button", {
-				type: "button",
-				className: "dsh-pet-cfg__btn",
-				onClick: props.onRetry,
-				children: t("retry")
-			}) : null]
-		});
-	};
-}
-
-//#endregion
-//#region src/client/settings/model-card.ts
-/** 对话开关的展示顺序与文案键。 */
-const CHAT_TOGGLES = [
-	{
-		key: "whisperImageEnabled",
-		label: "whisperImageToggle"
-	},
-	{
-		key: "chatImageEnabled",
-		label: "chatImageToggle"
-	},
-	{
-		key: "chatAnimationEnabled",
-		label: "chatAnimationToggle"
-	}
-];
-function makeModelCard(rt, picker) {
-	const { h, t } = rt;
-	const { cardHead, field, toggleCell } = makeUiKit({
-		h,
-		t
-	});
-	return function ModelCard(props) {
-		const { busy, catalog, failed } = props;
-		/** 「全局默认」的数字格：标签与问号在上、数字输入在下。 */
-		const numField = (label, value, setter) => field(t(label), h("input", numberInputProps(value, setter, {
-			step: "1",
-			min: "0",
-			disabled: busy
-		})), t(label + "Hint"));
-		/** 「AI 模型」的一格：标签与问号在上、单下拉选择器在下。 */
-		const modelCell = (key, value) => {
-			const label = t(key === "whisperModel" ? "whisperModelLabel" : "chatModelLabel");
-			return field(label, h(picker, {
-				label,
-				value,
-				disabled: busy,
-				catalog,
-				failed,
-				onChange: (next) => props.onModelChange(key, next)
-			}), t("modelFieldHint"));
-		};
-		return h("div", {
-			className: "dsh-pet-cfg__card",
-			children: [
-				cardHead(t("modelTitle"), t("modelHint")),
-				failed ? h("p", {
-					className: "dsh-pet-cfg__note",
-					style: { color: "var(--dsw-alias-state-error-primary)" },
-					children: t("modelCatalogFailed")
-				}) : null,
-				h("div", {
-					className: "dsh-pet-cfg__grid2",
-					children: [modelCell("whisperModel", props.whisperModel), modelCell("chatModel", props.chatModel)]
-				}),
-				h("div", {
-					className: "dsh-pet-cfg__grid4",
-					children: [numField("chatMemory", props.chatMemory, props.onChatMemoryChange), numField("chatImageLimit", props.chatImageLimit, props.onChatImageLimitChange)]
-				}),
-				h("div", {
-					className: "dsh-pet-cfg__grid3",
-					children: CHAT_TOGGLES.map((toggle) => toggleCell(toggle.label, props.values[toggle.key], busy, (value) => props.onFlagChange(toggle.key, value)))
-				})
-			]
-		});
-	};
-}
-
-//#endregion
-//#region src/client/pet/device-tilt.ts
-const TILT_DEAD_ZONE_DEG = 2;
-const SHAKE_THRESHOLD = 18;
-const SHAKE_COOLDOWN_MS = 300;
-/** 摇一摇基准：3600 px/s 起，随加速度线性加码，封顶 4800。 */
-const SHAKE_BASE_SPEED = 3600;
-const SHAKE_GAIN = 160;
-const SHAKE_MAX_BONUS = 4800;
-/** 屏幕方向角（0/90/180/270）：横屏时倾斜轴要换过来。 */
-const screenAngleDeg = () => {
-	if (typeof screen === "undefined" || !screen.orientation) return 0;
-	return screen.orientation.angle || 0;
-};
-/** 把角度差折到最近的等价角，避免从 179° 跳到 -179° 时方向反转。 */
-const nearestDelta = (delta, period) => {
-	const half = period / 2;
-	return ((delta + half) % period + period) % period - half;
-};
-function tiltGravity(sample, baseline, gravity, screenAngle = screenAngleDeg()) {
-	const dBeta = nearestDelta(sample.beta - baseline.beta, 360);
-	const dGamma = nearestDelta(sample.gamma - baseline.gamma, 180);
-	if (Math.abs(dBeta) < TILT_DEAD_ZONE_DEG && Math.abs(dGamma) < TILT_DEAD_ZONE_DEG) return {
-		gx: 0,
-		gy: 0
-	};
-	if (!Number.isFinite(gravity) || gravity <= 0) return {
-		gx: 0,
-		gy: 0
-	};
-	const rad = Math.PI / 180;
-	const ax = gravity * Math.sin(dGamma * rad);
-	const ay = gravity * Math.sin(dBeta * rad);
-	switch ((screenAngle % 360 + 360) % 360) {
-		case 90: return {
-			gx: ay,
-			gy: -ax
-		};
-		case 180: return {
-			gx: -ax,
-			gy: -ay
-		};
-		case 270: return {
-			gx: -ay,
-			gy: ax
-		};
-		default: return {
-			gx: ax,
-			gy: ay
-		};
-	}
-}
-function shakeImpulse(ax, ay, az, throwPower) {
-	const mag = Math.hypot(ax, ay, az);
-	if (!Number.isFinite(mag) || mag < SHAKE_THRESHOLD) return null;
-	const lateral = Math.hypot(ax, ay);
-	if (lateral < 1e-6) return null;
-	const speed = (SHAKE_BASE_SPEED + Math.min(SHAKE_MAX_BONUS, mag * SHAKE_GAIN)) * Math.max(0, throwPower);
-	return {
-		vx: ax / lateral * speed,
-		vy: ay / lateral * speed
-	};
-}
-function canReadMotionSensors() {
-	return typeof DeviceOrientationEvent !== "undefined" && typeof DeviceMotionEvent !== "undefined";
-}
-async function requestMotionPermission(kinds) {
-	const ask = async (ctor) => {
-		if (ctor === void 0) return false;
-		const fn = ctor.requestPermission;
-		if (typeof fn !== "function") return true;
-		try {
-			return await fn.call(ctor) === "granted";
-		} catch {
-			return false;
-		}
-	};
-	const granted = [];
-	if (kinds.tilt) granted.push(await ask(globalThis.DeviceOrientationEvent));
-	if (kinds.shake) granted.push(await ask(globalThis.DeviceMotionEvent));
-	return granted.every(Boolean);
-}
-function subscribeTilt(onSample) {
-	if (typeof window === "undefined" || typeof DeviceOrientationEvent === "undefined") return () => {};
-	const handler = (e) => {
-		if (e.beta === null || e.gamma === null) return;
-		onSample({
-			beta: e.beta,
-			gamma: e.gamma
-		});
-	};
-	window.addEventListener("deviceorientation", handler, true);
-	return () => window.removeEventListener("deviceorientation", handler, true);
-}
-function subscribeShake(onShake, now = () => performance.now()) {
-	if (typeof window === "undefined" || typeof DeviceMotionEvent === "undefined") return () => {};
-	let lastAt = 0;
-	const handler = (e) => {
-		const a = e.acceleration;
-		const raw = a && (a.x !== null || a.y !== null || a.z !== null) ? a : e.accelerationIncludingGravity;
-		if (!raw) return;
-		const ax = raw.x ?? 0;
-		const ay = raw.y ?? 0;
-		const az = raw.z ?? 0;
-		if (Math.hypot(ax, ay, az) < SHAKE_THRESHOLD) return;
-		const at = now();
-		if (at - lastAt < SHAKE_COOLDOWN_MS) return;
-		lastAt = at;
-		onShake(ax, ay, az);
-	};
-	window.addEventListener("devicemotion", handler, true);
-	return () => window.removeEventListener("devicemotion", handler, true);
-}
-
-//#endregion
-//#region src/client/settings/mobile-card.ts
-function makeMobileCard(rt) {
-	const { h, t } = rt;
-	const { cardHead, toggleCell } = makeUiKit({
-		h,
-		t
-	});
-	return function MobileCard(props) {
-		const { busy, physics } = props;
-		return h("div", {
-			className: "dsh-pet-cfg__card",
-			children: [cardHead(t("mobileTitle"), t("mobileHint")), h("div", {
-				className: "dsh-pet-cfg__grid3",
-				children: [
-					toggleCell("physicsHaptic", physics.hapticEnabled !== false, busy, (v) => props.onChange({ hapticEnabled: v })),
-					toggleCell("physicsTilt", physics.tiltGravity === true, busy, (v) => {
-						if (v) requestMotionPermission({
-							tilt: true,
-							shake: false
-						});
-						props.onChange({ tiltGravity: v });
-					}),
-					toggleCell("physicsShake", physics.shakeThrow === true, busy, (v) => {
-						if (v) requestMotionPermission({
-							tilt: false,
-							shake: true
-						});
-						props.onChange({ shakeThrow: v });
-					})
-				]
-			})]
-		});
-	};
-}
-
-//#endregion
-//#region src/client/settings/picker/model-rows.ts
-function matchModelQuery(text, query) {
-	const needle = query.trim().toLowerCase();
-	if (needle === "") return true;
-	let at = 0;
-	for (const char of text.toLowerCase()) {
-		if (char === needle[at]) at += 1;
-		if (at >= needle.length) return true;
-	}
-	return false;
-}
-function buildModelRows(groups, query) {
-	const needle = query.trim().toLowerCase();
-	const rows = [];
-	if (needle === "") rows.push({
-		kind: "follow",
-		key: "__follow"
-	});
-	for (const group of groups) {
-		const models = group.models.filter((model) => matchModelQuery(model.name + " " + model.id, needle));
-		if (models.length === 0 && !(needle === "" && group.models.length === 0)) continue;
-		rows.push({
-			kind: "group",
-			key: group.id,
-			name: group.name
-		});
-		if (models.length === 0) {
-			rows.push({
-				kind: "none",
-				key: group.id + "/__none"
-			});
-			continue;
-		}
-		for (const model of models) rows.push({
-			kind: "model",
-			key: group.id + "/" + model.id,
-			provider: group.id,
-			model
-		});
-	}
-	return rows;
-}
-function selectableIndexes(rows) {
-	return rows.map((row, index) => row.kind === "group" || row.kind === "none" ? -1 : index).filter((i) => i >= 0);
-}
-
-//#endregion
-//#region src/client/settings/picker/model-picker-panel.ts
-function buildModelPanel(view) {
-	const { h, t } = view;
-	const emptyHint = view.catalog !== null && view.catalog.length === 0 ? t("modelNoModels") : view.rows.length === 0 ? t("modelEmpty") : "";
-	return h("div", {
-		ref: view.panelRef,
-		className: "dsh-pet-mp__panel",
-		role: "menu",
-		"aria-label": view.label,
-		style: {
-			left: view.pos.left + "px",
-			top: view.pos.top === void 0 ? void 0 : view.pos.top + "px",
-			bottom: view.pos.bottom === void 0 ? void 0 : view.pos.bottom + "px",
-			width: view.pos.width + "px",
-			maxHeight: view.pos.maxHeight + "px"
-		},
-		children: [searchNode(view), view.catalog === null ? statusNode(h, "loading", view.failed ? t("modelCatalogFailed") : t("modelLoading"), false) : emptyHint !== "" ? statusNode(h, "empty", emptyHint, true) : h("div", {
-			key: "list",
-			className: "dsh-pet-mp__list",
-			role: "group",
-			children: view.rows.map((row, index) => rowNode(view, row, index))
-		})]
-	});
-}
-/** 三态提示行：加载中 / 失败 / 空结果。 */
-function statusNode(h, key, text, live) {
-	return h("div", {
-		key,
-		className: "dsh-pet-mp__status",
-		role: live ? "status" : void 0,
-		children: text
-	});
-}
-/** 搜索框：↑↓ 走行、Enter 选中，Esc 由浮层级的 document 监听处理。 */
-function searchNode(view) {
-	const { h, t } = view;
-	return h("input", {
-		key: "search",
-		type: "text",
-		className: "dsh-pet-mp__search",
-		role: "searchbox",
-		placeholder: t("modelSearch"),
-		"aria-label": t("modelSearch"),
-		value: view.query,
-		disabled: view.disabled,
-		onChange: (event) => view.onQueryChange(event.target.value),
-		onKeyDown: view.onKeyDown
-	});
-}
-/** 一行：分组头、提示行、模型（可选、可高亮）。 */
-function rowNode(view, row, index) {
-	const { h, t } = view;
-	if (row.kind === "group") return h("div", {
-		key: row.key,
-		className: "dsh-pet-mp__group",
-		children: row.name
-	});
-	if (row.kind === "none") return h("div", {
-		key: row.key,
-		className: "dsh-pet-mp__status",
-		children: t("modelNone")
-	});
-	const checked = row.kind === "follow" ? view.value.provider === "" : view.value.provider === row.provider && view.value.model === row.model.id;
-	return h("button", {
-		key: row.key,
-		type: "button",
-		role: "menuitemradio",
-		"aria-checked": checked,
-		"data-row": index,
-		className: "dsh-pet-mp__item" + (index === view.active ? " is-active" : ""),
-		disabled: view.disabled,
-		onClick: () => view.onPick(row),
-		onMouseMove: () => view.onHover(index),
-		children: [h("span", {
-			key: "n",
-			className: "dsh-pet-mp__name",
-			children: row.kind === "follow" ? t("modelFollow") : row.model.name
-		}), h("span", {
-			key: "c",
-			className: "dsh-pet-mp__check",
-			children: checked ? "✓" : ""
-		})]
-	});
-}
-
-//#endregion
-//#region src/client/settings/picker/model-picker.ts
-function makeModelPicker(rt) {
-	const { h, useState, useEffect, useRef, t } = rt;
-	return function ModelPicker(props) {
-		const [open, setOpen] = useState(false);
-		const [query, setQuery] = useState("");
-		const [active, setActive] = useState(0);
-		const [pos, setPos] = useState(null);
-		const rootRef = useRef(null);
-		const panelRef = useRef(null);
-		const groups = props.catalog ?? [];
-		const group = groups.find((g) => g.id === props.value.provider);
-		const picked = group?.models.find((m) => m.id === props.value.model);
-		const isFollow = props.value.provider === "";
-		const triggerLabel = isFollow ? t("modelFollow") : picked?.name ?? props.value.model;
-		const triggerSub = isFollow ? "" : group?.name ?? props.value.provider + t("modelUnknown");
-		const rows = buildModelRows(groups, query);
-		const selectable = selectableIndexes(rows);
-		const commit = (value) => {
-			props.onChange(value);
-			setOpen(false);
-			setQuery("");
-		};
-		const pick$1 = (row) => {
-			if (!row) return;
-			if (row.kind === "follow") commit({
-				provider: "",
-				model: ""
-			});
-			else if (row.kind === "model") commit({
-				provider: row.provider,
-				model: row.model.id
-			});
-		};
-		const step = (dir) => {
-			if (selectable.length === 0) return;
-			const at = selectable.indexOf(active);
-			const next = selectable[at < 0 ? 0 : (at + dir + selectable.length) % selectable.length];
-			setActive(next);
-			panelRef.current?.querySelector("[data-row=\"" + next + "\"]")?.scrollIntoView({ block: "nearest" });
-		};
-		useEffect(() => {
-			if (!open) return;
-			const el = rootRef.current;
-			const place = () => {
-				if (!el) return;
-				setPos(computePanelPlacement(el.getBoundingClientRect(), {
-					width: window.innerWidth,
-					height: window.innerHeight
-				}));
-			};
-			place();
-			panelRef.current?.querySelector("input")?.focus();
-			const onDown = (e) => {
-				const target = e.target;
-				if (target && (rootRef.current?.contains(target) === true || panelRef.current?.contains(target) === true)) return;
-				setOpen(false);
-			};
-			const onKey = (e) => {
-				if (e.key === "Escape") setOpen(false);
-			};
-			document.addEventListener("mousedown", onDown, true);
-			document.addEventListener("keydown", onKey, true);
-			window.addEventListener("scroll", place, true);
-			window.addEventListener("resize", place);
-			return () => {
-				document.removeEventListener("mousedown", onDown, true);
-				document.removeEventListener("keydown", onKey, true);
-				window.removeEventListener("scroll", place, true);
-				window.removeEventListener("resize", place);
-			};
-		}, [open]);
-		const toggle = () => {
-			if (props.disabled) return;
-			if (!open) {
-				setQuery("");
-				const at = rows.findIndex((r) => r.kind === "model" && r.provider === props.value.provider && r.model.id === props.value.model);
-				setActive(at >= 0 ? at : 0);
-			}
-			setOpen(!open);
-		};
-		const panel = open && pos ? buildModelPanel({
-			h,
-			t,
-			label: props.label,
-			disabled: props.disabled,
-			catalog: props.catalog,
-			failed: props.failed,
-			rows,
-			active,
-			query,
-			value: props.value,
-			pos,
-			panelRef,
-			onQueryChange: (value) => {
-				setQuery(value);
-				setActive(selectable.length > 0 ? selectable[0] : 0);
-			},
-			onPick: pick$1,
-			onHover: setActive,
-			onKeyDown: (event) => {
-				if (event.key === "ArrowDown") {
-					event.preventDefault();
-					step(1);
-				} else if (event.key === "ArrowUp") {
-					event.preventDefault();
-					step(-1);
-				} else if (event.key === "Enter") {
-					event.preventDefault();
-					pick$1(rows[active]);
-				}
-			}
-		}) : null;
-		return h("div", {
-			ref: rootRef,
-			className: "dsh-pet-mp",
-			children: [h("button", {
-				key: "trigger",
-				type: "button",
-				className: "dsh-pet-mp__trigger",
-				disabled: props.disabled,
-				"aria-haspopup": "menu",
-				"aria-expanded": open,
-				"aria-label": t("modelTriggerAria").replace("{model}", triggerLabel),
-				onClick: toggle,
-				children: [
-					h("span", {
-						key: "l",
-						className: "dsh-pet-mp__label",
-						children: triggerLabel
-					}),
-					triggerSub ? h("span", {
-						key: "s",
-						className: "dsh-pet-mp__sub",
-						children: triggerSub
-					}) : null,
-					h("span", {
-						key: "c",
-						className: "dsh-pet-mp__chevron" + (open ? " is-open" : ""),
-						children: "▾"
-					})
-				]
-			}), panel]
-		});
-	};
-}
-
-//#endregion
-//#region src/client/settings/picker/voice-picker.ts
-function makeVoicePicker(rt) {
-	const { h } = rt;
-	const Select = makeSelect(rt);
-	return function VoicePicker(props) {
-		return h(Select, {
-			label: props.label,
-			value: props.value,
-			options: props.options.map((option) => ({
-				id: option.id,
-				label: `${option.name}（${option.tag}）`
-			})),
-			disabled: props.disabled,
-			onChange: props.onChange
-		});
-	};
-}
-
-//#endregion
-//#region src/client/settings/notify-test.ts
-async function runNotificationTest(deps) {
-	const { t, report } = deps;
-	report({
-		kind: "",
-		text: ""
-	});
-	const result = await requestNotificationPermission();
-	if (!result.ok) {
-		const reason = result.reason === "unsupported" ? t("notifyDenyUnsupported") : result.reason === "denied" ? t("notifyDenyBlocked") : result.reason === "rejected" ? t("notifyDenyRejected") : t("notifyDenyError") + (result.message ? "：" + result.message : "");
-		report({
-			kind: "err",
-			text: reason + (result.reason === "unsupported" ? "" : " " + t("notifyGuide"))
-		});
-		return;
-	}
-	try {
-		wireNotificationClick(new Notification("测试通知", {
-			body: "【dsh-pet】系统通知已就绪。",
-			icon: NOTIFY_ICONS.test
-		}));
-	} catch {}
-	report({
-		kind: "ok",
-		text: t("notifyTestOk")
-	});
-}
-
-//#endregion
-//#region src/client/settings/kind-tabs.ts
-function makeKindTabs(rt) {
-	const { h, t } = rt;
-	return function KindTabs(props) {
-		return h("div", {
-			className: "dsh-pet-cfg__kinds",
-			children: [h("span", {
-				key: "label",
-				className: "dsh-pet-cfg__tabsLabel",
-				children: t("kindLabel")
-			}), ...props.kinds.map((item) => h("button", {
-				key: item.entry,
-				type: "button",
-				disabled: props.busy,
-				onClick: () => props.onSelect(item.entry),
-				className: "dsh-pet-cfg__tab" + (item.entry === props.kind ? " is-active" : ""),
-				children: (item.kind === "main" ? t("kindMain") : item.entry) + " (" + item.count + ")"
-			}))]
-		});
-	};
-}
-
-//#endregion
-//#region src/client/settings/paths-cards.ts
-/** 折叠正文的 id：与按钮的 `aria-controls` 成对，两张卡各一份。 */
-const BODY_ID$1 = {
-	meta: "pet-cfg-paths-meta",
-	storage: "pet-cfg-paths-storage"
-};
-function makePathsCards(rt) {
-	const { h, t, useState } = rt;
-	const { foldCard } = makeUiKit({
-		h,
-		t
-	});
-	function ConfigMetaCard(props) {
-		const { paths } = props;
-		const [open, setOpen] = useState(false);
-		const line = (key, value, suffix = "") => value === void 0 ? null : h("div", {
-			key,
-			className: "dsh-pet-cfg__path",
-			children: t(key) + "：" + value + suffix
-		});
-		const body = [
-			line("defaultConfig", paths.default),
-			line("userConfig", paths.user),
-			line("todosFile", paths.todos),
-			line("animationDir", paths.animations),
-			line("memesDir", paths.memes),
-			line("logFile", paths.logs),
-			paths.logs ? h("div", {
-				key: "logNote",
-				className: "dsh-pet-cfg__note",
-				children: t("logFileNote")
-			}) : null
-		];
-		return foldCard({
-			id: BODY_ID$1.meta,
-			title: t("configMeta"),
-			hint: t("configMetaHint"),
-			body,
-			open,
-			onToggle: () => setOpen(!open)
-		});
-	}
-	function StorageCard(props) {
-		const { paths } = props;
-		const [open, setOpen] = useState(false);
-		const storage = paths.storage ?? [];
-		if (storage.length === 0) return null;
-		const body = [
-			...storage.map((entry) => h("div", {
-				key: entry.key,
-				className: "dsh-pet-cfg__path",
-				children: [h("b", {
-					key: "p",
-					style: { fontFamily: MONO_STACK },
-					children: entry.path
-				}), h("span", {
-					key: "d",
-					children: " — " + t("storage." + entry.key) + (entry.exists === false ? t("storageMissing") : "")
-				})]
-			})),
-			h("div", {
-				key: "ut",
-				className: "dsh-pet-cfg__cardTitle",
-				style: { marginTop: "4px" },
-				children: t("uninstallTitle")
-			}),
-			h("div", {
-				key: "u1",
-				className: "dsh-pet-cfg__note",
-				children: t("uninstallStep1")
-			}),
-			h("div", {
-				key: "u2",
-				className: "dsh-pet-cfg__note",
-				children: t("uninstallStep2")
-			}),
-			h("div", {
-				key: "cmd",
-				className: "dsh-pet-cfg__cmd",
-				children: t("uninstallCmd").replace("{profile}", paths.profile || "<profile>")
-			}),
-			h("div", {
-				key: "u3",
-				className: "dsh-pet-cfg__note",
-				children: t("uninstallStep3")
-			})
-		];
-		return foldCard({
-			id: BODY_ID$1.storage,
-			title: t("storageTitle"),
-			hint: t("storageHint"),
-			body,
-			open,
-			onToggle: () => setOpen(!open)
-		});
-	}
-	return {
-		ConfigMetaCard,
-		StorageCard
-	};
-}
-
-//#endregion
-//#region src/shared/config.ts
-const PET_DISPLAYS = [
-	"web",
-	"desktop",
-	"both",
-	"none"
-];
-const isWebVisible = (display) => display === "web" || display === "both";
-function flattenConfigPets(merged) {
-	const out = [];
-	for (const [entry, conf] of Object.entries(merged)) {
-		const list = Array.isArray(conf?.pets) ? conf.pets : [];
-		for (const p of list) out.push({
-			...p,
-			animations: conf.animations,
-			animationWeights: conf.animationWeights,
-			eventsRefreshSec: conf.eventsRefreshSec,
-			physics: conf.physics,
-			font: conf.font,
-			confineToScreen: conf.confineToScreen,
-			workStatusTexts: conf.workStatusTexts,
-			sleepStartTexts: conf.sleepStartTexts,
-			sleepEndTexts: conf.sleepEndTexts,
-			sleepRefuseTexts: conf.sleepRefuseTexts,
-			whisperModel: conf.whisperModel,
-			chatModel: conf.chatModel,
-			memes: conf.memes,
-			chatImageEnabled: conf.chatImageEnabled,
-			chatAnimationEnabled: conf.chatAnimationEnabled,
-			chatImageLimit: conf.chatImageLimit,
-			assetRoot: entry,
-			extra: entry !== "main"
-		});
-	}
-	return out;
-}
-
-//#endregion
 //#region src/client/settings/pet-card.ts
 /** 四个角落的固定顺序；文案走 `corner.<corner>`。 */
 const CORNERS = [
@@ -5297,16 +4724,9 @@ function makePetCard(rt) {
 		t
 	});
 	const Select = makeSelect(rt);
-	/** 宠物数值输入（大小 / 水平偏移 / 垂直偏移）；宽度交给栅格。 */
 	const numInput = (key, value, disabled, setter) => h("input", numberInputProps(value, setter, {
 		step: key === "size" ? "10" : "1",
 		min: key === "size" ? "120" : "",
-		disabled
-	}));
-	/** 百分比输入：默认 20；不设上限（超过 100 只在 size 也够大时才生效）。 */
-	const percentInput = (value, disabled, setter) => h("input", numberInputProps(value, setter, {
-		min: String(SIZE_PERCENT_MIN),
-		step: "1",
 		disabled
 	}));
 	return function PetCard(props) {
@@ -5335,35 +4755,24 @@ function makePetCard(rt) {
 								alignItems: "center",
 								gap: "6px"
 							},
-							children: [
-								msg.text ? h("span", {
-									key: "msg",
-									className: "dsh-pet-cfg__msg" + (msg.kind === "err" ? " is-err" : ""),
-									children: msg.text
-								}) : null,
-								h("button", {
-									key: "sv",
-									type: "button",
-									onClick: props.onSave,
-									disabled: busy,
-									className: "dsh-pet-cfg__btn is-primary is-sm",
-									...tip(t("saveHotkey")),
-									children: t("save")
-								}),
-								h("button", {
-									key: "rm",
-									type: "button",
-									onClick: props.onRemove,
-									disabled: busy,
-									className: "dsh-pet-cfg__btn is-danger is-sm",
-									children: t("remove")
-								})
-							]
+							children: [msg.text ? h("span", {
+								key: "msg",
+								className: "dsh-pet-cfg__msg" + (msg.kind === "err" ? " is-err" : ""),
+								children: msg.text
+							}) : null, h("button", {
+								key: "sv",
+								type: "button",
+								onClick: props.onSave,
+								disabled: busy,
+								className: "dsh-pet-cfg__btn is-primary is-sm",
+								...tip(t("saveHotkey")),
+								children: t("save")
+							})]
 						})
 					]
 				}),
 				h("div", {
-					className: "dsh-pet-cfg__grid4",
+					className: "dsh-pet-cfg__grid3",
 					children: [
 						field(t("nameLabel"), h("input", {
 							type: "text",
@@ -5374,7 +4783,6 @@ function makePetCard(rt) {
 							onChange: (e) => props.onChange({ name: e.target.value })
 						}), t("nameHint")),
 						field(t("sizeLabel"), numInput("size", pet.size, busy, (v) => props.onChange({ size: v })), t("sizeHint")),
-						field(t("sizePercentLabel"), percentInput(pet.sizePercent ?? SIZE_PERCENT_DEFAULT, busy, (v) => props.onChange({ sizePercent: v })), t("sizePercentHint")),
 						field(t("displayLabel"), h(Select, {
 							label: t("displayLabel"),
 							value: pet.display,
@@ -5405,98 +4813,8 @@ function makePetCard(rt) {
 					]
 				}),
 				h("div", {
-					className: "dsh-pet-cfg__grid4",
-					children: [
-						toggleCell("balanceEnabled", !!pet.balanceEnabled, busy, (v) => props.onChange({ balanceEnabled: v })),
-						toggleCell("whisperEnabled", !!pet.whisperEnabled, busy, (v) => props.onChange({ whisperEnabled: v })),
-						toggleCell("workStatusEnabled", !!pet.workStatusEnabled, busy, (v) => props.onChange({ workStatusEnabled: v })),
-						toggleCell("fixedEnabled", !!pet.fixedEnabled, busy, (v) => props.onChange({ fixedEnabled: v }))
-					]
-				}),
-				field(t("personaLabel"), h("div", {
-					className: "dsh-pet-cfg__persona",
-					children: [h("textarea", {
-						className: INPUT_CLASS + " dsh-pet-cfg__area",
-						rows: 3,
-						value: String(pet.whisperPrompt ?? ""),
-						disabled: busy,
-						placeholder: props.entryPrompt,
-						onChange: (e) => props.onChange({ whisperPrompt: e.target.value })
-					}), h("span", {
-						className: "dsh-pet-cfg__count",
-						children: t("personaCount").replace("{n}", String(String(pet.whisperPrompt ?? "").length))
-					})]
-				}), t("personaHint"))
-			]
-		});
-	};
-}
-
-//#endregion
-//#region src/client/settings/pet-tabs.ts
-function makePetTabs(rt) {
-	const { h, t } = rt;
-	return function PetTabs(props) {
-		return h("div", {
-			className: "dsh-pet-cfg__tabs",
-			children: [
-				h("span", {
-					key: "label",
-					className: "dsh-pet-cfg__tabsLabel",
-					children: t("petsLabel")
-				}),
-				...props.pets.map((pet) => h("button", {
-					key: pet.id,
-					type: "button",
-					onClick: () => props.onSelect(pet.id),
-					className: "dsh-pet-cfg__tab" + (pet.id === props.selId ? " is-active" : ""),
-					children: (pet.name || pet.id) + " (" + pet.size + "px" + (pet.sizePercent === void 0 || pet.sizePercent >= 100 ? "" : " / " + pet.sizePercent + "%") + ")"
-				})),
-				h("button", {
-					key: "add",
-					type: "button",
-					onClick: props.onAdd,
-					disabled: props.busy,
-					className: "dsh-pet-cfg__tab is-ghost",
-					children: "+ " + t("add")
-				})
-			]
-		});
-	};
-}
-
-//#endregion
-//#region src/client/settings/physics-card.ts
-function makePhysicsCard(rt) {
-	const { h, t } = rt;
-	const { cardHead, field, toggleCell } = makeUiKit({
-		h,
-		t
-	});
-	return function PhysicsCard(props) {
-		const { busy, physics } = props;
-		/** 物理参数的一格：标签与问号在上、数字输入在下。 */
-		const physField = (key, step, min) => field(t("physics." + key), h("input", numberInputProps(physics[key], (v) => props.onChange({ [key]: v }), {
-			step,
-			min,
-			disabled: busy
-		})), t("physics." + key + "Hint"));
-		return h("div", {
-			className: "dsh-pet-cfg__card",
-			children: [
-				cardHead(t("physicsTitle"), t("physicsHint")),
-				h("div", {
-					className: "dsh-pet-cfg__grid4",
-					children: [
-						physField("gravity", "50", "0"),
-						physField("restitution", "0.01", "0"),
-						physField("groundFriction", "0.1", "0"),
-						physField("throwPower", "0.05", "0.05")
-					]
-				}),
-				h("div", {
 					className: "dsh-pet-cfg__grid2",
-					children: [toggleCell("physicsCeilingBounce", physics.ceilingBounce, busy, (v) => props.onChange({ ceilingBounce: v })), toggleCell("physicsPetCollision", physics.petCollision, busy, (v) => props.onChange({ petCollision: v }))]
+					children: [toggleCell("workStatusEnabled", !!pet.workStatusEnabled, busy, (v) => props.onChange({ workStatusEnabled: v }))]
 				})
 			]
 		});
@@ -6105,47 +5423,6 @@ function useRemoteData(rt) {
 		paths,
 		catalog,
 		catalogFailed
-	};
-}
-
-//#endregion
-//#region src/client/settings/voice-card.ts
-function makeVoiceCard(rt, picker) {
-	const { h, t } = rt;
-	const { cardHead, field, toggleCell } = makeUiKit({
-		h,
-		t
-	});
-	return function VoiceCard(props) {
-		return h("div", {
-			className: "dsh-pet-cfg__card",
-			children: [
-				cardHead(t("voiceTitle"), t("voiceHint")),
-				h("div", {
-					className: "dsh-pet-cfg__grid3",
-					children: [
-						toggleCell("voiceEnabled", props.enabled, props.busy, props.onToggle),
-						toggleCell("voiceWhisperEnabled", props.whisperEnabled, props.busy, props.onWhisperToggle),
-						toggleCell("voiceTodoEnabled", props.todoEnabled, props.busy, props.onTodoToggle)
-					]
-				}),
-				h("div", {
-					className: "dsh-pet-cfg__grid2",
-					children: [h(picker, {
-						label: t("voiceNameLabel"),
-						value: props.voiceName,
-						options: props.voices,
-						disabled: props.busy,
-						onChange: props.onVoiceChange
-					}), field(t("voiceVolumeLabel"), h("input", numberInputProps(props.volume, props.onVolumeChange, {
-						step: "0.05",
-						min: "0",
-						max: "1",
-						disabled: props.busy
-					})), t("voiceVolumeHint"))]
-				})
-			]
-		});
 	};
 }
 
@@ -7860,35 +7137,10 @@ function makePetConfigSection(rt, ctx) {
 		h,
 		t
 	});
-	const ModelPicker = makeModelPicker({
-		h,
-		useState,
-		useEffect,
-		useRef,
-		t
-	});
-	const VoicePicker = makeVoicePicker({
-		h,
-		useState,
-		useEffect,
-		useRef
-	});
-	const PetTabs = makePetTabs({
-		h,
-		t
-	});
-	const KindTabs = makeKindTabs({
-		h,
-		t
-	});
 	const PetCard = makePetCard(rt);
 	const GlobalCard = makeGlobalCard(rt);
-	const VoiceCard = makeVoiceCard(rt, VoicePicker);
 	const FontCard = makeFontCard(rt);
-	const ModelCard = makeModelCard(rt, ModelPicker);
-	const PhysicsCard = makePhysicsCard(rt);
 	const ShortcutsCard = makeShortcutsCard(rt, ctx);
-	const MobileCard = makeMobileCard(rt);
 	const Actions = makeActions(rt);
 	const { ConfigMetaCard, StorageCard } = makePathsCards(rt);
 	const SettingsDialog = makeDialog(rt);
@@ -7908,31 +7160,21 @@ function makePetConfigSection(rt, ctx) {
 		});
 		const rootRef = useRef(null);
 		const [dialog, setDialog] = useState(null);
-		const { pets, mainPets, kinds, kind, visiblePets, selId, entryPrompt, select, selectKind, update, add, requestRemove, remove, replace, packWrites } = usePetList(rt, setDialog);
-		const { paths, catalog, catalogFailed } = useRemoteData(rt);
+		const { pets, mainPets, selId, update, remove, replace, packWrites } = usePetList(rt, setDialog);
+		const { paths } = useRemoteData(rt);
 		useEffect(() => attachTipLayer(), []);
-		useEffect(() => {
-			let alive = true;
-			fetch(ROUTE_PATH + "/voice/voices").then((response) => response.ok ? response.json() : null).then((body) => {
-				if (alive && body && Array.isArray(body.voices)) setVoiceOptions(body.voices);
-			}).catch(() => void 0);
-			return () => {
-				alive = false;
-			};
-		}, []);
 		const [notifyEnabled$1, setNotifyEnabled] = useState(true);
 		const [clickSound, setClickSound] = useState(true);
+		const [confineScreen, setConfineScreen] = useState(false);
+		const [trayEnabled, setTrayEnabled] = useState(true);
 		const [whisperImage, setWhisperImage] = useState(false);
 		const [chatImage, setChatImage] = useState(false);
 		const [chatAnimation, setChatAnimation] = useState(true);
-		const [confineScreen, setConfineScreen] = useState(false);
-		const [trayEnabled, setTrayEnabled] = useState(true);
 		const [voiceEnabled$1, setVoiceEnabled] = useState(false);
 		const [voiceName$1, setVoiceName] = useState("zh-CN-XiaoyiNeural");
 		const [voiceVolume$1, setVoiceVolume] = useState(1);
 		const [voiceWhisperEnabled, setVoiceWhisperEnabled] = useState(false);
 		const [voiceTodoEnabled, setVoiceTodoEnabled] = useState(false);
-		const [voiceOptions, setVoiceOptions] = useState([]);
 		const [physics, setPhysics] = useState({ ...DEFAULT_PHYSICS });
 		const [font, setFont] = useState({ ...DEFAULT_FONT });
 		const [whisperModel, setWhisperModel] = useState({
@@ -7980,43 +7222,23 @@ function makePetConfigSection(rt, ctx) {
 			report: setPermMsg
 		});
 		const cur = pets.find((p) => p.id === selId) ?? null;
-		const packCount = kinds.filter((item) => item.kind === "pack").length;
 		const globalFlags = {
 			notificationsEnabled: notifyEnabled$1,
 			clickSoundEnabled: clickSound,
 			confineToScreen: confineScreen,
 			trayEnabled
 		};
-		const chatFlags = {
-			whisperImageEnabled: whisperImage,
-			chatImageEnabled: chatImage,
-			chatAnimationEnabled: chatAnimation
-		};
 		const flagSetters = {
 			notificationsEnabled: (value) => void toggleNotify(value),
 			clickSoundEnabled: setClickSound,
 			confineToScreen: setConfineScreen,
-			trayEnabled: setTrayEnabled,
-			whisperImageEnabled: setWhisperImage,
-			chatImageEnabled: setChatImage,
-			chatAnimationEnabled: setChatAnimation
+			trayEnabled: setTrayEnabled
 		};
 		const setGlobalFlag = (key, value) => flagSetters[key](value);
-		const setChatFlag = (key, value) => flagSetters[key](value);
-		/** 局部补丁写入：字体与物理参数都是「整段对象 + 改几个字段」。 */
 		const patchFont = (patch) => setFont((current$1) => ({
 			...current$1,
 			...patch
 		}));
-		const patchPhysics = (patch) => setPhysics((current$1) => ({
-			...current$1,
-			...patch
-		}));
-		/** 两个模型字段各有一份状态，卡片只回传键名。 */
-		const setModel = (key, value) => {
-			if (key === "whisperModel") setWhisperModel(value);
-			else setChatModel(value);
-		};
 		const write = createWriteFlow({
 			fields: () => ({
 				pets: mainPets,
@@ -8073,81 +7295,28 @@ function makePetConfigSection(rt, ctx) {
 			children: [
 				h("h2", {
 					className: "dsh-pet-cfg__title",
-					children: [t("nav"), q(packCount > 0 ? t("intro") + "\n" + t("extraPetsHint").replace("{n}", String(packCount)) : t("intro"))]
+					children: [t("nav"), q(t("intro"))]
 				}),
 				h(LoadStatus, {
 					loadState,
 					onRetry: retry
 				}),
-				h(KindTabs, {
-					kinds,
-					kind,
-					busy,
-					onSelect: selectKind
-				}),
-				h(PetTabs, {
-					pets: visiblePets,
-					selId,
-					busy,
-					onSelect: select,
-					onAdd: add
-				}),
 				h(PetCard, {
 					pet: cur,
 					busy,
 					msg,
-					entryPrompt,
 					onChange: update,
-					onSave: () => void write.save(),
-					onRemove: requestRemove
+					onSave: () => void write.save()
 				}),
 				h(GlobalCard, {
 					busy,
 					values: globalFlags,
 					onChange: setGlobalFlag
 				}),
-				h(VoiceCard, {
-					busy,
-					enabled: voiceEnabled$1,
-					voiceName: voiceName$1,
-					volume: voiceVolume$1,
-					voices: voiceOptions,
-					whisperEnabled: voiceWhisperEnabled,
-					todoEnabled: voiceTodoEnabled,
-					onToggle: setVoiceEnabled,
-					onVoiceChange: setVoiceName,
-					onVolumeChange: setVoiceVolume,
-					onWhisperToggle: setVoiceWhisperEnabled,
-					onTodoToggle: setVoiceTodoEnabled
-				}),
 				h(FontCard, {
 					busy,
 					font,
 					onChange: patchFont
-				}),
-				h(ModelCard, {
-					busy,
-					catalog,
-					failed: catalogFailed,
-					whisperModel,
-					chatModel,
-					onModelChange: setModel,
-					chatMemory,
-					chatImageLimit,
-					onChatMemoryChange: setChatMemory,
-					onChatImageLimitChange: setChatImageLimit,
-					values: chatFlags,
-					onFlagChange: setChatFlag
-				}),
-				h(PhysicsCard, {
-					busy,
-					physics,
-					onChange: patchPhysics
-				}),
-				h(MobileCard, {
-					busy,
-					physics,
-					onChange: patchPhysics
 				}),
 				h(Actions, {
 					busy,
@@ -11380,22 +10549,9 @@ function createCardEntry(rt) {
 			};
 			const tools = [
 				{
-					label: "查看余额",
-					action: "show-balance"
-				},
-				{
 					label: "待办事项",
 					action: "todo",
 					hint: TODO_HOTKEY_HINT
-				},
-				{
-					label: "碎碎念",
-					action: "whisper"
-				},
-				{
-					label: "对话",
-					action: "chat",
-					hint: CHAT_HOTKEY_HINT
 				},
 				...memes ? [memes] : [],
 				...canSleep ? [sleepItem] : []
@@ -11752,6 +10908,104 @@ function hardwareVibrate(ms) {
 	try {
 		navigator.vibrate(ms);
 	} catch {}
+}
+
+//#endregion
+//#region src/client/pet/device-tilt.ts
+const TILT_DEAD_ZONE_DEG = 2;
+const SHAKE_THRESHOLD = 18;
+const SHAKE_COOLDOWN_MS = 300;
+/** 摇一摇基准：3600 px/s 起，随加速度线性加码，封顶 4800。 */
+const SHAKE_BASE_SPEED = 3600;
+const SHAKE_GAIN = 160;
+const SHAKE_MAX_BONUS = 4800;
+/** 屏幕方向角（0/90/180/270）：横屏时倾斜轴要换过来。 */
+const screenAngleDeg = () => {
+	if (typeof screen === "undefined" || !screen.orientation) return 0;
+	return screen.orientation.angle || 0;
+};
+/** 把角度差折到最近的等价角，避免从 179° 跳到 -179° 时方向反转。 */
+const nearestDelta = (delta, period) => {
+	const half = period / 2;
+	return ((delta + half) % period + period) % period - half;
+};
+function tiltGravity(sample, baseline, gravity, screenAngle = screenAngleDeg()) {
+	const dBeta = nearestDelta(sample.beta - baseline.beta, 360);
+	const dGamma = nearestDelta(sample.gamma - baseline.gamma, 180);
+	if (Math.abs(dBeta) < TILT_DEAD_ZONE_DEG && Math.abs(dGamma) < TILT_DEAD_ZONE_DEG) return {
+		gx: 0,
+		gy: 0
+	};
+	if (!Number.isFinite(gravity) || gravity <= 0) return {
+		gx: 0,
+		gy: 0
+	};
+	const rad = Math.PI / 180;
+	const ax = gravity * Math.sin(dGamma * rad);
+	const ay = gravity * Math.sin(dBeta * rad);
+	switch ((screenAngle % 360 + 360) % 360) {
+		case 90: return {
+			gx: ay,
+			gy: -ax
+		};
+		case 180: return {
+			gx: -ax,
+			gy: -ay
+		};
+		case 270: return {
+			gx: -ay,
+			gy: ax
+		};
+		default: return {
+			gx: ax,
+			gy: ay
+		};
+	}
+}
+function shakeImpulse(ax, ay, az, throwPower) {
+	const mag = Math.hypot(ax, ay, az);
+	if (!Number.isFinite(mag) || mag < SHAKE_THRESHOLD) return null;
+	const lateral = Math.hypot(ax, ay);
+	if (lateral < 1e-6) return null;
+	const speed = (SHAKE_BASE_SPEED + Math.min(SHAKE_MAX_BONUS, mag * SHAKE_GAIN)) * Math.max(0, throwPower);
+	return {
+		vx: ax / lateral * speed,
+		vy: ay / lateral * speed
+	};
+}
+function canReadMotionSensors() {
+	return typeof DeviceOrientationEvent !== "undefined" && typeof DeviceMotionEvent !== "undefined";
+}
+function subscribeTilt(onSample) {
+	if (typeof window === "undefined" || typeof DeviceOrientationEvent === "undefined") return () => {};
+	const handler = (e) => {
+		if (e.beta === null || e.gamma === null) return;
+		onSample({
+			beta: e.beta,
+			gamma: e.gamma
+		});
+	};
+	window.addEventListener("deviceorientation", handler, true);
+	return () => window.removeEventListener("deviceorientation", handler, true);
+}
+function subscribeShake(onShake, now = () => performance.now()) {
+	if (typeof window === "undefined" || typeof DeviceMotionEvent === "undefined") return () => {};
+	let lastAt = 0;
+	const handler = (e) => {
+		const a = e.acceleration;
+		const raw = a && (a.x !== null || a.y !== null || a.z !== null) ? a : e.accelerationIncludingGravity;
+		if (!raw) return;
+		const ax = raw.x ?? 0;
+		const ay = raw.y ?? 0;
+		const az = raw.z ?? 0;
+		if (Math.hypot(ax, ay, az) < SHAKE_THRESHOLD) return;
+		const at = now();
+		if (at - lastAt < SHAKE_COOLDOWN_MS) return;
+		lastAt = at;
+		onShake(ax, ay, az);
+	};
+	window.addEventListener("devicemotion", handler, true);
+	return () => window.removeEventListener("devicemotion", handler, true);
 }
 
 //#endregion

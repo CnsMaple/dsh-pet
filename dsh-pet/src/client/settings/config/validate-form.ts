@@ -4,7 +4,7 @@
  * 纯函数：只看传入的值，返回第一个不合格项的文案键，顺序即提示优先级。
  * @module dsh-pet/src/client/settings/config/validate-form
  */
-import { FONT_PRESETS, FONT_SIZE_MAX, FONT_SIZE_MIN } from '../../../shared/fonts.ts';
+import { FONT_SIZE_MAX, FONT_SIZE_MIN } from '../../../shared/fonts.ts';
 import { isValidSizePercent } from '../../../shared/pet-size.ts';
 import type { FontConfig, ModelSelection, Pet, PhysicsParams } from '../../../shared/types.ts';
 
@@ -49,7 +49,8 @@ const physicsValid = (physics: PhysicsParams): boolean =>
 
 /** 字体：种类必须在预设白名单内，字号在闭区间内。 */
 const fontValid = (font: FontConfig): boolean =>
-  FONT_PRESETS.some((preset) => preset.id === font.family) &&
+  typeof font.family === 'string' &&
+  font.family.length <= 200 &&
   Number.isFinite(font.size) &&
   font.size >= FONT_SIZE_MIN &&
   font.size <= FONT_SIZE_MAX;

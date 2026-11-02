@@ -173,18 +173,15 @@ export interface PhysicsParams {
      *  缺省按 true；旧配置里没有这个键也算开。 */
     hapticEnabled?: boolean;
 }
-/** 字体种类预设 id（font.family 白名单；清单与对应字体栈见 shared/fonts.ts）。 */
-export type FontFamilyId = 'candy' | 'yahei' | 'youyuan' | 'kaiti' | 'simsun' | 'comic' | 'system';
 /** config.jsonc 的 font 段：字体（全局一份，所有宠物共用）。
- *  默认值 = shared/fonts.ts 的 DEFAULT_FONT（candy / 21 / true）。
- *  整段替换（与 physics 同）：写了就整段用自己的，缺的子键不会从内置默认补回来——
- *  手改时必须三个子键写全，否则整段非法 → 告警并取默认。 */
+ *  默认值 = shared/fonts.ts 的 DEFAULT_FONT（family='' 跟随 DSH 字体 / 21 / false）。
+ *  整段替换：写了就整段用自己的，缺的子键不会从内置默认补回来。 */
 export interface FontConfig {
-    /** 字体种类（预设 id）：影响气泡、悬浮提示、对话窗与得分弹窗 */
-    family: FontFamilyId;
-    /** 字号 px：只影响气泡与悬浮提示（对话窗与得分弹窗的字号不变），提示与气泡内小字按既有比例派生 */
+    /** 字体名（自由文本，可写多个用逗号分隔）：影响气泡、悬浮提示等文字；空 = 跟随 DSH 字体 */
+    family: string;
+    /** 字号 px：只影响气泡与悬浮提示 */
     size: number;
-    /** 字号是否随宠物大小等比缩放：true = 按「实际 size / 基准尺寸」缩放（默认）；false = 恒为 size px */
+    /** 字号是否随宠物大小等比缩放：false（默认）= 恒为 size px */
     followPet: boolean;
 }
 /** config.jsonc 全集——运行时直接使用。 */

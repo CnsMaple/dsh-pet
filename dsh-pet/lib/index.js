@@ -501,44 +501,6 @@ function listSpeechProviders() {
 }
 
 //#endregion
-//#region src/shared/fonts.ts
-const FONT_PRESETS = [
-	{
-		id: "candy",
-		stack: "\"ShangshouSoftCandy\",\"Yuanti SC\",\"YouYuan\",\"幼圆\",\"Comic Sans MS\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif"
-	},
-	{
-		id: "yahei",
-		stack: "\"Microsoft YaHei\",\"PingFang SC\",sans-serif"
-	},
-	{
-		id: "youyuan",
-		stack: "\"YouYuan\",\"Yuanti SC\",sans-serif"
-	},
-	{
-		id: "kaiti",
-		stack: "\"KaiTi\",\"STKaiti\",serif"
-	},
-	{
-		id: "simsun",
-		stack: "\"SimSun\",\"Songti SC\",serif"
-	},
-	{
-		id: "comic",
-		stack: "\"Comic Sans MS\",\"Comic Sans\",cursive"
-	},
-	{
-		id: "system",
-		stack: "system-ui,sans-serif"
-	}
-];
-const FONT_SIZE_MIN = 4;
-const FONT_SIZE_MAX = 200;
-const FONT_REF_SIZE = 462;
-const BUBBLE_FONT_BASE_PX = .0455 * FONT_REF_SIZE;
-const TIP_FONT_BASE_PX = .026 * FONT_REF_SIZE;
-
-//#endregion
 //#region src/shared/config.ts
 const PET_DISPLAYS = [
 	"web",
@@ -710,7 +672,6 @@ const CORNERS = [
 ];
 const CORNER_SET = new Set(CORNERS);
 const PET_DISPLAY_SET = new Set(PET_DISPLAYS);
-const FONT_FAMILY_SET = new Set(FONT_PRESETS.map((preset) => preset.id));
 const ID_FORBIDDEN = /[\\/:\x00-\x1f]/;
 const MAX_PET_ID_LENGTH = 64;
 function isValidPetId(value) {
@@ -827,6 +788,14 @@ function isValidSizePercent(value) {
 }
 
 //#endregion
+//#region src/shared/fonts.ts
+const FONT_SIZE_MIN = 4;
+const FONT_SIZE_MAX = 200;
+const FONT_REF_SIZE = 462;
+const BUBBLE_FONT_BASE_PX = .0455 * FONT_REF_SIZE;
+const TIP_FONT_BASE_PX = .026 * FONT_REF_SIZE;
+
+//#endregion
 //#region src/host/voice/voices.ts
 const VOICES = [
 	{
@@ -935,7 +904,7 @@ function physicsValid(value) {
 function fontValid(value) {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
 	const f = value;
-	if (typeof f.family !== "string" || !FONT_FAMILY_SET.has(f.family)) return false;
+	if (typeof f.family !== "string" || f.family.length > 200) return false;
 	const size = Number(f.size);
 	if (!Number.isFinite(size) || size < FONT_SIZE_MIN || size > FONT_SIZE_MAX) return false;
 	return typeof f.followPet === "boolean";

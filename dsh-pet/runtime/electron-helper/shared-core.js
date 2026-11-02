@@ -975,45 +975,17 @@ function flattenConfigPets(merged) {
 
 //#endregion
 //#region src/shared/fonts.ts
-const FONT_PRESETS = [
-	{
-		id: "candy",
-		stack: "\"ShangshouSoftCandy\",\"Yuanti SC\",\"YouYuan\",\"幼圆\",\"Comic Sans MS\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif"
-	},
-	{
-		id: "yahei",
-		stack: "\"Microsoft YaHei\",\"PingFang SC\",sans-serif"
-	},
-	{
-		id: "youyuan",
-		stack: "\"YouYuan\",\"Yuanti SC\",sans-serif"
-	},
-	{
-		id: "kaiti",
-		stack: "\"KaiTi\",\"STKaiti\",serif"
-	},
-	{
-		id: "simsun",
-		stack: "\"SimSun\",\"Songti SC\",serif"
-	},
-	{
-		id: "comic",
-		stack: "\"Comic Sans MS\",\"Comic Sans\",cursive"
-	},
-	{
-		id: "system",
-		stack: "system-ui,sans-serif"
-	}
-];
 const FONT_SIZE_MIN = 4;
 const FONT_SIZE_MAX = 200;
+const DEFAULT_FONT_STACK = "var(--dsw-font-family, system-ui, -apple-system, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif)";
 const DEFAULT_FONT = {
-	family: "candy",
+	family: "",
 	size: 21,
-	followPet: true
+	followPet: false
 };
-function fontStackOf(id) {
-	return (FONT_PRESETS.find((p) => p.id === id) ?? FONT_PRESETS[0]).stack;
+function fontStackOf(family) {
+	const value = (family ?? "").trim();
+	return value === "" ? DEFAULT_FONT_STACK : value;
 }
 const FONT_REF_SIZE = 462;
 const BUBBLE_FONT_BASE_PX = .0455 * FONT_REF_SIZE;
@@ -1022,7 +994,7 @@ function resolveFontPx(font, size) {
 	const own = Number(font?.size);
 	const ratio = Number.isFinite(own) && own > 0 ? own / DEFAULT_FONT.size : 1;
 	const w = Number(size);
-	const follow = font?.followPet !== false;
+	const follow = font?.followPet === true;
 	const scale = follow && Number.isFinite(w) && w > 0 ? w / FONT_REF_SIZE : 1;
 	return {
 		bubble: BUBBLE_FONT_BASE_PX * ratio * scale,
@@ -4646,6 +4618,7 @@ exports.CUSTOM_STYLE_KEYS = CUSTOM_STYLE_KEYS
 exports.CUSTOM_TAGS = CUSTOM_TAGS
 exports.DEAD_ZONE_SPEED = DEAD_ZONE_SPEED
 exports.DEFAULT_FONT = DEFAULT_FONT
+exports.DEFAULT_FONT_STACK = DEFAULT_FONT_STACK
 exports.DEFAULT_PHYSICS = DEFAULT_PHYSICS
 exports.DEFAULT_ROLLING_LABEL = DEFAULT_ROLLING_LABEL
 exports.DEFAULT_THROW_POWER = DEFAULT_THROW_POWER
@@ -4653,7 +4626,6 @@ exports.DISPLAY_HOTKEY_HINTS = DISPLAY_HOTKEY_HINTS
 exports.DISPLAY_ORDER = DISPLAY_ORDER
 exports.DRAG_THRESHOLD = DRAG_THRESHOLD
 exports.FEET_Y = FEET_Y
-exports.FONT_PRESETS = FONT_PRESETS
 exports.FONT_REF_SIZE = FONT_REF_SIZE
 exports.FONT_SIZE_MAX = FONT_SIZE_MAX
 exports.FONT_SIZE_MIN = FONT_SIZE_MIN

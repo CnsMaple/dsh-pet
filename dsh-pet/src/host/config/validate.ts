@@ -7,7 +7,6 @@
  */
 import { FONT_SIZE_MAX, FONT_SIZE_MIN } from '../../shared/fonts.ts';
 import { isKnownVoice } from '../voice/voices.ts';
-import { FONT_FAMILY_SET } from './constants.ts';
 
 /** animations 段完整性校验（与旧 assertAnimationsHost 同一套规则；不 throw，非法返回 false） */
 function animationsValid(a: unknown): boolean {
@@ -119,7 +118,8 @@ export function physicsValid(value: unknown): boolean {
 export function fontValid(value: unknown): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const f = value as Record<string, unknown>;
-  if (typeof f.family !== 'string' || !FONT_FAMILY_SET.has(f.family)) return false;
+  // family 改成自由文本：不再有白名单，只约束类型与长度（空串 = 跟随 DSH 字体）。
+  if (typeof f.family !== 'string' || f.family.length > 200) return false;
   const size = Number(f.size);
   if (!Number.isFinite(size) || size < FONT_SIZE_MIN || size > FONT_SIZE_MAX) return false;
   return typeof f.followPet === 'boolean';

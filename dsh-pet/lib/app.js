@@ -4822,10 +4822,12 @@ function trackToolEvent(ledger, sessionId, input) {
 function sessionTitleFrom(session$1) {
 	const s = session$1;
 	const cands = [
+		s?.summary?.title,
+		s?.summary?.displayTitle,
 		s?.title,
+		s?.displayTitle,
 		s?.header?.title,
-		s?.name,
-		s?.header?.name
+		s?.name
 	];
 	for (const c of cands) if (typeof c === "string" && c.trim() !== "") return c.trim();
 	return "";
@@ -4904,9 +4906,18 @@ function registerSessionWatch(deps) {
 			const detail = type === "tool/call" ? toolDetailFromEvent(event) : null;
 			if (type === "tool/call") {
 				const toolName$1 = String(event.data?.name ?? "");
+				let detailText = detail ?? "";
+				if (detailText === "" || detailText === "这工具是干嘛的") {
+					const rawArgs = event.data?.arguments;
+					try {
+						const a = typeof rawArgs === "string" ? JSON.parse(rawArgs) : rawArgs;
+						const hint = a ? a.description ?? a.command ?? a.file_path ?? a.path ?? a.pattern ?? a.cmd ?? a.query ?? "" : "";
+						if (typeof hint === "string" && hint.trim() !== "") detailText = Array.from(hint.trim()).slice(0, 40).join("");
+					} catch {}
+				}
 				if (toolName$1) lastTools.set(sessionId, {
 					name: toolName$1,
-					detail: detail ?? ""
+					detail: detailText
 				});
 			}
 			const outcome = trackToolEvent(toolsInFlight, sessionId, {
@@ -6513,14 +6524,24 @@ function apply(ctx) {
 		if (cached$1 !== void 0) return cached$1;
 		try {
 			const anyCtx = ctx;
-			const session$1 = typeof anyCtx?.sessions?.get === "function" ? anyCtx.sessions.get(id) : void 0;
-			if (session$1 && typeof anyCtx?.sessionProjections?.snapshot === "function") {
-				const snap = anyCtx.sessionProjections.snapshot(session$1, ["title"]);
-				const t = snap && snap.values ? snap.values.title : void 0;
-				if (typeof t === "string" && t.trim() !== "") {
-					sessionTitles.set(id, t.trim());
-					return t.trim();
-				}
+			const getSvc = (n) => typeof anyCtx?.get === "function" ? anyCtx.get(n) : void 0;
+			const sessionsSvc = getSvc("sessions");
+			const session$1 = typeof sessionsSvc?.get === "function" ? sessionsSvc.get(id) : void 0;
+			const s = session$1;
+			let title = s?.summary?.title ?? s?.summary?.displayTitle ?? s?.title ?? s?.displayTitle;
+			if (typeof title !== "string" || title.trim() === "") {
+				const proj = getSvc("sessionProjections");
+				const t = typeof proj?.stateOf === "function" ? proj.stateOf(session$1, "title") : void 0;
+				if (typeof t === "string" && t.trim() !== "") title = t;
+			}
+			if (typeof title !== "string" || title.trim() === "") {
+				const ts = getSvc("sessionTitle");
+				const t = typeof ts?.get === "function" ? ts.get(session$1)?.title : void 0;
+				if (typeof t === "string" && t.trim() !== "") title = t;
+			}
+			if (typeof title === "string" && title.trim() !== "") {
+				sessionTitles.set(id, title.trim());
+				return title.trim();
 			}
 		} catch {}
 		try {

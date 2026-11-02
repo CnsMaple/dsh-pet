@@ -138,8 +138,14 @@ function trackToolEvent(ledger: ToolCallLedger, sessionId: string, input: TrackI
 
 /** 从 session 对象里尽量取标题（不同版本字段位置不同，逐个候选）。 */
 function sessionTitleFrom(session: unknown): string {
-  const s = session as { title?: unknown; name?: unknown; header?: { title?: unknown; name?: unknown } } | null;
-  const cands = [s?.title, s?.header?.title, s?.name, s?.header?.name];
+  const s = session as {
+    title?: unknown;
+    displayTitle?: unknown;
+    name?: unknown;
+    summary?: { title?: unknown; displayTitle?: unknown } | null;
+    header?: { title?: unknown; name?: unknown } | null;
+  } | null;
+  const cands = [s?.summary?.title, s?.summary?.displayTitle, s?.title, s?.displayTitle, s?.header?.title, s?.name];
   for (const c of cands) if (typeof c === 'string' && c.trim() !== '') return c.trim();
   return '';
 }
@@ -258,7 +264,22 @@ export function registerSessionWatch(deps: SessionWatchInput): void {
         type === 'tool/call' ? toolDetailFromEvent(event as { data?: { name?: unknown; arguments?: unknown } }) : null;
       if (type === 'tool/call') {
         const toolName = String((event as { data?: { name?: unknown } }).data?.name ?? '');
-        if (toolName) lastTools.set(sessionId, { name: toolName, detail: detail ?? '' });
+        // 工具细节：优先用 tool-detail 的文案；未知工具（如 run_code/bash）则从参数里取一句可读提示。
+        let detailText = detail ?? '';
+        if (detailText === '' || detailText === '这工具是干嘛的') {
+          const rawArgs = (event as { data?: { arguments?: unknown } }).data?.arguments;
+          try {
+            const a = (typeof rawArgs === 'string' ? JSON.parse(rawArgs) : rawArgs) as Record<string, unknown> | null;
+            const hint = a
+              ? (a.description ?? a.command ?? a.file_path ?? a.path ?? a.pattern ?? a.cmd ?? a.query ?? '')
+              : '';
+            if (typeof hint === 'string' && hint.trim() !== '')
+              detailText = Array.from(hint.trim()).slice(0, 40).join('');
+          } catch {
+            /* 参数不是 JSON：忽略 */
+          }
+        }
+        if (toolName) lastTools.set(sessionId, { name: toolName, detail: detailText });
       }
       const outcome = trackToolEvent(toolsInFlight, sessionId, {
         type,

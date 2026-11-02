@@ -77,18 +77,30 @@ export function apply(ctx: any): void {
   const sessionTitleOf = (id: string): string => {
     const cached = sessionTitles.get(id);
     if (cached !== undefined) return cached;
-    // ① 宿主服务：sessions.get(id) + sessionProjections.snapshot(['title'])['title']（title 是投影）
+    // ① 宿主服务（与 dsh-tauri-pet 同法）：session.summary.title / sessionProjections.stateOf(session,'title') / sessionTitle.get(session).title
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DSH 注入 ctx 无静态类型
       const anyCtx: any = ctx;
-      const session = typeof anyCtx?.sessions?.get === 'function' ? anyCtx.sessions.get(id) : undefined;
-      if (session && typeof anyCtx?.sessionProjections?.snapshot === 'function') {
-        const snap = anyCtx.sessionProjections.snapshot(session, ['title']);
-        const t = snap && snap.values ? snap.values.title : undefined;
-        if (typeof t === 'string' && t.trim() !== '') {
-          sessionTitles.set(id, t.trim());
-          return t.trim();
-        }
+      const getSvc = (n: string): any => (typeof anyCtx?.get === 'function' ? anyCtx.get(n) : undefined);
+      const sessionsSvc = getSvc('sessions');
+      const session = typeof sessionsSvc?.get === 'function' ? sessionsSvc.get(id) : undefined;
+      const s = session as
+        | { title?: unknown; displayTitle?: unknown; summary?: { title?: unknown; displayTitle?: unknown } | null }
+        | undefined;
+      let title: unknown = s?.summary?.title ?? s?.summary?.displayTitle ?? s?.title ?? s?.displayTitle;
+      if (typeof title !== 'string' || title.trim() === '') {
+        const proj = getSvc('sessionProjections');
+        const t = typeof proj?.stateOf === 'function' ? proj.stateOf(session, 'title') : undefined;
+        if (typeof t === 'string' && t.trim() !== '') title = t;
+      }
+      if (typeof title !== 'string' || title.trim() === '') {
+        const ts = getSvc('sessionTitle');
+        const t = typeof ts?.get === 'function' ? ts.get(session)?.title : undefined;
+        if (typeof t === 'string' && t.trim() !== '') title = t;
+      }
+      if (typeof title === 'string' && title.trim() !== '') {
+        sessionTitles.set(id, title.trim());
+        return title.trim();
       }
     } catch {
       /* 服务不可用：继续尝试别的来源 */

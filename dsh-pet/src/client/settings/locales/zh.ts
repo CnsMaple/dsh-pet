@@ -245,6 +245,21 @@ export const zh = {
   uninstallStep3:
     '3. 按需删除上面的位置：缓存类删了无影响；「插件用户数据」删了会丢配置与对话记忆（想保留就先备份其中的 main-config.jsonc）。',
   uninstallCmd: 'dsh plugin --profile {profile} remove dsh-pet',
+  notifyBehaviorTitle: '通知行为',
+  notifyTurnEndLabel: '回合完成通知',
+  notifyTurnEndHint: '什么时候为「对话完成」弹出通知。',
+  notifyTurnEndNever: '从不',
+  notifyTurnEndUnfocused: '仅窗口失焦时',
+  notifyTurnEndAlways: '总是',
+  notifyApprovalToggle: '权限审批通知',
+  notifyApprovalToggleHint: '有权限审批申请时弹通知。',
+  notifyQuestionToggle: '模型提问通知',
+  notifyQuestionToggleHint: '模型向你提问、等你回答时弹通知。',
+  notifySoundLabel: '提示音',
+  notifySoundHint: '通知弹出时的提示音。',
+  notifySoundDefault: '默认',
+  notifySoundClassic: '经典',
+  notifySoundNone: '静音',
 };
 
 /** 文案键；zh 的键集即全集。 */

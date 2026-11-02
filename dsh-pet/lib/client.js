@@ -3033,7 +3033,7 @@ function makeFontCard(rt) {
 
 //#endregion
 //#region src/client/settings/global-card.ts
-/** 开关的展示顺序与文案键。 */
+/** 布尔开关的展示顺序与文案键。 */
 const TOGGLES = [
 	{
 		key: "notificationsEnabled",
@@ -3052,19 +3052,76 @@ const TOGGLES = [
 		label: "trayToggle"
 	}
 ];
+/** 回合完成三档选项（值 + 文案键）。 */
+const TURN_END_OPTIONS = [
+	{
+		value: "never",
+		label: "notifyTurnEndNever"
+	},
+	{
+		value: "unfocused",
+		label: "notifyTurnEndUnfocused"
+	},
+	{
+		value: "always",
+		label: "notifyTurnEndAlways"
+	}
+];
+/** 提示音选项。 */
+const SOUND_OPTIONS = [
+	{
+		value: "default",
+		label: "notifySoundDefault"
+	},
+	{
+		value: "classic",
+		label: "notifySoundClassic"
+	},
+	{
+		value: "none",
+		label: "notifySoundNone"
+	}
+];
 function makeGlobalCard(rt) {
 	const { h, t } = rt;
-	const { cardHead, toggleCell } = makeUiKit({
+	const { cardHead, field, toggleCell } = makeUiKit({
 		h,
 		t
 	});
 	return function GlobalCard(props) {
+		const { behavior } = props;
+		const select = (labelKey, value, options, onPick) => field(t(labelKey), h("select", {
+			className: INPUT_CLASS,
+			value,
+			disabled: props.busy,
+			onChange: (e) => onPick(e.target.value),
+			children: options.map((o) => h("option", {
+				key: o.value,
+				value: o.value,
+				children: t(o.label)
+			}))
+		}), t(labelKey + "Hint"));
 		return h("div", {
 			className: "dsh-pet-cfg__card",
-			children: [cardHead(t("globalTitle"), t("globalHint")), h("div", {
-				className: "dsh-pet-cfg__grid4",
-				children: TOGGLES.map((toggle) => toggleCell(toggle.label, props.values[toggle.key], props.busy, (value) => props.onChange(toggle.key, value)))
-			})]
+			children: [
+				cardHead(t("globalTitle"), t("globalHint")),
+				h("div", {
+					className: "dsh-pet-cfg__grid4",
+					children: TOGGLES.map((toggle) => toggleCell(toggle.label, props.values[toggle.key], props.busy, (value) => props.onChange(toggle.key, value)))
+				}),
+				h("p", {
+					key: "bh",
+					className: "dsh-pet-cfg__cardTitle",
+					children: t("notifyBehaviorTitle")
+				}),
+				select("notifyTurnEndLabel", behavior.notificationTurnEnd, TURN_END_OPTIONS, (value) => props.onBehaviorChange({ notificationTurnEnd: value })),
+				h("div", {
+					key: "bq",
+					className: "dsh-pet-cfg__grid2",
+					children: [toggleCell("notifyApprovalToggle", behavior.notificationApproval, props.busy, (value) => props.onBehaviorChange({ notificationApproval: value })), toggleCell("notifyQuestionToggle", behavior.notificationQuestion, props.busy, (value) => props.onBehaviorChange({ notificationQuestion: value }))]
+				}),
+				select("notifySoundLabel", behavior.notificationSound, SOUND_OPTIONS, (value) => props.onBehaviorChange({ notificationSound: value }))
+			]
 		});
 	};
 }
@@ -4105,7 +4162,22 @@ const de = {
 	uninstallStep1: "1. Zuerst DSH beenden (das Desktop-Pet beendet sich mit); die obigen Dateien nicht löschen, während das Pet läuft.",
 	uninstallStep2: "2. Das Plugin selbst entfernen (im Terminal ausführen; entfernt es auch aus der Bundle-Schicht des Profils):",
 	uninstallStep3: "3. Die obigen Orte nach Bedarf löschen: Caches sind unschädlich; „Plugin-Benutzerdaten\" löschen kostet Konfiguration und Chat-Gedächtnis (vorher main-config.jsonc sichern, wenn Sie es behalten wollen).",
-	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet"
+	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet",
+	notifyBehaviorTitle: "Benachrichtigungsverhalten",
+	notifyTurnEndLabel: "Turn-Ende-Benachrichtigung",
+	notifyTurnEndHint: "Wann bei Abschluss eines Turns benachrichtigt wird.",
+	notifyTurnEndNever: "Nie",
+	notifyTurnEndUnfocused: "Nur ohne Fokus",
+	notifyTurnEndAlways: "Immer",
+	notifyApprovalToggle: "Genehmigungsbenachrichtigungen",
+	notifyApprovalToggleHint: "Benachrichtigen, wenn eine Berechtigungsgenehmigung angefragt wird.",
+	notifyQuestionToggle: "Fragemitteilungen",
+	notifyQuestionToggleHint: "Benachrichtigen, wenn das Modell dir eine Frage stellt.",
+	notifySoundLabel: "Benachrichtigungston",
+	notifySoundHint: "Ton beim Anzeigen einer Benachrichtigung.",
+	notifySoundDefault: "Standard",
+	notifySoundClassic: "Klassisch",
+	notifySoundNone: "Keiner"
 };
 
 //#endregion
@@ -4316,7 +4388,22 @@ const en = {
 	uninstallStep1: "1. Quit DSH first (the desktop pet exits with it); do not delete these files while the pet is running.",
 	uninstallStep2: "2. Remove the plugin itself (run in a terminal; this also drops it from the profile bundle layer):",
 	uninstallStep3: "3. Delete the locations above as needed: cache folders are harmless; deleting \"plugin user data\" loses your config and chat memory (back up main-config.jsonc first if you want to keep it).",
-	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet"
+	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet",
+	notifyBehaviorTitle: "Notification behavior",
+	notifyTurnEndLabel: "Turn-end notification",
+	notifyTurnEndHint: "When to notify on turn completion.",
+	notifyTurnEndNever: "Never",
+	notifyTurnEndUnfocused: "Only when unfocused",
+	notifyTurnEndAlways: "Always",
+	notifyApprovalToggle: "Approval notifications",
+	notifyApprovalToggleHint: "Notify when a permission approval is requested.",
+	notifyQuestionToggle: "Question notifications",
+	notifyQuestionToggleHint: "Notify when the model asks you a question.",
+	notifySoundLabel: "Notification sound",
+	notifySoundHint: "Sound played when a notification appears.",
+	notifySoundDefault: "Default",
+	notifySoundClassic: "Classic",
+	notifySoundNone: "None"
 };
 
 //#endregion
@@ -4527,7 +4614,22 @@ const es = {
 	uninstallStep1: "1. Cierra DSH primero (la mascota de escritorio se cierra con él); no borres estos archivos mientras la mascota esté en ejecución.",
 	uninstallStep2: "2. Quita el plugin en sí (ejecútalo en la terminal; también lo elimina de la capa de bundles del perfil):",
 	uninstallStep3: "3. Borra las ubicaciones de arriba según necesites: las cachés no hacen daño; borrar los «datos de usuario del plugin» pierde la configuración y la memoria del chat (haz una copia de main-config.jsonc si quieres conservarla).",
-	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet"
+	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet",
+	notifyBehaviorTitle: "Comportamiento de notificaciones",
+	notifyTurnEndLabel: "Notificación de fin de turno",
+	notifyTurnEndHint: "Cuándo notificar al completarse un turno.",
+	notifyTurnEndNever: "Nunca",
+	notifyTurnEndUnfocused: "Solo sin foco",
+	notifyTurnEndAlways: "Siempre",
+	notifyApprovalToggle: "Notificaciones de aprobación",
+	notifyApprovalToggleHint: "Notificar cuando se solicita una aprobación de permisos.",
+	notifyQuestionToggle: "Notificaciones de pregunta",
+	notifyQuestionToggleHint: "Notificar cuando el modelo te hace una pregunta.",
+	notifySoundLabel: "Sonido de notificación",
+	notifySoundHint: "Sonido al mostrar una notificación.",
+	notifySoundDefault: "Predeterminado",
+	notifySoundClassic: "Clásico",
+	notifySoundNone: "Ninguno"
 };
 
 //#endregion
@@ -4738,7 +4840,22 @@ const fr = {
 	uninstallStep1: "1. Quittez d'abord DSH (le compagnon de bureau s'arrête avec lui) ; ne supprimez pas ces fichiers pendant que le compagnon tourne.",
 	uninstallStep2: "2. Retirez le plugin lui-même (dans un terminal ; il est aussi retiré de la couche bundle du profil) :",
 	uninstallStep3: "3. Supprimez les emplacements ci-dessus selon vos besoins : les caches sont sans risque ; supprimer les « données utilisateur du plugin » fait perdre la configuration et la mémoire de discussion (sauvegardez main-config.jsonc si vous voulez le garder).",
-	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet"
+	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet",
+	notifyBehaviorTitle: "Comportement des notifications",
+	notifyTurnEndLabel: "Notification de fin de tour",
+	notifyTurnEndHint: "Quand notifier à la fin d'un tour.",
+	notifyTurnEndNever: "Jamais",
+	notifyTurnEndUnfocused: "Seulement sans focus",
+	notifyTurnEndAlways: "Toujours",
+	notifyApprovalToggle: "Notifications d'approbation",
+	notifyApprovalToggleHint: "Notifier lorsqu'une approbation de permission est demandée.",
+	notifyQuestionToggle: "Notifications de question",
+	notifyQuestionToggleHint: "Notifier lorsque le modèle vous pose une question.",
+	notifySoundLabel: "Son de notification",
+	notifySoundHint: "Son joué à l'affichage d'une notification.",
+	notifySoundDefault: "Par défaut",
+	notifySoundClassic: "Classique",
+	notifySoundNone: "Aucun"
 };
 
 //#endregion
@@ -4949,7 +5066,22 @@ const ja = {
 	uninstallStep1: "1. まず DSH を終了します（デスクトップペットも一緒に終了します）。ペットの実行中に上記のファイルを削除しないでください。",
 	uninstallStep2: "2. プラグイン本体を削除します（ターミナルで実行します。profile の bundle レイヤーからも同時に削除されます）：",
 	uninstallStep3: "3. 上記の場所を必要に応じて削除します：キャッシュは削除しても影響ありません。「プラグインのユーザーデータ」を削除すると設定と会話メモリが失われます（残したい場合は中の main-config.jsonc を先にバックアップしてください）。",
-	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet"
+	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet",
+	notifyBehaviorTitle: "通知の動作",
+	notifyTurnEndLabel: "ターン完了通知",
+	notifyTurnEndHint: "「会話完了」時に通知を出すタイミング。",
+	notifyTurnEndNever: "しない",
+	notifyTurnEndUnfocused: "ウィンドウが非アクティブのときのみ",
+	notifyTurnEndAlways: "常に",
+	notifyApprovalToggle: "権限承認の通知",
+	notifyApprovalToggleHint: "権限承認の要求時に通知します。",
+	notifyQuestionToggle: "モデルからの質問通知",
+	notifyQuestionToggleHint: "モデルが質問して回答を待つときに通知します。",
+	notifySoundLabel: "通知音",
+	notifySoundHint: "通知表示時の音。",
+	notifySoundDefault: "既定",
+	notifySoundClassic: "クラシック",
+	notifySoundNone: "なし"
 };
 
 //#endregion
@@ -5160,7 +5292,22 @@ const pt = {
 	uninstallStep1: "1. Feche o DSH primeiro (o pet do desktop fecha junto); não apague os arquivos acima com o pet em execução.",
 	uninstallStep2: "2. Remova o plugin em si (no terminal; isto também o tira da camada de bundle do profile):",
 	uninstallStep3: "3. Apague os locais acima conforme a necessidade: caches não fazem falta; apagar \"dados do usuário do plugin\" perde a configuração e a memória da conversa (faça backup do main-config.jsonc antes, se quiser manter).",
-	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet"
+	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet",
+	notifyBehaviorTitle: "Comportamento das notificações",
+	notifyTurnEndLabel: "Notificação de fim de turno",
+	notifyTurnEndHint: "Quando notificar ao concluir um turno.",
+	notifyTurnEndNever: "Nunca",
+	notifyTurnEndUnfocused: "Somente sem foco",
+	notifyTurnEndAlways: "Sempre",
+	notifyApprovalToggle: "Notificações de aprovação",
+	notifyApprovalToggleHint: "Notificar quando uma aprovação de permissão é solicitada.",
+	notifyQuestionToggle: "Notificações de pergunta",
+	notifyQuestionToggleHint: "Notificar quando o modelo faz uma pergunta.",
+	notifySoundLabel: "Som de notificação",
+	notifySoundHint: "Som ao exibir uma notificação.",
+	notifySoundDefault: "Padrão",
+	notifySoundClassic: "Clássico",
+	notifySoundNone: "Nenhum"
 };
 
 //#endregion
@@ -5371,7 +5518,22 @@ const ru = {
 	uninstallStep1: "1. Сначала закройте DSH (настольный питомец закроется вместе с ним); не удаляйте эти файлы, пока питомец запущен.",
 	uninstallStep2: "2. Удалите сам плагин (выполните в терминале; он также убирается из слоя bundle профиля):",
 	uninstallStep3: "3. Удалите нужные места из списка выше: кеш удалять безопасно; удаление «пользовательских данных плагина» стирает конфиг и память чата (если нужно сохранить — сначала сделайте резервную копию main-config.jsonc).",
-	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet"
+	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet",
+	notifyBehaviorTitle: "Поведение уведомлений",
+	notifyTurnEndLabel: "Уведомление о завершении хода",
+	notifyTurnEndHint: "Когда уведомлять о завершении хода.",
+	notifyTurnEndNever: "Никогда",
+	notifyTurnEndUnfocused: "Только без фокуса",
+	notifyTurnEndAlways: "Всегда",
+	notifyApprovalToggle: "Уведомления о подтверждении",
+	notifyApprovalToggleHint: "Уведомлять при запросе подтверждения прав.",
+	notifyQuestionToggle: "Уведомления о вопросах",
+	notifyQuestionToggleHint: "Уведомлять, когда модель задаёт вопрос.",
+	notifySoundLabel: "Звук уведомления",
+	notifySoundHint: "Звук при показе уведомления.",
+	notifySoundDefault: "По умолчанию",
+	notifySoundClassic: "Классический",
+	notifySoundNone: "Нет"
 };
 
 //#endregion
@@ -5582,7 +5744,22 @@ const zh = {
 	uninstallStep1: "1. 先退出 DSH（桌面宠物随之退出）；不要在桌宠运行时删除上面的文件。",
 	uninstallStep2: "2. 卸载插件本体（终端执行，会同时从 profile 的 bundle 层移除）：",
 	uninstallStep3: "3. 按需删除上面的位置：缓存类删了无影响；「插件用户数据」删了会丢配置与对话记忆（想保留就先备份其中的 main-config.jsonc）。",
-	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet"
+	uninstallCmd: "dsh plugin --profile {profile} remove dsh-pet",
+	notifyBehaviorTitle: "通知行为",
+	notifyTurnEndLabel: "回合完成通知",
+	notifyTurnEndHint: "什么时候为「对话完成」弹出通知。",
+	notifyTurnEndNever: "从不",
+	notifyTurnEndUnfocused: "仅窗口失焦时",
+	notifyTurnEndAlways: "总是",
+	notifyApprovalToggle: "权限审批通知",
+	notifyApprovalToggleHint: "有权限审批申请时弹通知。",
+	notifyQuestionToggle: "模型提问通知",
+	notifyQuestionToggleHint: "模型向你提问、等你回答时弹通知。",
+	notifySoundLabel: "提示音",
+	notifySoundHint: "通知弹出时的提示音。",
+	notifySoundDefault: "默认",
+	notifySoundClassic: "经典",
+	notifySoundNone: "静音"
 };
 
 //#endregion
@@ -5714,6 +5891,18 @@ function makePetConfigSection(rt) {
 			trayEnabled: setTrayEnabled
 		};
 		const setGlobalFlag = (key, value) => flagSetters[key](value);
+		const notifyBehavior = {
+			notificationTurnEnd,
+			notificationApproval,
+			notificationQuestion,
+			notificationSound
+		};
+		const patchNotifyBehavior = (patch) => {
+			if (patch.notificationTurnEnd !== void 0) setNotificationTurnEnd(patch.notificationTurnEnd);
+			if (patch.notificationApproval !== void 0) setNotificationApproval(patch.notificationApproval);
+			if (patch.notificationQuestion !== void 0) setNotificationQuestion(patch.notificationQuestion);
+			if (patch.notificationSound !== void 0) setNotificationSound(patch.notificationSound);
+		};
 		const patchFont = (patch) => setFont((current$1) => ({
 			...current$1,
 			...patch
@@ -5794,7 +5983,9 @@ function makePetConfigSection(rt) {
 				h(GlobalCard, {
 					busy,
 					values: globalFlags,
-					onChange: setGlobalFlag
+					behavior: notifyBehavior,
+					onChange: setGlobalFlag,
+					onBehaviorChange: patchNotifyBehavior
 				}),
 				h(FontCard, {
 					busy,

@@ -15,7 +15,7 @@ import { petBridge } from './settings/bridge.ts';
 import { type MergedConfig, readConfigEntries, readMainConfig } from './settings/config/index.ts';
 import { type DialogState, makeDialog } from './settings/dialog.ts';
 import { makeFontCard } from './settings/font-card.ts';
-import { makeGlobalCard, type GlobalFlagKey, type GlobalFlags } from './settings/global-card.ts';
+import { makeGlobalCard, type GlobalFlagKey, type GlobalFlags, type NotifyBehavior } from './settings/global-card.ts';
 import { makeLoadStatus } from './settings/load-status.ts';
 import { runNotificationTest } from './settings/notify-test.ts';
 import { makePathsCards } from './settings/paths-cards.ts';
@@ -145,6 +145,18 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
       trayEnabled: setTrayEnabled,
     };
     const setGlobalFlag = (key: GlobalFlagKey, value: boolean): void => flagSetters[key](value);
+    const notifyBehavior: NotifyBehavior = {
+      notificationTurnEnd,
+      notificationApproval,
+      notificationQuestion,
+      notificationSound,
+    };
+    const patchNotifyBehavior = (patch: Partial<NotifyBehavior>): void => {
+      if (patch.notificationTurnEnd !== undefined) setNotificationTurnEnd(patch.notificationTurnEnd);
+      if (patch.notificationApproval !== undefined) setNotificationApproval(patch.notificationApproval);
+      if (patch.notificationQuestion !== undefined) setNotificationQuestion(patch.notificationQuestion);
+      if (patch.notificationSound !== undefined) setNotificationSound(patch.notificationSound);
+    };
 
     const patchFont = (patch: Partial<FontConfig>): void => setFont((current) => ({ ...current, ...patch }));
 
@@ -223,7 +235,13 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
           onChange: update,
           onSave: () => void write.save(),
         }),
-        h(GlobalCard, { busy, values: globalFlags, onChange: setGlobalFlag }),
+        h(GlobalCard, {
+          busy,
+          values: globalFlags,
+          behavior: notifyBehavior,
+          onChange: setGlobalFlag,
+          onBehaviorChange: patchNotifyBehavior,
+        }),
         h(FontCard, { busy, font, onChange: patchFont }),
         h(Actions, {
           busy,

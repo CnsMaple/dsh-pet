@@ -208,6 +208,21 @@ export declare const zh: {
     uninstallStep2: string;
     uninstallStep3: string;
     uninstallCmd: string;
+    notifyBehaviorTitle: string;
+    notifyTurnEndLabel: string;
+    notifyTurnEndHint: string;
+    notifyTurnEndNever: string;
+    notifyTurnEndUnfocused: string;
+    notifyTurnEndAlways: string;
+    notifyApprovalToggle: string;
+    notifyApprovalToggleHint: string;
+    notifyQuestionToggle: string;
+    notifyQuestionToggleHint: string;
+    notifySoundLabel: string;
+    notifySoundHint: string;
+    notifySoundDefault: string;
+    notifySoundClassic: string;
+    notifySoundNone: string;
 };
 /** 文案键；zh 的键集即全集。 */
 export type Key = keyof typeof zh;

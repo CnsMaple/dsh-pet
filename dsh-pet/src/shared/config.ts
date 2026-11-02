@@ -41,9 +41,6 @@ export function flattenConfigPets(merged: Record<string, Record<string, unknown>
         // 表情包三件套：右键「配图」菜单要按配置里的清单与顺序分组，客户端不读磁盘，
         // 所以只能在拍平时一并带出；文件是否存在由宿主在生成时校验（见 host/memes 的池判定）。
         memes: conf.memes as Record<string, string> | undefined,
-        chatImageEnabled: conf.chatImageEnabled as boolean | undefined,
-        chatAnimationEnabled: conf.chatAnimationEnabled as boolean | undefined,
-        chatImageLimit: conf.chatImageLimit as number | undefined,
         assetRoot: entry,
         extra: entry !== 'main',
       });

@@ -70,12 +70,8 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
     const [confineScreen, setConfineScreen] = useState(false);
     const [trayEnabled, setTrayEnabled] = useState(true);
     // 以下字段保留在写盘载荷里（配置 schema 尚未裁剪），但设置页已无对应控件，默认值随加载覆盖。
-    const [chatImage, setChatImage] = useState(false);
-    const [chatAnimation, setChatAnimation] = useState(true);
     const [physics, setPhysics] = useState<PhysicsParams>({ ...DEFAULT_PHYSICS });
     const [font, setFont] = useState<FontConfig>({ ...DEFAULT_FONT });
-    const [chatMemory, setChatMemory] = useState(10);
-    const [chatImageLimit, setChatImageLimit] = useState(20);
     const [notificationTurnEnd, setNotificationTurnEnd] = useState<'never' | 'unfocused' | 'always'>('unfocused');
     const [notificationApproval, setNotificationApproval] = useState(true);
     const [notificationQuestion, setNotificationQuestion] = useState(true);
@@ -89,14 +85,10 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
         replace(entries);
         if (patch.notificationsEnabled !== undefined) setNotifyEnabled(patch.notificationsEnabled);
         if (patch.clickSoundEnabled !== undefined) setClickSound(patch.clickSoundEnabled);
-        if (patch.chatImageEnabled !== undefined) setChatImage(patch.chatImageEnabled);
-        if (patch.chatAnimationEnabled !== undefined) setChatAnimation(patch.chatAnimationEnabled);
         if (patch.confineToScreen !== undefined) setConfineScreen(patch.confineToScreen);
         if (patch.trayEnabled !== undefined) setTrayEnabled(patch.trayEnabled);
         if (patch.physics !== undefined) setPhysics(patch.physics);
         if (patch.font !== undefined) setFont(patch.font);
-        if (patch.chatMemoryRounds !== undefined) setChatMemory(patch.chatMemoryRounds);
-        if (patch.chatImageLimit !== undefined) setChatImageLimit(patch.chatImageLimit);
         if (patch.notificationTurnEnd !== undefined) setNotificationTurnEnd(patch.notificationTurnEnd);
         if (patch.notificationApproval !== undefined) setNotificationApproval(patch.notificationApproval);
         if (patch.notificationQuestion !== undefined) setNotificationQuestion(patch.notificationQuestion);
@@ -149,13 +141,9 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
         pets: mainPets,
         notificationsEnabled: notifyEnabled,
         clickSoundEnabled: clickSound,
-        chatImageEnabled: chatImage,
-        chatAnimationEnabled: chatAnimation,
         confineToScreen: confineScreen,
         trayEnabled,
         physics,
-        chatMemoryRounds: chatMemory,
-        chatImageLimit,
         font,
         notificationTurnEnd,
         notificationApproval,

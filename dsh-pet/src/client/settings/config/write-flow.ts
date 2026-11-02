@@ -63,8 +63,6 @@ export function createWriteFlow(deps: WriteFlowDeps): WriteFlow {
     const invalid = validateForm({
       pets: fields.pets,
       physics: fields.physics,
-      chatMemory: fields.chatMemoryRounds,
-      chatImageLimit: fields.chatImageLimit,
       font: fields.font,
     });
     if (invalid !== null) {

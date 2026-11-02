@@ -265,9 +265,6 @@ function flattenConfigPets(merged) {
 			sleepEndTexts: conf.sleepEndTexts,
 			sleepRefuseTexts: conf.sleepRefuseTexts,
 			memes: conf.memes,
-			chatImageEnabled: conf.chatImageEnabled,
-			chatAnimationEnabled: conf.chatAnimationEnabled,
-			chatImageLimit: conf.chatImageLimit,
 			assetRoot: entry,
 			extra: entry !== "main"
 		});

@@ -26,14 +26,9 @@ export interface SaveFields {
     pets: readonly Pet[];
     notificationsEnabled: boolean;
     clickSoundEnabled: boolean;
-    chatImageEnabled: boolean;
-    /** 对话动作联动开关。 */
-    chatAnimationEnabled: boolean;
     confineToScreen: boolean;
     trayEnabled: boolean;
     physics: PhysicsParams;
-    chatMemoryRounds: number;
-    chatImageLimit: number;
     font: FontConfig;
     notificationTurnEnd: 'never' | 'unfocused' | 'always';
     notificationApproval: boolean;

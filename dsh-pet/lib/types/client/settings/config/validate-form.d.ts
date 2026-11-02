@@ -1,12 +1,10 @@
 import type { FontConfig, Pet, PhysicsParams } from '../../../shared/types.ts';
 /** 校验失败时返回的文案键。 */
-export type InvalidKey = 'invalid' | 'invalidPhysics' | 'invalidModel' | 'invalidChatMemory' | 'invalidChatImageLimit' | 'invalidFont';
+export type InvalidKey = 'invalid' | 'invalidPhysics' | 'invalidFont';
 /** 保存前要校验的全部表单值。 */
 export interface FormValues {
     pets: readonly Pet[];
     physics: PhysicsParams;
-    chatMemory: number;
-    chatImageLimit: number;
     font: FontConfig;
 }
 /**

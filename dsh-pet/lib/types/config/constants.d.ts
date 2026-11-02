@@ -21,7 +21,7 @@ export declare function isValidPetId(value: string): boolean;
  * 不是「这个种类长什么样」，所以用户层写一次应对所有条目生效；种类文件仍可在自己顶层覆盖。
  * 人设是例外：实例级 pets[].whisperPrompt 优先，回落由消费端做（./persona 的 petPersona）。
  */
-export declare const GLOBAL_DEFAULT_KEYS: readonly ["physics", "font", "confineToScreen", "chatImageEnabled", "chatAnimationEnabled", "chatImageLimit", "chatMemoryRounds", "eventsRefreshSec"];
+export declare const GLOBAL_DEFAULT_KEYS: readonly ["physics", "font", "confineToScreen", "eventsRefreshSec"];
 export declare function warnOnce(key: string, message: string): void;
 /** 配置路径集（宿主组装好后传入，单一事实来源） */
 export interface ConfigPaths {

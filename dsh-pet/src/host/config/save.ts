@@ -85,11 +85,6 @@ export function saveUserConfig(
   // 点击音效开关（全局布尔，与 notificationsEnabled 同语义）：传了必须是布尔，没传走透传保留
   const cse = o.clickSoundEnabled;
   if (cse !== undefined && typeof cse !== 'boolean') return null;
-  const cie = o.chatImageEnabled;
-  if (cie !== undefined && typeof cie !== 'boolean') return null;
-  // 对话动作联动开关（全局布尔）：与上面几个开关同一套语义——传了必须是布尔，没传走透传保留
-  const cae = o.chatAnimationEnabled;
-  if (cae !== undefined && typeof cae !== 'boolean') return null;
   const cts = o.confineToScreen;
   if (cts !== undefined && typeof cts !== 'boolean') return null;
   // 系统托盘开关（全局，仅桌面模式）：与上面几个全局布尔同语义——传了必须是布尔，没传走透传保留。
@@ -105,15 +100,6 @@ export function saveUserConfig(
   // 校验直接复用读取侧的 fontValid（family 白名单 / size 4~200 / followPet 布尔），读写同一份规则。
   const fo = o.font;
   if (fo !== undefined && !fontValid(fo)) return null;
-  // chatMemoryRounds（对话历史条数；设置页「AI 模型与对话上下文」区的数字输入框写的就是它）：
-  // 与 physics / 模型同语义——传了就校验后进白名单，没传则走下面的透传保留。
-  // 校验直接复用读取侧的 topFieldValid（有限且 ≥ 0），读写同一份规则，不另写一套。
-  const cmr = o.chatMemoryRounds;
-  if (cmr !== undefined && !topFieldValid('chatMemoryRounds', cmr)) return null;
-  // chatImageLimit（对话配图张数上限；设置页「AI 模型与对话上下文」区的数字输入框写的就是它）：
-  // 与 chatMemoryRounds 同一套语义——传了就校验后进白名单，没传则走下面的透传保留。
-  const cil = o.chatImageLimit;
-  if (cil !== undefined && !topFieldValid('chatImageLimit', cil)) return null;
   // 通知行为 4 字段：回合完成三档 / 审批开关 / 问题开关 / 提示音；校验走 topFieldValid，读写同一份规则。
   const nte = o.notificationTurnEnd;
   if (nte !== undefined && !topFieldValid('notificationTurnEnd', nte)) return null;
@@ -128,15 +114,11 @@ export function saveUserConfig(
   const outConfig: { pets: unknown[]; [key: string]: unknown } = { pets: out };
   if (ne !== undefined) outConfig.notificationsEnabled = ne;
   if (cse !== undefined) outConfig.clickSoundEnabled = cse;
-  if (cie !== undefined) outConfig.chatImageEnabled = cie;
-  if (cae !== undefined) outConfig.chatAnimationEnabled = cae;
   if (cts !== undefined) outConfig.confineToScreen = cts;
   if (te !== undefined) outConfig.trayEnabled = te;
   if (ph !== undefined) outConfig.physics = ph;
   if (fo !== undefined) outConfig.font = fo;
   // 数值归一化落盘：请求体传 "9" 也存成 9（与读取侧 topFieldValid 的 Number() 口径一致）
-  if (cmr !== undefined) outConfig.chatMemoryRounds = Number(cmr);
-  if (cil !== undefined) outConfig.chatImageLimit = Number(cil);
   if (nte !== undefined) outConfig.notificationTurnEnd = nte;
   if (nap !== undefined) outConfig.notificationApproval = nap;
   if (nqu !== undefined) outConfig.notificationQuestion = nqu;
@@ -148,14 +130,10 @@ export function saveUserConfig(
   const bodyOwned = new Set(['pets']);
   if (ne !== undefined) bodyOwned.add('notificationsEnabled');
   if (cse !== undefined) bodyOwned.add('clickSoundEnabled');
-  if (cie !== undefined) bodyOwned.add('chatImageEnabled');
-  if (cae !== undefined) bodyOwned.add('chatAnimationEnabled');
   if (cts !== undefined) bodyOwned.add('confineToScreen');
   if (te !== undefined) bodyOwned.add('trayEnabled');
   if (ph !== undefined) bodyOwned.add('physics');
   if (fo !== undefined) bodyOwned.add('font');
-  if (cmr !== undefined) bodyOwned.add('chatMemoryRounds');
-  if (cil !== undefined) bodyOwned.add('chatImageLimit');
   if (nte !== undefined) bodyOwned.add('notificationTurnEnd');
   if (nap !== undefined) bodyOwned.add('notificationApproval');
   if (nqu !== undefined) bodyOwned.add('notificationQuestion');

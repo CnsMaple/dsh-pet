@@ -36,28 +36,12 @@ describe('readMainConfig —— 成品聚合 → 表单补丁', () => {
     assert.deepEqual(patch?.font, { ...DEFAULT_FONT, size: 20 });
   });
 
-  test('数值字段：负数与非数字当没写，0 是合法值', () => {
-    assert.equal(readMainConfig({ main: { pets: [], chatMemoryRounds: -1 } })?.chatMemoryRounds, undefined);
-    assert.equal(readMainConfig({ main: { pets: [], chatMemoryRounds: 'x' } })?.chatMemoryRounds, undefined);
-    assert.equal(readMainConfig({ main: { pets: [], chatImageLimit: 0 } })?.chatImageLimit, 0);
-  });
-
   test('布尔字段缺失就不进补丁，避免把默认值当用户选择写回去', () => {
     const patch = readMainConfig({ main: { pets: [] } });
     assert.equal('notificationsEnabled' in (patch ?? {}), false);
     assert.equal('trayEnabled' in (patch ?? {}), false);
     const withFlag = readMainConfig({ main: { pets: [], trayEnabled: false } });
     assert.equal(withFlag?.trayEnabled, false);
-  });
-
-  test('对话动作联动开关：布尔原样带出，缺失或非布尔不进补丁', () => {
-    assert.equal(readMainConfig({ main: { pets: [], chatAnimationEnabled: false } })?.chatAnimationEnabled, false);
-    assert.equal('chatAnimationEnabled' in (readMainConfig({ main: { pets: [] } }) ?? {}), false);
-    assert.equal(
-      'chatAnimationEnabled' in (readMainConfig({ main: { pets: [], chatAnimationEnabled: 1 } }) ?? {}),
-      false,
-      '非布尔当作没写',
-    );
   });
 });
 

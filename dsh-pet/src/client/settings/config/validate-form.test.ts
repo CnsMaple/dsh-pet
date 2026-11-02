@@ -27,8 +27,6 @@ const pet = (extra: Record<string, unknown> = {}): Pet =>
 const valid = (overrides: Partial<FormValues> = {}): FormValues => ({
   pets: [pet()],
   physics: { ...DEFAULT_PHYSICS },
-  chatMemory: 5,
-  chatImageLimit: 10,
   font: { ...DEFAULT_FONT },
   ...overrides,
 });
@@ -64,12 +62,6 @@ describe('validateForm —— 保存前校验', () => {
       null,
       '0 是合法边界（重力为零、完全弹性都没有下限限制误伤）',
     );
-  });
-
-  test('对话额度：负数非法，0 合法（0 = 不限制）', () => {
-    assert.equal(validateForm(valid({ chatMemory: -1 })), 'invalidChatMemory');
-    assert.equal(validateForm(valid({ chatImageLimit: -1 })), 'invalidChatImageLimit');
-    assert.equal(validateForm(valid({ chatMemory: 0, chatImageLimit: 0 })), null);
   });
 
   test('字体：种类必须在白名单里，字号在闭区间内', () => {

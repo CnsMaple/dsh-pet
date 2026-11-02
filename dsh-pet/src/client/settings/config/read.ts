@@ -17,17 +17,12 @@ export interface MainConfigPatch {
   pets?: Pet[];
   notificationsEnabled?: boolean;
   clickSoundEnabled?: boolean;
-  chatImageEnabled?: boolean;
-  /** 对话动作联动开关；缺省表示这次响应里没有可信值。 */
-  chatAnimationEnabled?: boolean;
   confineToScreen?: boolean;
   trayEnabled?: boolean;
   /** 物理参数：成品已按「内置默认 ← 用户层」填满，缺子键再用内置默认兜底一次。 */
   physics?: PhysicsParams;
   /** 字体：同物理参数。 */
   font?: FontConfig;
-  chatMemoryRounds?: number;
-  chatImageLimit?: number;
   /** 回合完成通知时机。 */
   notificationTurnEnd?: 'never' | 'unfocused' | 'always';
   /** 审批申请是否弹通知。 */
@@ -37,12 +32,6 @@ export interface MainConfigPatch {
   /** 提示音。 */
   notificationSound?: 'default' | 'classic' | 'none';
 }
-
-/** 非负有限数才算合法；其余（`NaN`、负数、字符串）一律当作没写。 */
-const nonNegative = (value: unknown): number | undefined => {
-  const n = Number(value);
-  return Number.isFinite(n) && n >= 0 ? n : undefined;
-};
 
 /**
  * 从成品聚合里读出 main 条目的表单补丁。
@@ -60,8 +49,6 @@ export function readMainConfig(merged: MergedConfig): MainConfigPatch | null {
   };
   if (typeof main.notificationsEnabled === 'boolean') patch.notificationsEnabled = main.notificationsEnabled;
   if (typeof main.clickSoundEnabled === 'boolean') patch.clickSoundEnabled = main.clickSoundEnabled;
-  if (typeof main.chatImageEnabled === 'boolean') patch.chatImageEnabled = main.chatImageEnabled;
-  if (typeof main.chatAnimationEnabled === 'boolean') patch.chatAnimationEnabled = main.chatAnimationEnabled;
   if (typeof main.confineToScreen === 'boolean') patch.confineToScreen = main.confineToScreen;
   if (typeof main.trayEnabled === 'boolean') patch.trayEnabled = main.trayEnabled;
   if (main.physics && typeof main.physics === 'object') {
@@ -70,10 +57,6 @@ export function readMainConfig(merged: MergedConfig): MainConfigPatch | null {
   if (main.font && typeof main.font === 'object') {
     patch.font = { ...DEFAULT_FONT, ...(main.font as FontConfig) };
   }
-  const rounds = nonNegative(main.chatMemoryRounds);
-  if (rounds !== undefined) patch.chatMemoryRounds = rounds;
-  const limit = nonNegative(main.chatImageLimit);
-  if (limit !== undefined) patch.chatImageLimit = limit;
   if (
     main.notificationTurnEnd === 'never' ||
     main.notificationTurnEnd === 'unfocused' ||

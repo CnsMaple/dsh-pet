@@ -31,14 +31,9 @@ export interface SaveFields {
   pets: readonly Pet[];
   notificationsEnabled: boolean;
   clickSoundEnabled: boolean;
-  chatImageEnabled: boolean;
-  /** 对话动作联动开关。 */
-  chatAnimationEnabled: boolean;
   confineToScreen: boolean;
   trayEnabled: boolean;
   physics: PhysicsParams;
-  chatMemoryRounds: number;
-  chatImageLimit: number;
   font: FontConfig;
   notificationTurnEnd: 'never' | 'unfocused' | 'always';
   notificationApproval: boolean;
@@ -64,13 +59,9 @@ export function buildSaveBody(fields: SaveFields): Record<string, unknown> {
     pets: fields.pets,
     notificationsEnabled: fields.notificationsEnabled,
     clickSoundEnabled: fields.clickSoundEnabled,
-    chatImageEnabled: fields.chatImageEnabled,
-    chatAnimationEnabled: fields.chatAnimationEnabled,
     confineToScreen: fields.confineToScreen,
     trayEnabled: fields.trayEnabled,
     physics: fields.physics,
-    chatMemoryRounds: fields.chatMemoryRounds,
-    chatImageLimit: fields.chatImageLimit,
     font: fields.font,
     notificationTurnEnd: fields.notificationTurnEnd,
     notificationApproval: fields.notificationApproval,

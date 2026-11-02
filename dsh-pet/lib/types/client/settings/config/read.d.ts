@@ -7,17 +7,12 @@ export interface MainConfigPatch {
     pets?: Pet[];
     notificationsEnabled?: boolean;
     clickSoundEnabled?: boolean;
-    chatImageEnabled?: boolean;
-    /** 对话动作联动开关；缺省表示这次响应里没有可信值。 */
-    chatAnimationEnabled?: boolean;
     confineToScreen?: boolean;
     trayEnabled?: boolean;
     /** 物理参数：成品已按「内置默认 ← 用户层」填满，缺子键再用内置默认兜底一次。 */
     physics?: PhysicsParams;
     /** 字体：同物理参数。 */
     font?: FontConfig;
-    chatMemoryRounds?: number;
-    chatImageLimit?: number;
     /** 回合完成通知时机。 */
     notificationTurnEnd?: 'never' | 'unfocused' | 'always';
     /** 审批申请是否弹通知。 */

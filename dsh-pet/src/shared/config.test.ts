@@ -34,9 +34,6 @@ const ENTRY_FIELDS: Array<keyof Pet> = [
   'confineToScreen',
   'workStatusTexts',
   'memes',
-  'chatImageEnabled',
-  'chatAnimationEnabled',
-  'chatImageLimit',
 ];
 
 /** 包内文件源码（守卫用；相对 src/shared/ 解析） */

@@ -2464,11 +2464,6 @@ const petBridge = {
 
 //#endregion
 //#region src/client/settings/config/read.ts
-/** 非负有限数才算合法；其余（`NaN`、负数、字符串）一律当作没写。 */
-const nonNegative = (value) => {
-	const n = Number(value);
-	return Number.isFinite(n) && n >= 0 ? n : void 0;
-};
 function readMainConfig(merged) {
 	const main = merged.main;
 	if (!main || !Array.isArray(main.pets)) return null;
@@ -2479,8 +2474,6 @@ function readMainConfig(merged) {
 	})) };
 	if (typeof main.notificationsEnabled === "boolean") patch.notificationsEnabled = main.notificationsEnabled;
 	if (typeof main.clickSoundEnabled === "boolean") patch.clickSoundEnabled = main.clickSoundEnabled;
-	if (typeof main.chatImageEnabled === "boolean") patch.chatImageEnabled = main.chatImageEnabled;
-	if (typeof main.chatAnimationEnabled === "boolean") patch.chatAnimationEnabled = main.chatAnimationEnabled;
 	if (typeof main.confineToScreen === "boolean") patch.confineToScreen = main.confineToScreen;
 	if (typeof main.trayEnabled === "boolean") patch.trayEnabled = main.trayEnabled;
 	if (main.physics && typeof main.physics === "object") patch.physics = {
@@ -2491,10 +2484,6 @@ function readMainConfig(merged) {
 		...DEFAULT_FONT,
 		...main.font
 	};
-	const rounds = nonNegative(main.chatMemoryRounds);
-	if (rounds !== void 0) patch.chatMemoryRounds = rounds;
-	const limit = nonNegative(main.chatImageLimit);
-	if (limit !== void 0) patch.chatImageLimit = limit;
 	if (main.notificationTurnEnd === "never" || main.notificationTurnEnd === "unfocused" || main.notificationTurnEnd === "always") patch.notificationTurnEnd = main.notificationTurnEnd;
 	if (typeof main.notificationApproval === "boolean") patch.notificationApproval = main.notificationApproval;
 	if (typeof main.notificationQuestion === "boolean") patch.notificationQuestion = main.notificationQuestion;
@@ -2527,13 +2516,9 @@ function buildSaveBody(fields) {
 		pets: fields.pets,
 		notificationsEnabled: fields.notificationsEnabled,
 		clickSoundEnabled: fields.clickSoundEnabled,
-		chatImageEnabled: fields.chatImageEnabled,
-		chatAnimationEnabled: fields.chatAnimationEnabled,
 		confineToScreen: fields.confineToScreen,
 		trayEnabled: fields.trayEnabled,
 		physics: fields.physics,
-		chatMemoryRounds: fields.chatMemoryRounds,
-		chatImageLimit: fields.chatImageLimit,
 		font: fields.font,
 		notificationTurnEnd: fields.notificationTurnEnd,
 		notificationApproval: fields.notificationApproval,
@@ -2716,8 +2701,6 @@ const fontValid = (font) => typeof font.family === "string" && font.family.lengt
 function validateForm(values) {
 	if (!values.pets.every(petValid)) return "invalid";
 	if (!physicsValid(values.physics)) return "invalidPhysics";
-	if (!Number.isFinite(values.chatMemory) || values.chatMemory < 0) return "invalidChatMemory";
-	if (!Number.isFinite(values.chatImageLimit) || values.chatImageLimit < 0) return "invalidChatImageLimit";
 	if (!fontValid(values.font)) return "invalidFont";
 	return null;
 }
@@ -2732,8 +2715,6 @@ function createWriteFlow(deps) {
 		const invalid = validateForm({
 			pets: fields.pets,
 			physics: fields.physics,
-			chatMemory: fields.chatMemoryRounds,
-			chatImageLimit: fields.chatImageLimit,
 			font: fields.font
 		});
 		if (invalid !== null) {
@@ -3259,9 +3240,6 @@ function flattenConfigPets(merged) {
 			sleepEndTexts: conf.sleepEndTexts,
 			sleepRefuseTexts: conf.sleepRefuseTexts,
 			memes: conf.memes,
-			chatImageEnabled: conf.chatImageEnabled,
-			chatAnimationEnabled: conf.chatAnimationEnabled,
-			chatImageLimit: conf.chatImageLimit,
 			assetRoot: entry,
 			extra: entry !== "main"
 		});
@@ -5766,12 +5744,8 @@ function makePetConfigSection(rt) {
 		const [clickSound, setClickSound] = useState(true);
 		const [confineScreen, setConfineScreen] = useState(false);
 		const [trayEnabled, setTrayEnabled] = useState(true);
-		const [chatImage, setChatImage] = useState(false);
-		const [chatAnimation, setChatAnimation] = useState(true);
 		const [physics, setPhysics] = useState({ ...DEFAULT_PHYSICS });
 		const [font, setFont] = useState({ ...DEFAULT_FONT });
-		const [chatMemory, setChatMemory] = useState(10);
-		const [chatImageLimit, setChatImageLimit] = useState(20);
 		const [notificationTurnEnd, setNotificationTurnEnd] = useState("unfocused");
 		const [notificationApproval, setNotificationApproval] = useState(true);
 		const [notificationQuestion, setNotificationQuestion] = useState(true);
@@ -5783,14 +5757,10 @@ function makePetConfigSection(rt) {
 			replace(entries);
 			if (patch.notificationsEnabled !== void 0) setNotifyEnabled(patch.notificationsEnabled);
 			if (patch.clickSoundEnabled !== void 0) setClickSound(patch.clickSoundEnabled);
-			if (patch.chatImageEnabled !== void 0) setChatImage(patch.chatImageEnabled);
-			if (patch.chatAnimationEnabled !== void 0) setChatAnimation(patch.chatAnimationEnabled);
 			if (patch.confineToScreen !== void 0) setConfineScreen(patch.confineToScreen);
 			if (patch.trayEnabled !== void 0) setTrayEnabled(patch.trayEnabled);
 			if (patch.physics !== void 0) setPhysics(patch.physics);
 			if (patch.font !== void 0) setFont(patch.font);
-			if (patch.chatMemoryRounds !== void 0) setChatMemory(patch.chatMemoryRounds);
-			if (patch.chatImageLimit !== void 0) setChatImageLimit(patch.chatImageLimit);
 			if (patch.notificationTurnEnd !== void 0) setNotificationTurnEnd(patch.notificationTurnEnd);
 			if (patch.notificationApproval !== void 0) setNotificationApproval(patch.notificationApproval);
 			if (patch.notificationQuestion !== void 0) setNotificationQuestion(patch.notificationQuestion);
@@ -5841,13 +5811,9 @@ function makePetConfigSection(rt) {
 				pets: mainPets,
 				notificationsEnabled: notifyEnabled,
 				clickSoundEnabled: clickSound,
-				chatImageEnabled: chatImage,
-				chatAnimationEnabled: chatAnimation,
 				confineToScreen: confineScreen,
 				trayEnabled,
 				physics,
-				chatMemoryRounds: chatMemory,
-				chatImageLimit,
 				font,
 				notificationTurnEnd,
 				notificationApproval,

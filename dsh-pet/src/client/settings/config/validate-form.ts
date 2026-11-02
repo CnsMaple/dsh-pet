@@ -9,15 +9,12 @@ import { isValidSizePercent } from '../../../shared/pet-size.ts';
 import type { FontConfig, Pet, PhysicsParams } from '../../../shared/types.ts';
 
 /** 校验失败时返回的文案键。 */
-export type InvalidKey =
-  'invalid' | 'invalidPhysics' | 'invalidModel' | 'invalidChatMemory' | 'invalidChatImageLimit' | 'invalidFont';
+export type InvalidKey = 'invalid' | 'invalidPhysics' | 'invalidFont';
 
 /** 保存前要校验的全部表单值。 */
 export interface FormValues {
   pets: readonly Pet[];
   physics: PhysicsParams;
-  chatMemory: number;
-  chatImageLimit: number;
   font: FontConfig;
 }
 
@@ -58,9 +55,6 @@ const fontValid = (font: FontConfig): boolean =>
 export function validateForm(values: FormValues): InvalidKey | null {
   if (!values.pets.every(petValid)) return 'invalid';
   if (!physicsValid(values.physics)) return 'invalidPhysics';
-  if (!Number.isFinite(values.chatMemory) || values.chatMemory < 0) return 'invalidChatMemory';
-  // 0 = 不限制，合法。
-  if (!Number.isFinite(values.chatImageLimit) || values.chatImageLimit < 0) return 'invalidChatImageLimit';
   if (!fontValid(values.font)) return 'invalidFont';
   return null;
 }

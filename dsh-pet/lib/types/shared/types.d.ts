@@ -122,13 +122,6 @@ export interface Pet {
     /** 条目级：表情包清单（名称 → 给模型看的描述），合并器吹进每只实例、多实例共享。
      *  顺序即配置书写顺序，也就是 chatImageLimit 截取「前 N 张」的依据。 */
     memes?: Record<string, string>;
-    /** 条目级：对话配图开关。true = 对话生成时把表情包清单交给模型按语境选一张；缺省按关处理。 */
-    chatImageEnabled?: boolean;
-    /** 条目级：对话动作联动开关。true = 对话时把 categories 下的动作清单交给模型，
-     *  由模型在语境贴合时挑一个当场表演；缺省按关处理。 */
-    chatAnimationEnabled?: boolean;
-    /** 条目级：对话配图张数上限（非负整数，0 = 不限制）。只截「交给模型的清单」，不截碎碎念抽图。 */
-    chatImageLimit?: number;
 }
 /** 一处「服务商 + 模型」选择（config.jsonc 的 whisperModel / chatModel 段）。
  *  provider 与 model 要么都为空（= 跟随当前对话的模型），要么都非空，只填一半是配置错误。 */
@@ -195,10 +188,6 @@ export interface ClientConfig {
      *  （含 display 为 web/none 的），勾选即可切回桌面；false = 不建。
      *  缺失默认 true。关掉后「把不在桌面的宠物叫回桌面」在桌面侧没有入口，只能走设置页或网页端右键菜单。 */
     trayEnabled: boolean;
-    /** 对话配图开关：true = 把表情包清单交模型按语境选 1 张（可不选），false = 纯文本 */
-    chatImageEnabled: boolean;
-    /** 对话动作联动开关：true = 把 categories 下的动作清单交模型按语境挑一个当场表演，false = 纯文字 */
-    chatAnimationEnabled: boolean;
     /** 是否锁定在当前屏幕：true = 宠物只在当前所在那块屏内活动——甩出去只在该屏内弹（屏缝当墙），
      *  自主漫游也只在屏内走；false = 跨屏飞行与跨屏行走。根字段，不属于 physics——它不改手感，只改「被允许去哪」。
      *  条目级，必填，缺失即配置错误。 */

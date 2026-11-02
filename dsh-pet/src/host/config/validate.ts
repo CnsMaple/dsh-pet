@@ -149,15 +149,6 @@ function workStatusTextsValid(value: unknown): boolean {
 /** 顶层标量字段的合法性（非法与缺失同处理：取默认值 + 告警） */
 export function topFieldValid(key: string, value: unknown): boolean {
   switch (key) {
-    case 'chatMemoryRounds': {
-      const n = Number(value);
-      return Number.isFinite(n) && n >= 0;
-    }
-    case 'chatImageLimit': {
-      // 对话配图张数上限：非负数字（0 = 不限制）；小数按消费者 Math.floor 取整
-      const n = Number(value);
-      return Number.isFinite(n) && n >= 0;
-    }
     case 'notificationsEnabled':
       return typeof value === 'boolean';
     case 'notificationTurnEnd':
@@ -169,10 +160,6 @@ export function topFieldValid(key: string, value: unknown): boolean {
       return value === 'default' || value === 'classic' || value === 'none';
     case 'clickSoundEnabled':
       // 点击音效开关（全局布尔，只读 main 条目）：与 notificationsEnabled 同一套校验
-      return typeof value === 'boolean';
-    case 'chatImageEnabled':
-      return typeof value === 'boolean';
-    case 'chatAnimationEnabled':
       return typeof value === 'boolean';
     case 'confineToScreen':
       return typeof value === 'boolean';

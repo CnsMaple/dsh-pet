@@ -194,10 +194,6 @@ const GLOBAL_DEFAULT_KEYS = [
 	"physics",
 	"font",
 	"confineToScreen",
-	"chatImageEnabled",
-	"chatAnimationEnabled",
-	"chatImageLimit",
-	"chatMemoryRounds",
 	"eventsRefreshSec"
 ];
 /** 已告警过的 文件:字段（进程内去重：同一问题只告警一次，避免每请求刷屏；重启重置） */
@@ -397,22 +393,12 @@ function workStatusTextsValid(value) {
 }
 function topFieldValid(key, value) {
 	switch (key) {
-		case "chatMemoryRounds": {
-			const n = Number(value);
-			return Number.isFinite(n) && n >= 0;
-		}
-		case "chatImageLimit": {
-			const n = Number(value);
-			return Number.isFinite(n) && n >= 0;
-		}
 		case "notificationsEnabled": return typeof value === "boolean";
 		case "notificationTurnEnd": return value === "never" || value === "unfocused" || value === "always";
 		case "notificationApproval":
 		case "notificationQuestion": return typeof value === "boolean";
 		case "notificationSound": return value === "default" || value === "classic" || value === "none";
 		case "clickSoundEnabled": return typeof value === "boolean";
-		case "chatImageEnabled": return typeof value === "boolean";
-		case "chatAnimationEnabled": return typeof value === "boolean";
 		case "confineToScreen": return typeof value === "boolean";
 		case "trayEnabled": return typeof value === "boolean";
 		case "animations": return animationsValid(value);
@@ -690,10 +676,6 @@ function saveUserConfig(raw, existing) {
 	if (ne !== void 0 && typeof ne !== "boolean") return null;
 	const cse = o.clickSoundEnabled;
 	if (cse !== void 0 && typeof cse !== "boolean") return null;
-	const cie = o.chatImageEnabled;
-	if (cie !== void 0 && typeof cie !== "boolean") return null;
-	const cae = o.chatAnimationEnabled;
-	if (cae !== void 0 && typeof cae !== "boolean") return null;
 	const cts = o.confineToScreen;
 	if (cts !== void 0 && typeof cts !== "boolean") return null;
 	const te = o.trayEnabled;
@@ -702,10 +684,6 @@ function saveUserConfig(raw, existing) {
 	if (ph !== void 0 && !physicsValid(ph)) return null;
 	const fo = o.font;
 	if (fo !== void 0 && !fontValid(fo)) return null;
-	const cmr = o.chatMemoryRounds;
-	if (cmr !== void 0 && !topFieldValid("chatMemoryRounds", cmr)) return null;
-	const cil = o.chatImageLimit;
-	if (cil !== void 0 && !topFieldValid("chatImageLimit", cil)) return null;
 	const nte = o.notificationTurnEnd;
 	if (nte !== void 0 && !topFieldValid("notificationTurnEnd", nte)) return null;
 	const nap = o.notificationApproval;
@@ -717,14 +695,10 @@ function saveUserConfig(raw, existing) {
 	const outConfig = { pets: out };
 	if (ne !== void 0) outConfig.notificationsEnabled = ne;
 	if (cse !== void 0) outConfig.clickSoundEnabled = cse;
-	if (cie !== void 0) outConfig.chatImageEnabled = cie;
-	if (cae !== void 0) outConfig.chatAnimationEnabled = cae;
 	if (cts !== void 0) outConfig.confineToScreen = cts;
 	if (te !== void 0) outConfig.trayEnabled = te;
 	if (ph !== void 0) outConfig.physics = ph;
 	if (fo !== void 0) outConfig.font = fo;
-	if (cmr !== void 0) outConfig.chatMemoryRounds = Number(cmr);
-	if (cil !== void 0) outConfig.chatImageLimit = Number(cil);
 	if (nte !== void 0) outConfig.notificationTurnEnd = nte;
 	if (nap !== void 0) outConfig.notificationApproval = nap;
 	if (nqu !== void 0) outConfig.notificationQuestion = nqu;
@@ -732,14 +706,10 @@ function saveUserConfig(raw, existing) {
 	const bodyOwned = new Set(["pets"]);
 	if (ne !== void 0) bodyOwned.add("notificationsEnabled");
 	if (cse !== void 0) bodyOwned.add("clickSoundEnabled");
-	if (cie !== void 0) bodyOwned.add("chatImageEnabled");
-	if (cae !== void 0) bodyOwned.add("chatAnimationEnabled");
 	if (cts !== void 0) bodyOwned.add("confineToScreen");
 	if (te !== void 0) bodyOwned.add("trayEnabled");
 	if (ph !== void 0) bodyOwned.add("physics");
 	if (fo !== void 0) bodyOwned.add("font");
-	if (cmr !== void 0) bodyOwned.add("chatMemoryRounds");
-	if (cil !== void 0) bodyOwned.add("chatImageLimit");
 	if (nte !== void 0) bodyOwned.add("notificationTurnEnd");
 	if (nap !== void 0) bodyOwned.add("notificationApproval");
 	if (nqu !== void 0) bodyOwned.add("notificationQuestion");

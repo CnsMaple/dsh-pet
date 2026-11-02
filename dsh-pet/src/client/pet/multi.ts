@@ -7,14 +7,12 @@
 import type { FunctionComponent, ReactNode } from 'react';
 import { petBridge } from '../settings/bridge.ts';
 import { flattenConfigPets, isWebVisible } from '../../shared/config.ts';
-import { decideBalanceNotice } from '../../shared/balance/index.ts';
 import { ROUTE_PATH } from '../../shared/constants.ts';
 import { readMenuItems } from '../../shared/menu.ts';
 import {
   fetchState,
   flattenCounters,
   readAnim,
-  readBalance,
   readLock,
   readPosition,
   readSay,
@@ -25,7 +23,6 @@ import {
 } from '../../shared/state.ts';
 import { fontStackOf } from '../../shared/fonts.ts';
 import type { Pet } from '../../shared/types.ts';
-import type { BalanceState } from '../../shared/balance/index.ts';
 import type {
   LockState,
   PetFacing,
@@ -42,7 +39,6 @@ import type { WorkStatusSnapshot } from '../../shared/work-status.ts';
 import type { PetCardProps } from './card/props.ts';
 import type { PetRuntime, RuntimePet } from './types.ts';
 import { setClickSoundEnabled } from './click-sound.ts';
-import { setSurface, setVoiceConfig } from '../../shared/voice.ts';
 import { runStatePoll } from './state-poll.ts';
 import { setMenuItems } from '../menu-service.ts';
 import { setStateSnapshot } from '../state-service.ts';
@@ -65,33 +61,6 @@ export function createPetMulti(
   return function PetMulti() {
     const [pets, setPets] = useState<Pet[]>([]);
     const [ready, setReady] = useState(false);
-    // 碰撞站场：每只 PetCard 注册槽位，纯 ref 同步，不触发重渲染。
-    // 余额状态：容器统一拉取，PetCard 共享；两个 tick 分别驱动动画与文字说明。
-    const [balance, setBalance] = useState<BalanceState | null>(null);
-    const [balanceTick, setBalanceTick] = useState(0);
-    const [balanceNoticeTick, setBalanceNoticeTick] = useState(0);
-    // 本次余额是否由用户手动请求；手动请求无条件弹，开关只关自动。
-    const [balanceManual, setBalanceManual] = useState(false);
-    // 上次已提示的不可用原因，自动轮询只在原因变化时再弹。
-    const noticeKeyRef = useRef<string | null>(null);
-    // 余额结果统一入口；存 ref 是为了让 /state effect 的依赖保持 [ready]。
-    // explicit 表示本次是否手动触发。
-    const applyBalanceRef = useRef<(state: BalanceState, explicit: boolean) => void>(() => {});
-    applyBalanceRef.current = (state, explicit) => {
-      setBalance(state);
-      setBalanceManual(explicit); // 手动标记随本次数据一起下发，每次到达都覆盖。
-      if (state.ok) {
-        setBalanceTick((t) => t + 1); // 成功：播档位动画并弹余额气泡。
-        return;
-      }
-      const { show, key } = decideBalanceNotice(state, noticeKeyRef.current, explicit);
-      noticeKeyRef.current = key;
-      if (show) setBalanceNoticeTick((t) => t + 1); // 弹文字说明气泡（不播动画）
-      // 未登记服务商是配置事实，已由气泡说明；其余原因照旧显式报错。
-      if (state.reason !== 'unsupported') {
-        console.error('[dsh-pet] 余额查询失败 reason=' + state.reason + (state.message ? ' ' + state.message : ''));
-      }
-    };
     // 工作状态：容器统一轮询 sections.workStatus，快照与 tick 驱动各宠物播档位动画。
     const [workStatus, setWorkStatus] = useState<WorkStatusSnapshot | null>(null);
     const [workStatusTick, setWorkStatusTick] = useState(0);
@@ -115,10 +84,6 @@ export function createPetMulti(
         }
         // 点击音效开关只读 main 条目，非 true 一律静音。
         setClickSoundEnabled(main.clickSoundEnabled === true);
-        // 本页就是网页端：按叶子播放时只认 voiceTo='web' 的那一句。
-        setSurface('web');
-        // 音色、总开关与音量同源：缺字段即「不播」，不在端上兜默认值。
-        setVoiceConfig(main.voiceName, main.voiceEnabled, main.voiceVolume);
         const flattened = flattenConfigPets(merged);
         petBridge.current = flattened;
         // 「添加宠物」模板取 main 条目的 pets[0]。
@@ -198,11 +163,6 @@ export function createPetMulti(
             // 叶子 data 只是信号，配置本体太大，不能塞进 /state。
             petBridge.reload();
             return;
-          case 'balance': {
-            const hit = readBalance(leaf);
-            if (hit) applyBalanceRef.current(hit.state, hit.manual);
-            return;
-          }
           case 'workStatus': {
             const snap = readWorkStatus(leaf);
             if (snap) {
@@ -322,10 +282,6 @@ export function createPetMulti(
           h(Card, {
             key: p.id,
             cfg: p as RuntimePet,
-            balance,
-            balanceTick,
-            balanceNoticeTick,
-            balanceManual,
             workStatus,
             workStatusTick,
             say: sayRef.current[p.id],

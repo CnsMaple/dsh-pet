@@ -10,7 +10,7 @@ import { postAction } from '../../../shared/state.ts';
 import { ROUTE_PATH } from '../../../shared/constants.ts';
 import { resolveFontPx } from '../../../shared/fonts.ts';
 import { resolvePetSizePx } from '../../../shared/pet-size.ts';
-import { makeBalanceBubble, makeWhisperBubble } from '../../bubble.ts';
+import { makeTextBubble } from '../../bubble.ts';
 import { makeTodoBubble } from '../../todo-bubble.ts';
 import { petBridge } from '../../settings.ts';
 import { playClickSound } from '../click-sound.ts';
@@ -40,16 +40,14 @@ import type { PetRuntime } from '../types.ts';
  */
 export function createCardRuntime(rt: PetRuntime) {
   const { h, useEffect, useRef, useState } = rt;
-  /** 余额气泡：数据与显隐由装配根传入。 */
-  const BalanceBubble = makeBalanceBubble({ h, useState, useEffect });
-  /** 碎碎念气泡：文本与显隐由装配根传入。 */
-  const WhisperBubble = makeWhisperBubble({ h });
+  /** 文本气泡：说话与工作状态共用。 */
+  const TextBubble = makeTextBubble({ h });
   /** 待办气泡：面板本体挂在自己身上，关闭按钮回调装配根。 */
   const TodoBubble = makeTodoBubble({ h, useEffect, useRef });
   /** 四种气泡的单槽：显隐、停留计时与优先级都在这里。 */
   const useBubbleSlots = createBubbleSlots(
     { h, useState, useEffect, useRef },
-    { balanceBubble: BalanceBubble, todoBubble: TodoBubble, whisperBubble: WhisperBubble },
+    { textBubble: TextBubble, todoBubble: TodoBubble },
   );
   const useCardState = createCardState({ useState, useRef });
   const useLockFreeze = createLockFreeze({ useEffect, useRef });
@@ -61,7 +59,7 @@ export function createCardRuntime(rt: PetRuntime) {
   const useCardEntry = createCardEntry({ useEffect, useRef });
 
   return function useCardRuntime(props: PetCardProps): CardViewProps {
-    const { balance, balanceManual, cfg, lock, lockTick, menuItemsRef, sleep, sleepTick, workStatus } = props;
+    const { cfg, lock, lockTick, menuItemsRef, sleep, sleepTick, workStatus } = props;
 
     // 实际渲染宽度：百分比只在挂载与配置变更时按当次视口宽解析一次，拖窗口不跟随。
     // 物理、字号与 CSS 变量都吃这一个值——两处各算一次会让命中框与视觉错位。
@@ -122,10 +120,6 @@ export function createCardRuntime(rt: PetRuntime) {
 
     // 四种气泡的单槽：显隐、停留计时与优先级都在 bubble-slots，这里只喂视图输入。
     const bubbles = useBubbleSlots({
-      assetRoot: cfg.assetRoot,
-      balance,
-      balanceEnabled: cfg.balanceEnabled,
-      balanceManual,
       workStatusEnabled: cfg.workStatusEnabled,
       workTerminal: workStatus?.state === 'success' || workStatus?.state === 'error',
     });

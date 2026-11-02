@@ -5,7 +5,6 @@
  * 两端共用同一份；首拉只记基线不渲染，否则刷新页面会把旧气泡重放一遍。
  * @module dsh-pet/src/shared/state
  */
-import { type BalanceState } from './balance/index.ts';
 import { type WorkStatusSnapshot } from './work-status.ts';
 /** 一个叶子：计数器 + 载荷；data 为 null 表示还没有数据，消费端跳过。 */
 export interface StateLeaf {
@@ -39,7 +38,7 @@ export declare function flattenCounters(s: PollState): Record<string, number>;
  *  首拉不要调它（用 flattenCounters 记基线），否则页面刷新会把旧数据重放一遍。 */
 export declare function takeChanged(s: PollState, baseline: Record<string, number>): StateChange[];
 /** `sections.<名>` 里会被消费端分发的那几个叶子。 */
-export type SectionLeafName = 'config' | 'balance' | 'workStatus' | 'notify' | 'menu';
+export type SectionLeafName = 'config' | 'workStatus' | 'notify' | 'menu';
 /** `pets.<id>.<名>` 里会被消费端分发的那几个叶子。 */
 export type PetLeafName = 'say' | 'anim' | 'position' | 'lock' | 'sleep';
 /** 一次叶子分发的落点：分段叶子，或某只宠物的叶子。 */
@@ -58,13 +57,6 @@ export type LeafTarget = {
  * `a.b`。规则在这里而不是在分发处，是为了能脱离 React 断言——两端共用同一份口径。
  */
 export declare function resolveLeafPath(path: string): LeafTarget | null;
-/** 类型收窄：余额叶子 → `{ state, manual }`。
- *  manual = 这次写入是手动触发的（/balance 命令、桌面「查看余额」菜单），由宿主在写入时标记，
- *  消费端据此决定余额不可用时要不要必弹文字说明。形状非法 → null，消费端跳过这一拍。 */
-export declare function readBalance(leaf: StateLeaf): {
-    state: BalanceState;
-    manual: boolean;
-} | null;
 /** 说话指令（`pets.<id>.say` 的两种形态）。
  *  say：弹一个气泡，duration = 显示时长（毫秒；缺省 10s，0 = 字面意思「不显示」），
  *  anim 只在显式 false 时出现，表示这次不联动 events.whisper 动画、只弹气泡。

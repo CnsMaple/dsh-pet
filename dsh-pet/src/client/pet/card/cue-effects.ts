@@ -5,10 +5,8 @@
  * 不变量：只有计数器变化才动手；占用锁生效时自动来源整拍丢弃，显式指令不挡。
  * @module dsh-pet/src/client/pet/card/cue-effects
  */
-import { balanceEventIndex, balancePercent } from '../../../shared/balance/index.ts';
 import { pickSlot, poolIncludes } from '../../../shared/pickers.ts';
 import { WORK_STATUS_INDEX } from '../../../shared/work-status.ts';
-import { playSayVoice } from '../../../shared/voice.ts';
 import type { CardHub } from './hub.ts';
 import type { PetCardProps } from './props.ts';
 import type * as ReactNS from 'react';
@@ -39,68 +37,15 @@ export function createCueEffects(rt: CueEffectsRuntime) {
   const { useEffect, useRef } = rt;
 
   return function useCueEffects(hub: CardHub, props: PetCardProps): void {
-    const { balance, balanceManual, balanceNoticeTick, balanceTick } = props;
     const { animCue, animCueTick, posCue, posCueTick, say, sayTick } = props;
     const { workStatus, workStatusTick } = props;
 
-    const prevBalanceRef = useRef(0);
-    const prevNoticeRef = useRef(0);
     const prevWorkRef = useRef(0);
     // 调试日志：上一档位，null 表示空闲，undefined 表示启动后尚未触发。
     const prevWorkStateRef = useRef<string | null | undefined>(undefined);
     const prevSayRef = useRef(0);
     const prevAnimRef = useRef(0);
     const prevPosRef = useRef(0);
-
-    /** 余额事件：按档位播事件动画并弹气泡。手动请求无条件弹，自动轮询要求开启且有百分比；
-     *  睡着时自动来源整拍丢弃，否则会顶掉睡姿。 */
-    const consumeBalance = (): void => {
-      const cfg = hub.cfg();
-      const card = hub.card;
-      if (balanceTick === 0 || balanceTick === prevBalanceRef.current) return;
-      prevBalanceRef.current = balanceTick;
-      // 占用锁：自动余额不看，手动请求照常；tick 消费之后再判，占用期间这一拍就当过去。
-      if (hub.ownAnim.isFrozen() && !balanceManual) return;
-      // 睡觉一票否决：睡着一律不播，手动请求也不打断睡姿（与桌面端同一口径）。
-      if (hub.sleeping()) return;
-      if (!balance || !balance.ok) return;
-      if (!cfg.balanceEnabled && !balanceManual) return; // 自动轮询受开关门控，手动请求无条件通过。
-      const percent = balancePercent(balance);
-      // 自动轮询的弹出门槛：内置形态要求有百分比；custom 不看百分比，内容由第三方设计。
-      if (balanceManual || percent !== undefined || balance.shape === 'custom') hub.bubbles.showBalance();
-      if (!cfg.balanceEnabled) return; // 档位动画只属于启用余额的宠物。
-      if (percent === undefined) return; // 当前数据源没有百分比语义，不触发档位动画。
-      const pool = hub.anims().events?.balance;
-      if (!pool || pool.length === 0) {
-        console.error('[dsh-pet] 配置缺少 animations.events.balance，无法播放余额事件动画');
-        return;
-      }
-      const idx = balanceEventIndex(percent);
-      const slot = pool[idx];
-      if (!slot) {
-        console.error('[dsh-pet] balance 档位索引越界：p=' + percent + ' idx=' + idx);
-        return;
-      }
-      const name = pickSlot(slot, card.animRef.current); // 档内随机抽 1，并避开当前正播动画。
-      log('balance pet=' + cfg.id + ' p=' + percent.toFixed(1) + '% -> [档' + idx + '] ' + name);
-      hub.stopMotion();
-      card.actions.setOnce(true);
-      card.actions.setAnim(name);
-    };
-
-    /** 余额不可用：容器递增计数，本宠物只弹文字说明，不播档位动画。 */
-    // 同一原因只提示一次由容器用 shared 的 decideBalanceNotice 去重，这里只管按 tick 弹。
-    const consumeBalanceNotice = (): void => {
-      const cfg = hub.cfg();
-      if (!cfg.balanceEnabled && !balanceManual) return; // 自动轮询受开关门控，手动请求无条件通过。
-      if (balanceNoticeTick === 0 || balanceNoticeTick === prevNoticeRef.current) return;
-      prevNoticeRef.current = balanceNoticeTick;
-      // 占用锁：自动来源不看，手动请求照常；睡觉一票否决，手动也不弹。
-      if (hub.ownAnim.isFrozen() && !balanceManual) return;
-      if (hub.sleeping()) return;
-      if (!balance || balance.ok) return;
-      hub.bubbles.showBalance();
-    };
 
     /** 工作状态联动：按档位播动画并弹文本气泡；回空闲时收起气泡并改播完即停。 */
     const consumeWorkStatus = (): void => {
@@ -165,8 +110,6 @@ export function createCueEffects(rt: CueEffectsRuntime) {
         return;
       }
       hub.speak(say.text, say.image, say.url, say.duration, say.anim);
-      // 两端各判各的：叶子点名了本端才念，没点名或点了另一端就只弹气泡
-      playSayVoice(say);
     };
 
     /** 点播动画：url 插播一段，名称走菜单同一套动作。 */
@@ -207,14 +150,12 @@ export function createCueEffects(rt: CueEffectsRuntime) {
     // 七条指令共用一个 effect：每条自带已消费守卫，只有变化的那条真正动手。
     // 分开写七个 effect 时每个渲染期闭包都要重新订阅，守卫与依赖说明也重复七遍。
     useEffect(() => {
-      consumeBalance();
-      consumeBalanceNotice();
       consumeWorkStatus();
       consumeSay();
       consumeAnimCue();
       consumePosCue();
       // 守卫函数每渲染重建，但只读 ref 与当拍的 props；进依赖会让每个渲染都重跑七个守卫。
       // eslint-disable-next-line react-hooks/exhaustive-deps -- 变化原因只有这七个计数器
-    }, [balanceTick, balanceNoticeTick, workStatusTick, sayTick, animCueTick, posCueTick]);
+    }, [workStatusTick, sayTick, animCueTick, posCueTick]);
   };
 }

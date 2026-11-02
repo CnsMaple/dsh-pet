@@ -89,7 +89,7 @@ const displayMenuBranch = () => ({
 	}))
 });
 const MORE_MENU_LABEL = "更多";
-function readMenuItems(data, surface$1) {
+function readMenuItems(data, surface) {
 	if (!data || typeof data !== "object") return [];
 	const items = data.items;
 	if (!Array.isArray(items)) return [];
@@ -99,7 +99,7 @@ function readMenuItems(data, surface$1) {
 		const rec = item;
 		const rawTarget = rec.target;
 		const target = rawTarget === "web" || rawTarget === "desktop" || rawTarget === "both" ? rawTarget : "both";
-		if (target !== "both" && target !== surface$1) continue;
+		if (target !== "both" && target !== surface) continue;
 		const owner = rec.owner;
 		const label = rec.label;
 		if (typeof owner === "string" && owner !== "" && typeof label === "string" && label !== "") out.push({
@@ -750,637 +750,6 @@ const pickCategoryAction = (categories, idlePool, facing, current$1) => {
 };
 
 //#endregion
-//#region src/shared/balance/tone.ts
-const QUOTA_WARN_PERCENT = 70;
-const QUOTA_CRIT_PERCENT = 90;
-function quotaTone(percent) {
-	if (percent >= QUOTA_CRIT_PERCENT) return "crit";
-	if (percent >= QUOTA_WARN_PERCENT) return "warn";
-	return "ok";
-}
-
-//#endregion
-//#region src/shared/balance/parse.ts
-const CUSTOM_TAGS = [
-	"div",
-	"span",
-	"i",
-	"b",
-	"strong",
-	"em",
-	"img"
-];
-const CUSTOM_STYLE_KEYS = new Set([
-	"display",
-	"flex",
-	"flexDirection",
-	"flexWrap",
-	"alignItems",
-	"justifyContent",
-	"gap",
-	"margin",
-	"marginTop",
-	"marginRight",
-	"marginBottom",
-	"marginLeft",
-	"padding",
-	"paddingTop",
-	"paddingRight",
-	"paddingBottom",
-	"paddingLeft",
-	"width",
-	"height",
-	"minWidth",
-	"maxWidth",
-	"minHeight",
-	"maxHeight",
-	"color",
-	"fontSize",
-	"fontWeight",
-	"fontStyle",
-	"lineHeight",
-	"letterSpacing",
-	"textAlign",
-	"textDecoration",
-	"whiteSpace",
-	"verticalAlign",
-	"fontVariantNumeric",
-	"background",
-	"backgroundColor",
-	"border",
-	"borderTop",
-	"borderBottom",
-	"borderLeft",
-	"borderRight",
-	"borderRadius",
-	"overflow",
-	"opacity"
-]);
-/** 样式值里一律禁止的片段：外部资源、表达式、注释截断。要图请用 `img` 节点（地址另有限制）。 */
-const BANNED_STYLE_VALUE = /url\(|expression|javascript:|vbscript:|@import|\\|\/\*/i;
-const CUSTOM_LIMITS = {
-	maxDepth: 6,
-	maxNodes: 200,
-	maxChildren: 24,
-	maxText: 120,
-	maxStyleValue: 64,
-	maxSrc: 512,
-	maxViews: 4
-};
-/**
-* 递归解析并校验一个节点，把外部输入转成视图树。
-*
-* 任一节点不合法即整树返回 null：部分渲染会得到一棵缺了一块的气泡，比这一拍不显示更误导人；
-* 单个样式属性非法只丢那一条，不值得为此整树作废。
-*
-* @param raw - 外部节点；类型未知，逐层校验后才进入视图树。
-* @param depth - 当前深度，根为 0。
-* @param budget - 全树节点计数，跨递归共享。
-* @returns 合法节点；不合法返回 null，调用方据此跳过这一拍。
-*/
-function parseCustomNode(raw, depth, budget) {
-	if (!raw || typeof raw !== "object") return null;
-	if (depth >= CUSTOM_LIMITS.maxDepth) return null;
-	budget.nodes += 1;
-	if (budget.nodes > CUSTOM_LIMITS.maxNodes) return null;
-	const n = raw;
-	const tag = typeof n.tag === "string" ? n.tag : "";
-	if (!CUSTOM_TAGS.includes(tag)) return null;
-	const node = { tag };
-	if (typeof n.text === "string" && n.text.length > 0) node.text = n.text.slice(0, CUSTOM_LIMITS.maxText);
-	if (tag === "img") {
-		const src = typeof n.src === "string" ? n.src.trim() : "";
-		if (!/^https?:\/\//i.test(src) || src.length > CUSTOM_LIMITS.maxSrc) return null;
-		node.src = src;
-	}
-	if (n.style && typeof n.style === "object" && !Array.isArray(n.style)) {
-		const style = {};
-		for (const [k, v] of Object.entries(n.style)) {
-			if (!CUSTOM_STYLE_KEYS.has(k)) continue;
-			if (typeof v !== "string") continue;
-			const value = v.trim();
-			if (value === "" || value.length > CUSTOM_LIMITS.maxStyleValue) continue;
-			if (BANNED_STYLE_VALUE.test(value)) continue;
-			style[k] = value;
-		}
-		if (Object.keys(style).length > 0) node.style = style;
-	}
-	if (Array.isArray(n.children)) {
-		if (n.children.length > CUSTOM_LIMITS.maxChildren) return null;
-		const children = [];
-		for (const child of n.children) {
-			const parsed = parseCustomNode(child, depth + 1, budget);
-			if (parsed === null) return null;
-			children.push(parsed);
-		}
-		if (children.length > 0) node.children = children;
-	}
-	return node;
-}
-/** 可选数字：缺省返回 undefined，出现但非法返回 null，调用方据此跳过这一拍而不是把坏数字送进展示层。 */
-function optNum(value) {
-	if (value === void 0 || value === null) return void 0;
-	const n = Number(value);
-	return Number.isFinite(n) ? n : null;
-}
-/**
-* 解析区间累计用量：缺省返回 undefined（服务商没有这项数据），出现但不完整或非法返回 null。
-*
-* 五个数字缺一不可——少一个就拼不出一页可信的用量，宁可这一拍整片不显示，也不拿 0 顶替。
-*/
-function parseUsage(raw) {
-	if (raw === void 0) return void 0;
-	if (!raw || typeof raw !== "object") return null;
-	const u = raw;
-	const fields = [
-		u.totalTokens,
-		u.inputTokens,
-		u.outputTokens,
-		u.requests,
-		u.spentUsd
-	].map(optNum);
-	if (fields.some((n) => typeof n !== "number")) return null;
-	const [totalTokens, inputTokens, outputTokens, requests, spentUsd] = fields;
-	return {
-		totalTokens,
-		inputTokens,
-		outputTokens,
-		requests,
-		spentUsd
-	};
-}
-function toBalanceState(raw) {
-	if (!raw || typeof raw !== "object") return null;
-	const r = raw;
-	const provider = String(r.provider ?? "unknown");
-	if (r.ok !== true) {
-		const reason = r.reason === "unsupported" || r.reason === "credential-missing" || r.reason === "fetch-error" ? r.reason : "fetch-error";
-		return {
-			provider,
-			ok: false,
-			reason,
-			message: typeof r.message === "string" ? r.message : void 0
-		};
-	}
-	const d = r.data;
-	if (!d || typeof d !== "object") return null;
-	if (r.shape === "windows") {
-		const monthly = optNum(d.monthly);
-		const rolling = optNum(d.rolling);
-		const weekly = optNum(d.weekly);
-		const rollingCapUsd = optNum(d.rollingCapUsd);
-		const weeklyCapUsd = optNum(d.weeklyCapUsd);
-		const monthlyCapUsd = optNum(d.monthlyCapUsd);
-		const usage = parseUsage(d.usage);
-		if (monthly === void 0 || monthly === null) return null;
-		if (rolling === null || weekly === null || rollingCapUsd === null || weeklyCapUsd === null || monthlyCapUsd === null || usage === null) return null;
-		return {
-			provider,
-			shape: "windows",
-			ok: true,
-			rolling,
-			weekly,
-			monthly,
-			rollingCapUsd,
-			weeklyCapUsd,
-			monthlyCapUsd,
-			...usage ? { usage } : {},
-			rollingLabel: typeof d.rollingLabel === "string" && d.rollingLabel.length > 0 ? d.rollingLabel : void 0,
-			rollingResetsAt: typeof d.rollingResetsAt === "string" ? d.rollingResetsAt : void 0,
-			weeklyResetsAt: typeof d.weeklyResetsAt === "string" ? d.weeklyResetsAt : void 0,
-			monthlyResetsAt: typeof d.monthlyResetsAt === "string" ? d.monthlyResetsAt : void 0
-		};
-	}
-	if (r.shape === "money") {
-		const raw$1 = Array.isArray(d.wallets) ? d.wallets : [];
-		const wallets = [];
-		for (const item of raw$1) {
-			if (!item || typeof item !== "object") continue;
-			const w = item;
-			if (typeof w.currency !== "string" || w.currency.length === 0) continue;
-			if (typeof w.total !== "string" || w.total.length === 0) continue;
-			wallets.push({
-				currency: w.currency,
-				total: w.total,
-				granted: typeof w.granted === "string" && w.granted.length > 0 ? w.granted : "0.00",
-				toppedUp: typeof w.toppedUp === "string" && w.toppedUp.length > 0 ? w.toppedUp : "0.00",
-				fullBalance: typeof w.fullBalance === "string" && w.fullBalance.length > 0 ? w.fullBalance : void 0
-			});
-		}
-		if (wallets.length === 0) return null;
-		return {
-			provider,
-			shape: "money",
-			ok: true,
-			wallets,
-			tier: d.tier === "peak" || d.tier === "idle" ? d.tier : void 0
-		};
-	}
-	if (r.shape === "points") {
-		if (typeof d.unit !== "string" || d.unit.length === 0) return null;
-		if (typeof d.total !== "string" || d.total.length === 0) return null;
-		return {
-			provider,
-			shape: "points",
-			ok: true,
-			points: {
-				unit: d.unit,
-				total: d.total,
-				full: typeof d.full === "string" && d.full.length > 0 ? d.full : void 0
-			}
-		};
-	}
-	if (r.shape === "custom") {
-		let views = [];
-		if (Array.isArray(d.views) && d.views.length > 0) {
-			if (d.views.length > CUSTOM_LIMITS.maxViews) return null;
-			for (const raw$1 of d.views) {
-				const page = parseCustomNode(raw$1, 0, { nodes: 0 });
-				if (!page) return null;
-				views.push(page);
-			}
-		} else {
-			const rows = parseCustomNode(d.rows, 0, { nodes: 0 });
-			if (!rows) return null;
-			views = [rows];
-			if (d.detailRows !== void 0) {
-				const detail = parseCustomNode(d.detailRows, 0, { nodes: 0 });
-				if (!detail) return null;
-				views.push(detail);
-			}
-		}
-		const pct = typeof d.percent === "number" && Number.isFinite(d.percent) ? Math.max(0, Math.min(100, d.percent)) : void 0;
-		return {
-			provider,
-			shape: "custom",
-			ok: true,
-			custom: {
-				views,
-				percent: pct
-			}
-		};
-	}
-	return null;
-}
-
-//#endregion
-//#region src/shared/balance/handlers/custom.ts
-const customHandler = {
-	percent: (v) => v.custom?.percent,
-	rows: () => [],
-	detail: () => [],
-	views: (v) => v.custom?.views
-};
-
-//#endregion
-//#region src/shared/balance/handlers/money.ts
-/**
-* 各币种按自己的基准算剩余比例，相加后折算成已用百分比。
-*
-* 没有基准的币种跳过，不替它猜一个；一个带基准的币种都没有则返回 undefined，不播档位动画。
-*/
-function moneyPercent(v) {
-	let remaining = 0;
-	let based = 0;
-	for (const w of v.wallets ?? []) {
-		const total = Number(w.total);
-		const full = Number(w.fullBalance);
-		if (!Number.isFinite(total) || !Number.isFinite(full) || full <= 0) continue;
-		remaining += total / full;
-		based++;
-	}
-	if (based === 0) return void 0;
-	return Math.max(0, Math.min(100, 100 - remaining * 100));
-}
-/**
-* 一行「余额（峰/谷）¥x.xx」。
-*
-* 只显示 total 非 0 的币种：负数要显示（透支是真的欠钱），正好 0 的不占地方；CNY 优先，
-* 用符号拼接、以「/」分隔；全为 0 时兜底 ¥0.00，否则气泡会空一行。档位装饰只有提供该计价
-* 规则的服务商才有，没有就不加括号那一段。
-*/
-function moneyRows(v) {
-	const visible = (v.wallets ?? []).filter((w) => Number(w.total) !== 0).sort((a, b) => (a.currency === "CNY" ? 0 : 1) - (b.currency === "CNY" ? 0 : 1));
-	const amount = visible.length > 0 ? visible.map((w) => (w.currency === "USD" ? "$" : "¥") + w.total).join("/") : "¥0.00";
-	if (!v.tier) return [{
-		role: "label",
-		text: "余额 " + amount
-	}];
-	return [
-		{
-			role: "label",
-			text: "余额（"
-		},
-		{
-			role: "tier",
-			tier: v.tier,
-			text: v.tier === "peak" ? "峰" : "谷"
-		},
-		{
-			role: "label",
-			text: "）" + amount
-		}
-	];
-}
-const moneyHandler = {
-	percent: moneyPercent,
-	rows: moneyRows
-};
-
-//#endregion
-//#region src/shared/balance/handlers/points.ts
-/**
-* 与 money 同一套「按基准折算」的数学，数据来自 points 而非 wallets。
-*
-* 没有基准或基准非法则返回 undefined，不播档位动画，也不替服务商猜一个。
-*/
-function pointsPercent(v) {
-	const total = Number(v.points?.total);
-	const full = Number(v.points?.full);
-	if (!Number.isFinite(total) || !Number.isFinite(full) || full <= 0) return void 0;
-	return Math.max(0, Math.min(100, 100 - total / full * 100));
-}
-/**
-* 一行「余额 800 积分」。
-*
-* 单位是数据带出的后缀，绝不套货币符号——$/¥ 那套判断只属于 money；0 也照常显示，0 积分是真实读数。
-*/
-function pointsRows(v) {
-	const p = v.points;
-	if (!p) return [{
-		role: "label",
-		text: "积分数据不可用"
-	}];
-	return [{
-		role: "label",
-		text: "余额 " + p.total + " " + p.unit
-	}];
-}
-const pointsHandler = {
-	percent: pointsPercent,
-	rows: pointsRows
-};
-
-//#endregion
-//#region src/shared/balance/handlers/windows.ts
-const WINDOW_LABELS = {
-	weekly: "周",
-	monthly: "月"
-};
-const DEFAULT_ROLLING_LABEL = "5h";
-/** 取窗口展示名：滚动窗用服务商自报值，周与月走固定表 */
-function windowLabel(v, w) {
-	if (w === "rolling") return v.rollingLabel ?? DEFAULT_ROLLING_LABEL;
-	return WINDOW_LABELS[w];
-}
-/** 各窗口的满额度，全部来自数据 */
-function windowQuotas(v) {
-	return {
-		rolling: v.rollingCapUsd,
-		weekly: v.weeklyCapUsd,
-		monthly: v.monthlyCapUsd
-	};
-}
-function urgentWindow(v) {
-	if (v.shape !== "windows") return void 0;
-	const quotas = windowQuotas(v);
-	const resets = {
-		rolling: v.rollingResetsAt,
-		weekly: v.weeklyResetsAt,
-		monthly: v.monthlyResetsAt
-	};
-	const present = [
-		"rolling",
-		"weekly",
-		"monthly"
-	].filter((w) => v[w] !== void 0);
-	if (present.length === 0) return void 0;
-	const allQuotas = present.every((w) => {
-		const quota = quotas[w];
-		return quota !== void 0 && quota > 0;
-	});
-	let best;
-	for (const w of present) {
-		const percent = v[w] ?? 0;
-		const quota = quotas[w];
-		const cand = {
-			label: windowLabel(v, w),
-			percent,
-			quotaUsd: quota,
-			remainingUsd: allQuotas && quota !== void 0 ? quota * (100 - percent) / 100 : void 0,
-			resetsAt: resets[w]
-		};
-		if (best === void 0) {
-			best = cand;
-			continue;
-		}
-		const moreUrgent = allQuotas ? (cand.remainingUsd ?? 0) < (best.remainingUsd ?? 0) : cand.percent > best.percent;
-		if (moreUrgent) best = cand;
-	}
-	return best;
-}
-function resetInText(iso) {
-	if (!iso) return "";
-	const t = new Date(iso).getTime();
-	if (!Number.isFinite(t)) return "";
-	const delta = t - Date.now();
-	if (delta <= 0) return "已重置";
-	const hoursF = delta / 36e5;
-	if (hoursF >= 96) return (Math.round(hoursF / 24 * 10) / 10).toFixed(1) + " 天";
-	return Math.max(.1, Math.round(hoursF * 10) / 10).toFixed(1) + " 小时";
-}
-/** 三窗口取最大值，只有月窗口时就是它本身 */
-function windowsPercent(v) {
-	return Math.max(v.rolling ?? 0, v.weekly ?? 0, v.monthly ?? 0);
-}
-/** 把 resetInText 的三种返回翻成一句提示：空串 = 时间未知，'已重置' = 已经过点，其余 = 倒计时。 */
-function resetPhrase(reset) {
-	if (reset === "") return "重置时间未知";
-	return reset === "已重置" ? reset : reset + "重置";
-}
-/** 两行：最紧迫窗口的已用百分比与重置倒计时 */
-function windowsRows(v) {
-	const w = urgentWindow(v);
-	if (!w) return [{
-		role: "label",
-		text: "额度数据不可用"
-	}];
-	const reset = resetInText(w.resetsAt);
-	return [{
-		role: "label",
-		text: w.label + "额度已用 " + Math.round(w.percent) + "%"
-	}, {
-		role: "sub",
-		text: resetPhrase(reset)
-	}];
-}
-/**
-* 展开态每个存在的窗口一行：窗口名、进度条、已用百分比与重置倒计时。
-*
-* 只列存在的窗口，rolling 与 weekly 缺省表示该服务商没有这个窗口，不补 0、不画空条。
-*/
-function windowsDetail(v) {
-	const resets = {
-		rolling: v.rollingResetsAt,
-		weekly: v.weeklyResetsAt,
-		monthly: v.monthlyResetsAt
-	};
-	const rows = [];
-	for (const w of [
-		"rolling",
-		"weekly",
-		"monthly"
-	]) {
-		const percent = v[w];
-		if (percent === void 0) continue;
-		const reset = resetInText(resets[w]);
-		const usedText = Math.round(percent) + "%";
-		const resetText = resetPhrase(reset);
-		rows.push({
-			role: "quota",
-			text: windowLabel(v, w) + " " + usedText + " " + resetText,
-			label: windowLabel(v, w),
-			percent,
-			tone: quotaTone(percent),
-			usedText,
-			resetText
-		});
-	}
-	return rows.length > 0 ? rows : windowsRows(v);
-}
-/** 紧凑计数：1.2B / 96.0M / 478.3K，千以下取整。固定一位小数——同一页三个数字宽度稳定，不随取值跳动。 */
-function compactCount(n) {
-	if (n >= 1e9) return (n / 1e9).toFixed(1) + "B";
-	if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
-	if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
-	return String(Math.round(n));
-}
-/**
-* 第三页：本期累计用量。一行 `usage` 承载整张卡，两端摆成三行两列——
-* 「Token / 总量」「输入 / 输出」「本期请求数 / 花费」，总量是唯一的大字。
-*
-* 服务商没给这项数据时返回 undefined，由页数判定决定气泡只有两页；给的一半数字不会被拼进来。
-*/
-function windowsUsage(v) {
-	const u = v.usage;
-	if (!u) return void 0;
-	const total = compactCount(u.totalTokens);
-	const input = compactCount(u.inputTokens) + " 入";
-	const output = compactCount(u.outputTokens) + " 出";
-	const period = "本期 " + u.requests + " 次";
-	const spend = "$" + u.spentUsd.toFixed(2);
-	const sum = u.inputTokens + u.outputTokens;
-	const inputPercent = sum > 0 ? u.inputTokens / sum * 100 : void 0;
-	return [{
-		role: "usage",
-		text: "Token " + total + " · " + input + " / " + output + " · " + period + " · " + spend,
-		title: "Token",
-		total,
-		input,
-		output,
-		period,
-		spend,
-		inputPercent
-	}];
-}
-const windowsHandler = {
-	percent: windowsPercent,
-	rows: windowsRows,
-	detail: windowsDetail,
-	usage: windowsUsage
-};
-
-//#endregion
-//#region src/shared/balance/handlers/index.ts
-const HANDLERS = {
-	windows: windowsHandler,
-	money: moneyHandler,
-	points: pointsHandler,
-	custom: customHandler
-};
-
-//#endregion
-//#region src/shared/balance/percent.ts
-function balancePercent(v) {
-	return HANDLERS[v.shape].percent(v);
-}
-function balanceEventIndex(p) {
-	if (p === 100) return 5;
-	const i = Math.floor(p / 20);
-	return i < 5 ? i : 4;
-}
-
-//#endregion
-//#region src/shared/balance/view.ts
-/**
-* 不可用状态的气泡行：显式给出原因，绝不伪造数字。
-*
-* 次要行为空的会被剔除——空 div 在气泡里会白占一行高度。
-*/
-function unavailableRows(state) {
-	const rows = state.reason === "unsupported" ? [{
-		role: "error",
-		text: "当前服务商暂不支持余额查询"
-	}, {
-		role: "sub",
-		text: "当前服务商：" + state.provider
-	}] : state.reason === "credential-missing" ? [{
-		role: "error",
-		text: "缺少余额查询凭证"
-	}, {
-		role: "sub",
-		text: state.message ?? ""
-	}] : [{
-		role: "error",
-		text: "余额查询失败"
-	}, {
-		role: "sub",
-		text: state.message ?? ""
-	}];
-	return rows.filter((r) => r.role !== "quota" && r.text !== "");
-}
-function balanceDetailView(state) {
-	if (!state.ok) return unavailableRows(state);
-	const handler = HANDLERS[state.shape];
-	return handler.detail ? handler.detail(state) : handler.rows(state);
-}
-function balancePageCount$1(state) {
-	if (!state.ok) return 1;
-	if (state.shape === "custom") return Math.max(1, customViews(state)?.length ?? 1);
-	if (state.shape !== "windows") return 1;
-	return state.usage ? 3 : 2;
-}
-function balancePageView(state, page) {
-	if (!state.ok) return unavailableRows(state);
-	const handler = HANDLERS[state.shape];
-	if (state.shape !== "windows" || page <= 0) return handler.rows(state);
-	if (page === 1 || !state.usage) return balanceDetailView(state);
-	return handler.usage?.(state) ?? balanceDetailView(state);
-}
-function customViews(state) {
-	if (!state.ok || state.shape !== "custom") return void 0;
-	const views = HANDLERS[state.shape].views?.(state);
-	return views && views.length > 0 ? views : void 0;
-}
-function customClickable(state) {
-	return (customViews(state)?.length ?? 0) > 1;
-}
-
-//#endregion
-//#region src/shared/balance/notice.ts
-function decideBalanceNotice(state, lastKey, explicit) {
-	if (state.ok) return {
-		show: false,
-		key: null
-	};
-	const key = state.reason + ":" + state.provider;
-	return {
-		show: explicit || key !== lastKey,
-		key
-	};
-}
-
-//#endregion
 //#region src/shared/work-status.ts
 const WORK_STATUS_STATES = [
 	"thinking",
@@ -1478,7 +847,6 @@ function takeChanged(s, baseline) {
 /** 分段叶子名的全集；新增 section 叶子时与 {@link SectionLeafName} 一起改。 */
 const SECTION_LEAF_NAMES = [
 	"config",
-	"balance",
 	"workStatus",
 	"notify",
 	"menu"
@@ -1517,15 +885,6 @@ function resolveLeafPath(path) {
 		name,
 		petId: rest.slice(0, dot)
 	} : null;
-}
-function readBalance(leaf$1) {
-	const state = toBalanceState(leaf$1.data);
-	if (!state) return null;
-	const manual = leaf$1.data.manual === true;
-	return {
-		state,
-		manual
-	};
 }
 function readSay(leaf$1) {
 	if (!leaf$1.data || typeof leaf$1.data !== "object") return null;
@@ -1672,310 +1031,33 @@ function resolvePetSizePx(sizePx, sizePercent, viewportWidthPx) {
 }
 
 //#endregion
-//#region src/shared/whisper.ts
-function whisperBubbleView(state) {
-	if (state.ok) return [{
-		role: "label",
-		text: state.text
-	}];
-	const msg = state.reason === "provider-missing" ? "当前对话未配置模型，碎碎念不可用" : "碎碎念生成失败" + (state.message ? "：" + state.message : "");
-	return [{
-		role: "label",
-		text: msg
-	}];
-}
-function memeImageUrl(name, base = ROUTE_PATH, assetRoot = "") {
-	const root = String(assetRoot ?? "").trim();
-	const prefix = root ? "/pic/memes/" + encodeURIComponent(root) : "/pic/memes";
-	return base + prefix + "/" + encodeURIComponent(name) + ".png";
-}
-const MEME_IMG_CLASS = "pet-bub-img";
-const MEME_BUBBLE_CLASS = "has-img";
-const MEME_BUBBLE_CSS = [
-	".pet-bub-img{--m:var(--f,calc(var(--dsh-pet-size,var(--pet-size,462px))*0.0455));display:block;width:calc(var(--m)*7.4725);max-width:100%;height:auto;border-radius:calc(var(--m)*0.5714);margin:0 auto calc(var(--m)*0.3736);object-fit:cover;pointer-events:none;user-select:none}",
-	".pet-bubble.has-img,.dsh-pet-bubble.has-img{min-width:0}",
-	".dsh-pet-voice-badge{position:absolute;right:calc(var(--f,21px)*0.25);bottom:calc(var(--f,21px)*0.15);width:calc(var(--f,21px)*0.66);height:calc(var(--f,21px)*0.66);display:flex;align-items:center;justify-content:center;font-size:calc(var(--f,21px)*0.5);line-height:1;opacity:.65;pointer-events:none}",
-	".dsh-pet-voice-badge.is-loading::before{content:\"\";width:calc(var(--f,21px)*0.5);height:calc(var(--f,21px)*0.5);border:1.5px solid rgba(43,43,43,.22);border-top-color:rgba(43,43,43,.7);border-radius:50%;animation:dsh-pet-voice-spin .8s linear infinite}",
-	"@keyframes dsh-pet-voice-spin{to{transform:rotate(360deg)}}",
-	".dsh-pet-voice-badge.is-failed{opacity:.5}"
-].join("");
-/** 只注入一次（页面已有同一标记则跳过）。 */
-let memeCssInjected = false;
-function injectMemeBubbleCss() {
-	if (memeCssInjected || typeof document === "undefined") return;
-	memeCssInjected = true;
-	if (document.querySelector("style[data-plugin-css=\"dsh-pet/meme-bubble\"]") !== null) return;
-	const tag = document.createElement("style");
-	tag.dataset.plugin = "dsh-pet";
-	tag.dataset.pluginCss = "dsh-pet/meme-bubble";
-	tag.textContent = MEME_BUBBLE_CSS;
-	document.head.appendChild(tag);
-}
-
-//#endregion
 //#region src/client/bubble.ts
-/** 气泡内联样式：白色半透明圆泡加底部小尾巴，盒子尺寸锚字号 `--f`，位置锚宠物尺寸。
-*  width:max-content 不可省：left:50% 的绝对定位盒可用宽度只有包含块一半，shrink-to-fit
-*  会先被卡死；先按内容取宽，再由 max-width 收口。box-sizing 钉死 content-box，避免宿主
-*  全局 border-box 把内边距算进宽度；断词用 break-word，数字与单位不会被拆行。
-*/
+/** 气泡内联样式：白色半透明圆泡 + 底部小尾巴，盒子尺寸锚字号 --f。 */
 const bubbleCss = [
 	`@font-face{font-family:"ShangshouSoftCandy";src:url("${ROUTE_PATH}/font/上首软糖体.ttf") format("truetype");font-display:swap;font-weight:400}`,
 	".dsh-pet-bubble{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% - var(--dsh-pet-size)*0.108);width:max-content;min-width:calc(var(--f)*5.7143);max-width:min(calc(var(--f)*16),100%);box-sizing:content-box;padding:calc(var(--f)*0.4835) calc(var(--f)*0.6593);border-radius:calc(var(--f)*0.7692);background:rgba(255,255,255,.92);--f0:var(--dsh-pet-font-bubble,calc(var(--dsh-pet-size)*0.0455));--f:var(--f0);color:#2b2b2b;font-family:var(--dsh-pet-font-family,\"ShangshouSoftCandy\",\"Yuanti SC\",\"YouYuan\",\"幼圆\",\"Comic Sans MS\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif);font-size:var(--f);line-height:1.6;z-index:3;pointer-events:none;box-shadow:0 calc(var(--f)*0.1978) calc(var(--f)*0.7692) rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.08);backdrop-filter:blur(6px);opacity:0;transition:opacity .25s ease;white-space:normal;overflow-wrap:break-word}",
 	".dsh-pet-bubble::after{content:\"\";position:absolute;left:50%;bottom:calc(var(--f)*-0.3736);transform:translateX(-50%);border:calc(var(--f)*0.3736) solid transparent;border-top-color:rgba(255,255,255,.92);border-bottom:none}",
 	".dsh-pet-bubble.is-on{opacity:1}",
-	".dsh-pet-bubble.dsh-pet-whisper{font-size:calc(var(--f)*0.7473);min-width:calc(var(--f)*2.1978);max-width:min(calc(var(--f)*10.989),100%)}",
-	".dsh-pet-bubble .pet-bub-title{font-size:calc(var(--f)*0.7692);color:rgba(43,43,43,.6);margin-bottom:calc(var(--f)*0.1978)}",
-	".dsh-pet-bubble .pet-bub-row{display:flex;justify-content:space-between;gap:calc(var(--f)*0.6593);flex-wrap:wrap}",
-	".dsh-pet-bubble .pet-bub-row>span{white-space:nowrap}",
-	".dsh-pet-bubble .pet-bub-sub{font-size:calc(var(--f)*0.7692);color:rgba(43,43,43,.6)}",
-	".dsh-pet-bubble .pet-bub-val{font-variant-numeric:tabular-nums;font-weight:650;color:#1f1f1f}",
-	".dsh-pet-bubble .pet-bub-err{color:#d94f3d;font-size:calc(var(--f)*0.7692)}",
-	".dsh-pet-bubble .pet-bub-tag{margin-left:calc(var(--f)*0.2857);font-size:calc(var(--f)*0.4835);color:rgba(43,43,43,.55);border:1px solid rgba(43,43,43,.25);border-radius:calc(var(--f)*0.2857);padding:0 calc(var(--f)*0.1978);vertical-align:1px}",
-	".dsh-pet-bubble .pet-bub-tier{font-weight:700}",
-	".dsh-pet-bubble .pet-bub-tier-peak{color:#e53935}",
-	".dsh-pet-bubble .pet-bub-tier-idle{color:#2e9e4f}",
-	".dsh-pet-bubble.is-clickable{pointer-events:auto;cursor:pointer}",
-	".dsh-pet-bubble.is-expanded{--f:calc(var(--f0)*0.6);width:min(calc(var(--f)*21),100%);max-width:100%}",
-	".dsh-pet-bubble.is-on.is-fading{opacity:0}",
-	".dsh-pet-bubble .pet-bub-quota{display:flex;align-items:center;gap:calc(var(--f)*0.4);margin:calc(var(--f)*0.13) 0}",
-	".dsh-pet-bubble .pet-bub-quota-label{flex:none;min-width:calc(var(--f)*1.9);font-size:calc(var(--f)*0.7692);color:rgba(43,43,43,.6)}",
-	".dsh-pet-bubble .pet-bub-quota-bar{flex:1 1 auto;height:calc(var(--f)*0.5);border-radius:calc(var(--f)*0.25);background:rgba(43,43,43,.12);overflow:hidden}",
-	".dsh-pet-bubble .pet-bub-quota-fill{display:block;height:100%;border-radius:inherit;background:#2e9e4f}",
-	".dsh-pet-bubble .pet-bub-quota-fill.pet-bub-quota-warn{background:#e8952f}",
-	".dsh-pet-bubble .pet-bub-quota-fill.pet-bub-quota-crit{background:#e53935}",
-	".dsh-pet-bubble .pet-bub-quota-used{flex:none;min-width:calc(var(--f)*2.2);text-align:right;font-variant-numeric:tabular-nums;font-weight:650;color:#1f1f1f}",
-	".dsh-pet-bubble .pet-bub-quota-reset{flex:none;min-width:calc(var(--f)*2.6);text-align:right;font-size:calc(var(--f)*0.7692);color:rgba(43,43,43,.6)}",
-	".dsh-pet-bubble .pet-bub-usage{display:flex;flex-direction:column;gap:calc(var(--f)*0.22);margin:calc(var(--f)*0.1) 0}",
-	".dsh-pet-bubble .pet-bub-usage-line{display:flex;align-items:baseline;justify-content:space-between;gap:calc(var(--f)*0.8);line-height:1.45}",
-	".dsh-pet-bubble .pet-bub-usage-title{font-size:calc(var(--f)*0.7692);color:rgba(43,43,43,.62)}",
-	".dsh-pet-bubble .pet-bub-usage-total{font-size:calc(var(--f)*1.45);line-height:1.2;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:#1f1f1f}",
-	".dsh-pet-bubble .pet-bub-usage-in{font-size:calc(var(--f)*0.7692);font-variant-numeric:tabular-nums;color:#3f6ea8}",
-	".dsh-pet-bubble .pet-bub-usage-out{font-size:calc(var(--f)*0.7692);font-variant-numeric:tabular-nums;color:#b4703c}",
-	".dsh-pet-bubble .pet-bub-usage-period{font-size:calc(var(--f)*0.7692);color:rgba(43,43,43,.62)}",
-	".dsh-pet-bubble .pet-bub-usage-spend{font-size:calc(var(--f)*0.7692);font-weight:650;font-variant-numeric:tabular-nums;color:#1f1f1f}",
-	".dsh-pet-bubble .pet-bub-usage-bar{display:flex;height:calc(var(--f)*0.3);border-radius:calc(var(--f)*0.15);overflow:hidden;background:rgba(43,43,43,.1);margin:calc(var(--f)*0.05) 0}",
-	".dsh-pet-bubble .pet-bub-usage-bar-in{display:block;height:100%;background:#3f6ea8}",
-	".dsh-pet-bubble .pet-bub-usage-bar-out{display:block;height:100%;background:#b4703c}"
-].join("\n");
-/** 注入气泡样式，每页只注入一次。 */
+	".dsh-pet-bubble.dsh-pet-whisper{font-size:calc(var(--f)*0.7473);min-width:calc(var(--f)*2.1978);max-width:min(calc(var(--f)*10.989),100%)}"
+];
+let cssInjected = false;
 function injectBubbleCss() {
-	if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=\"dsh-pet/bubble\"]") === null) {
-		const tag = document.createElement("style");
-		tag.dataset.plugin = "dsh-pet";
-		tag.dataset.pluginCss = "dsh-pet/bubble";
-		tag.textContent = bubbleCss;
-		document.head.appendChild(tag);
-	}
+	if (cssInjected || typeof document === "undefined") return;
+	cssInjected = true;
+	const style = document.createElement("style");
+	style.setAttribute("data-dsh-pet-bubble", "");
+	style.textContent = bubbleCss.join("\n");
+	document.head.appendChild(style);
 }
-/** 把余额行数据映射成 React 节点。 */
-function rowsToNodes(h, rows) {
-	if (rows.some((r) => r.role === "tier")) return h("div", {
-		className: "pet-bub-row",
-		children: rows.map((r, i) => {
-			if (r.role === "quota") return null;
-			if (r.role === "tier") return h("span", {
-				key: i,
-				className: "pet-bub-tier pet-bub-tier-" + r.tier,
-				children: r.text
-			});
-			return h("span", {
-				key: i,
-				children: r.text
-			});
-		})
-	});
-	return rows.map((r, i) => {
-		if (r.role === "quota") return h("div", {
-			key: i,
-			className: "pet-bub-quota",
-			children: [
-				h("span", {
-					key: "label",
-					className: "pet-bub-quota-label",
-					children: r.label
-				}),
-				h("span", {
-					key: "bar",
-					className: "pet-bub-quota-bar",
-					children: h("i", {
-						className: "pet-bub-quota-fill pet-bub-quota-" + r.tone,
-						style: { width: Math.max(0, Math.min(100, r.percent)) + "%" }
-					})
-				}),
-				h("span", {
-					key: "used",
-					className: "pet-bub-quota-used",
-					children: r.usedText
-				}),
-				h("span", {
-					key: "reset",
-					className: "pet-bub-quota-reset",
-					children: r.resetText
-				})
-			]
-		});
-		if (r.role === "usage") return h("div", {
-			key: i,
-			className: "pet-bub-usage",
-			children: [
-				h("div", {
-					key: "head",
-					className: "pet-bub-usage-line",
-					children: [h("span", {
-						key: "title",
-						className: "pet-bub-usage-title",
-						children: r.title
-					}), h("span", {
-						key: "total",
-						className: "pet-bub-usage-total",
-						children: r.total
-					})]
-				}),
-				r.inputPercent === void 0 ? null : h("div", {
-					key: "bar",
-					className: "pet-bub-usage-bar",
-					children: [h("i", {
-						key: "in",
-						className: "pet-bub-usage-bar-in",
-						style: { width: r.inputPercent + "%" }
-					}), h("i", {
-						key: "out",
-						className: "pet-bub-usage-bar-out",
-						style: { width: 100 - r.inputPercent + "%" }
-					})]
-				}),
-				h("div", {
-					key: "io",
-					className: "pet-bub-usage-line",
-					children: [h("span", {
-						key: "in",
-						className: "pet-bub-usage-in",
-						children: r.input
-					}), h("span", {
-						key: "out",
-						className: "pet-bub-usage-out",
-						children: r.output
-					})]
-				}),
-				h("div", {
-					key: "foot",
-					className: "pet-bub-usage-line",
-					children: [h("span", {
-						key: "period",
-						className: "pet-bub-usage-period",
-						children: r.period
-					}), h("span", {
-						key: "spend",
-						className: "pet-bub-usage-spend",
-						children: r.spend
-					})]
-				})
-			]
-		});
-		if (r.role === "error") return h("div", {
-			key: i,
-			className: "pet-bub-err",
-			children: r.text
-		});
-		if (r.role === "sub") return h("div", {
-			key: i,
-			className: "pet-bub-row pet-bub-sub",
-			children: r.text
-		});
-		return h("div", {
-			key: i,
-			className: "pet-bub-row",
-			children: r.text
-		});
-	});
-}
-/** 把自定义节点树映射成 React 节点，与 rowsToNodes 并列。
-*  行数据由插件定排版，这里把第三方定好的 tag、内联样式与文本原样映射。
-*  解析层已做白名单裁剪，故不做二次校验；不用 innerHTML，没有注入面。
-*  先文本后子节点，与 DOM 的 textContent + appendChild 顺序一致。
-*/
-function treeToNodes(h, node, key) {
-	const props = { key };
-	if (node.style) props.style = node.style;
-	if (node.tag === "img") {
-		props.src = node.src ?? "";
-		props.alt = "";
-		return h("img", props);
-	}
-	const children = [];
-	if (node.text) children.push(node.text);
-	for (let i = 0; i < (node.children?.length ?? 0); i++) children.push(treeToNodes(h, node.children[i], i));
-	props.children = children;
-	return h(node.tag, props);
-}
-/** 换内容前的淡出等待（ms），与 opacity 过渡同为 250ms。 */
-const BALANCE_FADE_MS = 250;
-function makeBalanceBubble(rt) {
-	const { h, useState, useEffect } = rt;
-	injectBubbleCss();
-	return function BalanceBubble({ state, on, index, onCycle }) {
-		const [shown, setShown] = useState(0);
-		const [fading, setFading] = useState(false);
-		useEffect(() => {
-			if (index === shown) return;
-			setFading(true);
-			const timer = window.setTimeout(() => {
-				setShown(index);
-				setFading(false);
-			}, BALANCE_FADE_MS);
-			return () => window.clearTimeout(timer);
-		}, [index, shown]);
-		const isCustom = state.ok && state.shape === "custom";
-		const views = isCustom ? customViews(state) : void 0;
-		const tree = views ? views[Math.min(shown, views.length - 1)] : void 0;
-		const rows = isCustom ? [] : balancePageView(state, shown);
-		const clickable = state.ok && (state.shape === "windows" || isCustom && customClickable(state));
-		const wrap = state.ok ? "" : " dsh-pet-whisper";
-		return h("div", {
-			className: "dsh-pet-bubble" + wrap + (on ? " is-on" : "") + (clickable ? " is-clickable" : "") + (!isCustom && shown > 0 ? " is-expanded" : "") + (fading ? " is-fading" : ""),
-			onClick: clickable ? (e) => {
-				e.stopPropagation();
-				onCycle();
-			} : void 0,
-			children: tree ? treeToNodes(h, tree, "tree") : rowsToNodes(h, rows)
-		});
-	};
-}
-function makeWhisperBubble(rt) {
+function makeTextBubble(rt) {
 	const { h } = rt;
 	injectBubbleCss();
-	injectMemeBubbleCss();
-	return function WhisperBubble({ text, image, url, assetRoot, on, voiceState: voiceState$1 = "idle" }) {
-		const rows = whisperBubbleView({
-			ok: true,
-			text,
-			ts: 0
-		});
-		const key = String(image ?? "").trim();
-		const href = String(url ?? "").trim();
-		const src = href || (key ? memeImageUrl(key, ROUTE_PATH, assetRoot) : "");
-		const body = src ? [h("img", {
-			key: "img",
-			className: MEME_IMG_CLASS,
-			src,
-			alt: key || href
-		}), rowsToNodes(h, rows)] : rowsToNodes(h, rows);
+	return function TextBubble({ text, on }) {
 		return h("div", {
-			className: "dsh-pet-bubble dsh-pet-whisper" + (src ? " " + MEME_BUBBLE_CLASS : "") + (on ? " is-on" : ""),
-			children: voiceState$1 === "idle" ? body : [body, voiceBadgeNode(h, voiceState$1)]
+			className: "dsh-pet-bubble dsh-pet-whisper" + (on ? " is-on" : ""),
+			children: text
 		});
 	};
-}
-/** 语音状态角标：只在手动触发的播报上出现，右下角绝对定位，不参与文字排版。
-*  `failed` 用静音喇叭——「本该有声却没响」，不是系统告警，所以不上警告符号。 */
-function voiceBadgeNode(h, state) {
-	return h("span", {
-		key: "voice",
-		className: "dsh-pet-voice-badge" + (state === "loading" ? " is-loading" : "") + (state === "failed" ? " is-failed" : ""),
-		"aria-hidden": "true",
-		children: state === "loading" ? null : state === "failed" ? "🔇" : "🔊"
-	});
 }
 
 //#endregion
@@ -6509,9 +5591,9 @@ function makePetConfigSection(rt) {
 		const [whisperImage, setWhisperImage] = useState(false);
 		const [chatImage, setChatImage] = useState(false);
 		const [chatAnimation, setChatAnimation] = useState(true);
-		const [voiceEnabled$1, setVoiceEnabled] = useState(false);
-		const [voiceName$1, setVoiceName] = useState("zh-CN-XiaoyiNeural");
-		const [voiceVolume$1, setVoiceVolume] = useState(1);
+		const [voiceEnabled, setVoiceEnabled] = useState(false);
+		const [voiceName, setVoiceName] = useState("zh-CN-XiaoyiNeural");
+		const [voiceVolume, setVoiceVolume] = useState(1);
 		const [voiceWhisperEnabled, setVoiceWhisperEnabled] = useState(false);
 		const [voiceTodoEnabled, setVoiceTodoEnabled] = useState(false);
 		const [physics, setPhysics] = useState({ ...DEFAULT_PHYSICS });
@@ -6588,9 +5670,9 @@ function makePetConfigSection(rt) {
 				chatAnimationEnabled: chatAnimation,
 				confineToScreen: confineScreen,
 				trayEnabled,
-				voiceEnabled: voiceEnabled$1,
-				voiceName: voiceName$1,
-				voiceVolume: voiceVolume$1,
+				voiceEnabled,
+				voiceName,
+				voiceVolume,
 				voiceWhisperEnabled,
 				voiceTodoEnabled,
 				physics,
@@ -7050,7 +6132,7 @@ function createAnimationFlow(rt) {
 			pickNext();
 		};
 		/** 说一句：抽碎碎念动画并弹气泡，两者独立。 */
-		const speak$1 = (text, image, url, duration, anim) => {
+		const speak = (text, image, url, duration, anim) => {
 			const card = hub.card;
 			let name = null;
 			if (anim !== false && !sleeping()) {
@@ -7079,208 +6161,9 @@ function createAnimationFlow(rt) {
 			resumeWorkStatusAnim,
 			sleepPhase,
 			sleeping,
-			speak: speak$1
+			speak
 		};
 	};
-}
-
-//#endregion
-//#region src/shared/bubble-hold.ts
-const BUBBLE_HOLD_TAIL_MS = 1500;
-const BUBBLE_HOLD_MAX_MS = 5e4;
-const BUBBLE_HOLD_IDLE = {
-	on: false,
-	delayMs: null,
-	holdSeq: null
-};
-function reduceBubbleHold(state, event) {
-	if (event.kind === "show") return {
-		delayMs: Math.max(0, event.durationMs),
-		holdSeq: null,
-		on: true
-	};
-	if (event.kind === "clear") return BUBBLE_HOLD_IDLE;
-	if (event.kind === "hide") return state.on ? BUBBLE_HOLD_IDLE : state;
-	if (!state.on) return state;
-	if (event.kind === "hold") {
-		if (state.holdSeq === event.seq) return state;
-		return {
-			delayMs: BUBBLE_HOLD_MAX_MS,
-			holdSeq: event.seq,
-			on: true
-		};
-	}
-	if (state.holdSeq !== event.seq) return state;
-	return {
-		delayMs: BUBBLE_HOLD_TAIL_MS,
-		holdSeq: null,
-		on: true
-	};
-}
-
-//#endregion
-//#region src/shared/voice.ts
-/** 当前音色；空串 = 不指定，由宿主用默认音色。 */
-let voiceName = "";
-/** 播报总开关；只有成品配置明确为 true 才播。 */
-let voiceEnabled = false;
-/** 播放音量系数（0–1，1 = 最大音量）；两端共用，只作用于播放，不影响已合成好的音频。 */
-let voiceVolume = 1;
-/** 本端是网页端还是桌面端；`null` = 还没声明，此时不按叶子播放。 */
-let surface = null;
-/** 接口基址：网页端是同源前缀，桌面端由 `setVoiceBase` 换成 bridge 地址。 */
-let voiceBase = ROUTE_PATH;
-/** 配置是否已就绪；网页端由 `setVoiceConfig` 置位，桌面端首次播放时懒加载。 */
-let configLoaded = false;
-/** 当前播报状态；气泡据此显示图标。 */
-let voiceState = "idle";
-/** 状态订阅者：两端的说话气泡据此渲染图标。 */
-const stateListeners = new Set();
-/** 播报开始/结束的订阅者：说话气泡据此挂起与收尾。 */
-const utteranceListeners = new Set();
-/** 播报序号；每次决定要念一句就自增，用来让气泡丢掉迟到的「上一句播完了」。 */
-let utteranceSeq = 0;
-const VOICE_SPEECH_MAX_CHARS = 60;
-/**
-* 客户端等合成结果的上限（ms）。
-*
-* 比宿主侧的总超时（28s）再宽一点：让宿主先超时并回结构化失败，
-* 客户端这道只是兜底，避免上游挂住时气泡上的转圈永远停不下来。
-*/
-const SPEAK_TIMEOUT_MS = 3e4;
-/** 合成请求的超时信号；自动播报与手动点播共用同一份口径。 */
-function speakSignal() {
-	return AbortSignal.timeout(SPEAK_TIMEOUT_MS);
-}
-/** 切换状态并通知订阅者；同值不重复通知。 */
-function setVoiceState(next) {
-	if (voiceState === next) return;
-	voiceState = next;
-	for (const listener of stateListeners) listener(next);
-}
-function subscribeVoiceState(listener) {
-	stateListeners.add(listener);
-	listener(voiceState);
-	return () => {
-		stateListeners.delete(listener);
-	};
-}
-function subscribeVoiceUtterance(listener) {
-	utteranceListeners.add(listener);
-	return () => {
-		utteranceListeners.delete(listener);
-	};
-}
-/** 广播一次播报事件；单个订阅者抛错不能挡住其余订阅者。 */
-function emitUtterance(event) {
-	for (const listener of utteranceListeners) listener(event);
-}
-function speechSlice(text) {
-	if (text.length <= VOICE_SPEECH_MAX_CHARS) return text;
-	const head = text.slice(0, VOICE_SPEECH_MAX_CHARS);
-	const cut = Math.max(...[
-		"。",
-		"！",
-		"？",
-		"；",
-		"，",
-		".",
-		"!",
-		"?",
-		";",
-		","
-	].map((mark) => head.lastIndexOf(mark)));
-	return cut >= VOICE_SPEECH_MAX_CHARS / 2 ? head.slice(0, cut + 1) : head;
-}
-function setSurface(next) {
-	if (next === "web" || next === "desktop") surface = next;
-}
-function setVoiceConfig(name, enabled, volume) {
-	voiceName = typeof name === "string" ? name : "";
-	voiceEnabled = enabled === true;
-	voiceVolume = clampVolume(volume);
-	configLoaded = true;
-}
-/** 把音量收敛到 0–1；非数值按最大音量（1）处理——脏配置不该把声音悄悄变成 0。 */
-function clampVolume(value) {
-	const n = Number(value);
-	return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1;
-}
-/** 懒加载成品配置；失败按「不播」处理，且只试一次（避免每句都发请求）。 */
-async function loadConfigOnce() {
-	if (configLoaded) return;
-	try {
-		const response = await fetch(voiceBase + "/config", { cache: "no-store" });
-		const body = await response.json();
-		const main = body?.main;
-		voiceName = typeof main?.voiceName === "string" ? main.voiceName : "";
-		voiceEnabled = main?.voiceEnabled === true;
-		voiceVolume = clampVolume(main?.voiceVolume);
-		configLoaded = true;
-	} catch {}
-}
-function playSayVoice(say) {
-	const isMine = say.voiceTo !== void 0 && say.voiceTo === surface;
-	if (!say.text || !isMine) {
-		setVoiceState("idle");
-		return;
-	}
-	if (surface === "web" && typeof document !== "undefined" && document.hidden) {
-		setVoiceState("idle");
-		return;
-	}
-	speakIfEnabled(say.text);
-}
-/** 确认配置后再播；桌面端首次调用会顺手拉一次 `/config`。 */
-async function speakIfEnabled(text) {
-	await loadConfigOnce();
-	if (!voiceEnabled) {
-		setVoiceState("idle");
-		return;
-	}
-	const seq = ++utteranceSeq;
-	emitUtterance({
-		kind: "start",
-		seq,
-		text
-	});
-	setVoiceState("loading");
-	try {
-		await speak(speechSlice(text));
-	} finally {
-		emitUtterance({
-			kind: "end",
-			seq,
-			text
-		});
-	}
-}
-/** 请求合成并播放；任何一步失败都落到 `failed`（气泡上留一个静音喇叭，而不是干脆没图标）。 */
-async function speak(text) {
-	try {
-		const response = await fetch(voiceBase + "/voice/speak", {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({
-				text,
-				...voiceName ? { voice: voiceName } : {}
-			}),
-			signal: speakSignal()
-		});
-		if (!response.ok || !(response.headers.get("content-type") ?? "").includes("audio")) {
-			setVoiceState("failed");
-			return;
-		}
-		const objectUrl = URL.createObjectURL(await response.blob());
-		const audio = new Audio(objectUrl);
-		audio.volume = voiceVolume;
-		audio.onended = () => URL.revokeObjectURL(objectUrl);
-		audio.onerror = () => URL.revokeObjectURL(objectUrl);
-		setVoiceState("ready");
-		await audio.play();
-	} catch {
-		setVoiceState("failed");
-	}
 }
 
 //#endregion
@@ -7294,115 +6177,61 @@ const STATE_FALLBACK_MS = 1e3;
 function decideBubbleSlot(input) {
 	if (input.todoOn) return "todo";
 	if (input.workTerminal && input.workOn && input.workText && input.workStatusEnabled) return "work-terminal";
-	if (input.whisperOn && input.whisperText) return "whisper";
-	if (input.balanceOn && input.balanceAvailable && (input.balanceEnabled || input.balanceManual)) return "balance";
+	if (input.sayOn && input.sayText) return "say";
 	if (input.workOn && input.workText && input.workStatusEnabled) return "work";
 	return "none";
 }
-function balancePageCount(balance) {
-	return balance ? balancePageCount$1(balance) : 1;
-}
 function createBubbleSlots(rt, components) {
 	const { h, useState, useRef, useEffect } = rt;
-	const BalanceBubble = components.balanceBubble;
+	const TextBubble = components.textBubble;
 	const TodoBubble = components.todoBubble;
-	const WhisperBubble = components.whisperBubble;
 	return function useBubbleSlots(input) {
-		const [balanceOn, setBalanceOn] = useState(false);
-		const [balancePage, setBalancePage] = useState(0);
-		const balanceTimerRef = useRef(null);
-		const [whisperOn, setWhisperOn] = useState(false);
-		const [whisperText, setWhisperText] = useState(null);
-		const [whisperImage, setWhisperImage] = useState(void 0);
-		const [whisperUrl, setWhisperUrl] = useState(void 0);
-		const whisperHoldRef = useRef(BUBBLE_HOLD_IDLE);
-		const whisperTextRef = useRef(null);
-		const whisperTimerRef = useRef(null);
+		const [sayOn, setSayOn] = useState(false);
+		const [sayText, setSayText] = useState(null);
+		const sayTimerRef = useRef(null);
 		const [todoOn, setTodoOn] = useState(false);
 		const [workOn, setWorkOn] = useState(false);
 		const [workText, setWorkText] = useState(null);
 		const workTimerRef = useRef(null);
-		const [voiceState$1, setVoiceState$1] = useState("idle");
-		useEffect(() => subscribeVoiceState(setVoiceState$1), []);
 		useEffect(() => () => {
-			if (balanceTimerRef.current !== null) window.clearTimeout(balanceTimerRef.current);
-			if (whisperTimerRef.current !== null) window.clearTimeout(whisperTimerRef.current);
+			if (sayTimerRef.current !== null) window.clearTimeout(sayTimerRef.current);
 			if (workTimerRef.current !== null) window.clearTimeout(workTimerRef.current);
 		}, []);
-		/** 重置余额气泡的停留计时；重复触发先清旧定时器，否则旧的会提前收起。 */
-		const armBalanceTimeout = () => {
-			if (balanceTimerRef.current !== null) window.clearTimeout(balanceTimerRef.current);
-			balanceTimerRef.current = window.setTimeout(() => setBalanceOn(false), BUBBLE_DURATION_MS);
+		const armSayTimeout = (duration) => {
+			if (sayTimerRef.current !== null) window.clearTimeout(sayTimerRef.current);
+			sayTimerRef.current = window.setTimeout(() => setSayOn(false), duration);
 		};
-		const showBalance = () => {
-			setBalancePage(0);
-			setBalanceOn(true);
-			armBalanceTimeout();
-		};
-		const cycleBalance = () => {
-			const pages = balancePageCount(input.balance);
-			setBalancePage((page) => (page + 1) % pages);
-			armBalanceTimeout();
-		};
-		/** 推进说话气泡的收起计划，并按新计划重排计时器。 */
-		const applyWhisperHold = (event) => {
-			const next = reduceBubbleHold(whisperHoldRef.current, event);
-			if (next === whisperHoldRef.current) return;
-			whisperHoldRef.current = next;
-			setWhisperOn(next.on);
-			if (whisperTimerRef.current !== null) window.clearTimeout(whisperTimerRef.current);
-			whisperTimerRef.current = null;
-			if (next.delayMs === null) return;
-			whisperTimerRef.current = window.setTimeout(() => {
-				whisperTimerRef.current = null;
-				applyWhisperHold({ kind: "hide" });
-			}, next.delayMs);
-		};
-		useEffect(
-			() => subscribeVoiceUtterance((event) => {
-				if (event.text !== whisperTextRef.current) return;
-				applyWhisperHold({
-					kind: event.kind === "start" ? "hold" : "release",
-					seq: event.seq
-				});
-			}),
-			// eslint-disable-next-line react-hooks/exhaustive-deps -- 订阅只建一次：收起计划全部经 ref 现读，重订阅只会漏事件
-			[]
-);
-		const showWhisper = (text, parts, duration) => {
+		const showWhisper = (text, _parts, duration) => {
 			if (duration === 0) return;
-			setWhisperText(text);
-			whisperTextRef.current = text;
-			setWhisperImage(parts.image);
-			setWhisperUrl(parts.url);
-			applyWhisperHold({
-				durationMs: duration ?? BUBBLE_DURATION_MS,
-				kind: "show"
-			});
+			setSayText(text);
+			setSayOn(true);
+			armSayTimeout(duration ?? BUBBLE_DURATION_MS);
 		};
 		const clearWhisper = () => {
-			whisperTextRef.current = null;
-			setWhisperText(null);
-			setWhisperImage(void 0);
-			applyWhisperHold({ kind: "clear" });
+			if (sayTimerRef.current !== null) window.clearTimeout(sayTimerRef.current);
+			setSayOn(false);
+			setSayText(null);
+		};
+		const armWorkTimeout = () => {
+			if (workTimerRef.current !== null) window.clearTimeout(workTimerRef.current);
+			workTimerRef.current = window.setTimeout(() => setWorkOn(false), BUBBLE_DURATION_MS);
 		};
 		const lightWork = (terminal) => {
 			setWorkOn(true);
-			if (workTimerRef.current !== null) window.clearTimeout(workTimerRef.current);
-			workTimerRef.current = terminal ? window.setTimeout(() => setWorkOn(false), BUBBLE_DURATION_MS) : null;
+			if (terminal) armWorkTimeout();
+			else if (workTimerRef.current !== null) {
+				window.clearTimeout(workTimerRef.current);
+				workTimerRef.current = null;
+			}
 		};
-		const hideWork = () => {
-			if (workTimerRef.current !== null) window.clearTimeout(workTimerRef.current);
-			workTimerRef.current = null;
-			setWorkOn(false);
-		};
+		const hideWork = () => setWorkOn(false);
 		const resetWork = () => {
-			hideWork();
+			setWorkOn(false);
 			setWorkText(null);
 		};
 		const showTodo = () => setTodoOn(true);
 		const hideTodo = () => setTodoOn(false);
-		const toggleTodo = () => setTodoOn((on) => !on);
+		const toggleTodo = () => setTodoOn((v) => !v);
 		const node = () => {
 			const slot = decideBubbleSlot({
 				todoOn,
@@ -7410,32 +6239,18 @@ function createBubbleSlots(rt, components) {
 				workOn,
 				workText,
 				workStatusEnabled: input.workStatusEnabled,
-				whisperOn,
-				whisperText,
-				balanceOn,
-				balanceAvailable: input.balance !== null,
-				balanceEnabled: input.balanceEnabled,
-				balanceManual: input.balanceManual
+				sayOn,
+				sayText
 			});
 			if (slot === "todo") return h(TodoBubble, {
 				on: todoOn,
 				onClose: hideTodo
 			});
-			if (slot === "balance") return input.balance === null ? null : h(BalanceBubble, {
-				state: input.balance,
-				on: balanceOn,
-				index: balancePage,
-				onCycle: cycleBalance
+			if (slot === "say") return sayText === null ? null : h(TextBubble, {
+				text: sayText,
+				on: sayOn
 			});
-			if (slot === "whisper") return whisperText === null ? null : h(WhisperBubble, {
-				text: whisperText,
-				image: whisperImage,
-				url: whisperUrl,
-				assetRoot: input.assetRoot,
-				on: whisperOn,
-				voiceState: voiceState$1
-			});
-			if (slot === "work" || slot === "work-terminal") return workText === null ? null : h(WhisperBubble, {
+			if (slot === "work" || slot === "work-terminal") return workText === null ? null : h(TextBubble, {
 				text: workText,
 				on: workOn
 			});
@@ -7443,13 +6258,11 @@ function createBubbleSlots(rt, components) {
 		};
 		return {
 			clearWhisper,
-			cycleBalance,
 			hideTodo,
 			hideWork,
 			lightWork,
 			node,
 			resetWork,
-			showBalance,
 			showTodo,
 			showWhisper,
 			toggleTodo,
@@ -9040,59 +7853,13 @@ const log = (message) => {
 function createCueEffects(rt) {
 	const { useEffect, useRef } = rt;
 	return function useCueEffects(hub, props) {
-		const { balance, balanceManual, balanceNoticeTick, balanceTick } = props;
 		const { animCue, animCueTick, posCue, posCueTick, say, sayTick } = props;
 		const { workStatus, workStatusTick } = props;
-		const prevBalanceRef = useRef(0);
-		const prevNoticeRef = useRef(0);
 		const prevWorkRef = useRef(0);
 		const prevWorkStateRef = useRef(void 0);
 		const prevSayRef = useRef(0);
 		const prevAnimRef = useRef(0);
 		const prevPosRef = useRef(0);
-		/** 余额事件：按档位播事件动画并弹气泡。手动请求无条件弹，自动轮询要求开启且有百分比；
-		*  睡着时自动来源整拍丢弃，否则会顶掉睡姿。 */
-		const consumeBalance = () => {
-			const cfg = hub.cfg();
-			const card = hub.card;
-			if (balanceTick === 0 || balanceTick === prevBalanceRef.current) return;
-			prevBalanceRef.current = balanceTick;
-			if (hub.ownAnim.isFrozen() && !balanceManual) return;
-			if (hub.sleeping()) return;
-			if (!balance || !balance.ok) return;
-			if (!cfg.balanceEnabled && !balanceManual) return;
-			const percent = balancePercent(balance);
-			if (balanceManual || percent !== void 0 || balance.shape === "custom") hub.bubbles.showBalance();
-			if (!cfg.balanceEnabled) return;
-			if (percent === void 0) return;
-			const pool = hub.anims().events?.balance;
-			if (!pool || pool.length === 0) {
-				console.error("[dsh-pet] 配置缺少 animations.events.balance，无法播放余额事件动画");
-				return;
-			}
-			const idx = balanceEventIndex(percent);
-			const slot = pool[idx];
-			if (!slot) {
-				console.error("[dsh-pet] balance 档位索引越界：p=" + percent + " idx=" + idx);
-				return;
-			}
-			const name = pickSlot(slot, card.animRef.current);
-			log("balance pet=" + cfg.id + " p=" + percent.toFixed(1) + "% -> [档" + idx + "] " + name);
-			hub.stopMotion();
-			card.actions.setOnce(true);
-			card.actions.setAnim(name);
-		};
-		/** 余额不可用：容器递增计数，本宠物只弹文字说明，不播档位动画。 */
-		const consumeBalanceNotice = () => {
-			const cfg = hub.cfg();
-			if (!cfg.balanceEnabled && !balanceManual) return;
-			if (balanceNoticeTick === 0 || balanceNoticeTick === prevNoticeRef.current) return;
-			prevNoticeRef.current = balanceNoticeTick;
-			if (hub.ownAnim.isFrozen() && !balanceManual) return;
-			if (hub.sleeping()) return;
-			if (!balance || balance.ok) return;
-			hub.bubbles.showBalance();
-		};
 		/** 工作状态联动：按档位播动画并弹文本气泡；回空闲时收起气泡并改播完即停。 */
 		const consumeWorkStatus = () => {
 			const cfg = hub.cfg();
@@ -9143,7 +7910,6 @@ function createCueEffects(rt) {
 				return;
 			}
 			hub.speak(say.text, say.image, say.url, say.duration, say.anim);
-			playSayVoice(say);
 		};
 		/** 点播动画：url 插播一段，名称走菜单同一套动作。 */
 		const consumeAnimCue = () => {
@@ -9174,15 +7940,11 @@ function createCueEffects(rt) {
 			hub.posFollow.apply(posCue.x, posCue.y, posCue.mode, posCue.duration);
 		};
 		useEffect(() => {
-			consumeBalance();
-			consumeBalanceNotice();
 			consumeWorkStatus();
 			consumeSay();
 			consumeAnimCue();
 			consumePosCue();
 		}, [
-			balanceTick,
-			balanceNoticeTick,
 			workStatusTick,
 			sayTick,
 			animCueTick,
@@ -9238,14 +8000,8 @@ function createLockFreeze(rt) {
 //#region src/client/pet/card/runtime.ts
 function createCardRuntime(rt) {
 	const { h, useEffect, useRef, useState } = rt;
-	/** 余额气泡：数据与显隐由装配根传入。 */
-	const BalanceBubble = makeBalanceBubble({
-		h,
-		useState,
-		useEffect
-	});
-	/** 碎碎念气泡：文本与显隐由装配根传入。 */
-	const WhisperBubble = makeWhisperBubble({ h });
+	/** 文本气泡：说话与工作状态共用。 */
+	const TextBubble = makeTextBubble({ h });
 	/** 待办气泡：面板本体挂在自己身上，关闭按钮回调装配根。 */
 	const TodoBubble = makeTodoBubble({
 		h,
@@ -9259,9 +8015,8 @@ function createCardRuntime(rt) {
 		useEffect,
 		useRef
 	}, {
-		balanceBubble: BalanceBubble,
-		todoBubble: TodoBubble,
-		whisperBubble: WhisperBubble
+		textBubble: TextBubble,
+		todoBubble: TodoBubble
 	});
 	const useCardState = createCardState({
 		useState,
@@ -9293,7 +8048,7 @@ function createCardRuntime(rt) {
 		useRef
 	});
 	return function useCardRuntime(props) {
-		const { balance, balanceManual, cfg, lock, lockTick, menuItemsRef, sleep: sleep$1, sleepTick, workStatus } = props;
+		const { cfg, lock, lockTick, menuItemsRef, sleep: sleep$1, sleepTick, workStatus } = props;
 		const effectiveSizePx = resolvePetSizePx(cfg.size, cfg.sizePercent, window.innerWidth);
 		const card = useCardState({
 			anim: cfg.animations.idle[0] ?? "",
@@ -9339,10 +8094,6 @@ function createCardRuntime(rt) {
 			cfg.position.marginY
 		]);
 		const bubbles = useBubbleSlots({
-			assetRoot: cfg.assetRoot,
-			balance,
-			balanceEnabled: cfg.balanceEnabled,
-			balanceManual,
 			workStatusEnabled: cfg.workStatusEnabled,
 			workTerminal: workStatus?.state === "success" || workStatus?.state === "error"
 		});
@@ -9587,24 +8338,6 @@ function createPetMulti(rt, Card) {
 	return function PetMulti() {
 		const [pets, setPets] = useState([]);
 		const [ready, setReady] = useState(false);
-		const [balance, setBalance] = useState(null);
-		const [balanceTick, setBalanceTick] = useState(0);
-		const [balanceNoticeTick, setBalanceNoticeTick] = useState(0);
-		const [balanceManual, setBalanceManual] = useState(false);
-		const noticeKeyRef = useRef(null);
-		const applyBalanceRef = useRef(() => {});
-		applyBalanceRef.current = (state, explicit) => {
-			setBalance(state);
-			setBalanceManual(explicit);
-			if (state.ok) {
-				setBalanceTick((t) => t + 1);
-				return;
-			}
-			const { show, key } = decideBalanceNotice(state, noticeKeyRef.current, explicit);
-			noticeKeyRef.current = key;
-			if (show) setBalanceNoticeTick((t) => t + 1);
-			if (state.reason !== "unsupported") console.error("[dsh-pet] 余额查询失败 reason=" + state.reason + (state.message ? " " + state.message : ""));
-		};
 		const [workStatus, setWorkStatus] = useState(null);
 		const [workStatusTick, setWorkStatusTick] = useState(0);
 		useEffect(() => {
@@ -9619,8 +8352,6 @@ function createPetMulti(rt, Card) {
 				const main = merged?.main;
 				if (typeof main !== "object" || main === null) throw new Error("配置响应不是成品聚合（host 版本不匹配？）");
 				setClickSoundEnabled(main.clickSoundEnabled === true);
-				setSurface("web");
-				setVoiceConfig(main.voiceName, main.voiceEnabled, main.voiceVolume);
 				const flattened = flattenConfigPets(merged);
 				petBridge.current = flattened;
 				petBridge.template = Array.isArray(main.pets) ? main.pets[0] ?? void 0 : void 0;
@@ -9682,11 +8413,6 @@ function createPetMulti(rt, Card) {
 					case "config":
 						petBridge.reload();
 						return;
-					case "balance": {
-						const hit = readBalance(leaf$1);
-						if (hit) applyBalanceRef.current(hit.state, hit.manual);
-						return;
-					}
 					case "workStatus": {
 						const snap = readWorkStatus(leaf$1);
 						if (snap) {
@@ -9795,10 +8521,6 @@ function createPetMulti(rt, Card) {
 		return ready ? visiblePets.map((p) => h(Card, {
 			key: p.id,
 			cfg: p,
-			balance,
-			balanceTick,
-			balanceNoticeTick,
-			balanceManual,
 			workStatus,
 			workStatusTick,
 			say: sayRef.current[p.id],

@@ -5,7 +5,6 @@
  * @module dsh-pet/src/client/pet/card/props
  */
 import type * as ReactNS from 'react';
-import type { BalanceState } from '../../../shared/balance/index.ts';
 import type { LockState, PositionMode, SayCue, PetFacing, SleepState } from '../../../shared/state.ts';
 import type { MenuMoreItem } from '../../../shared/menu.ts';
 import type { WorkStatusSnapshot } from '../../../shared/work-status.ts';
@@ -14,14 +13,6 @@ import type { RuntimePet } from '../types.ts';
 export interface PetCardProps {
     /** 成品配置。 */
     cfg: RuntimePet;
-    /** 最近一次余额结果。 */
-    balance: BalanceState | null;
-    /** 余额成功拉取次数，变化时播档位动画。 */
-    balanceTick: number;
-    /** 余额不可用提示次数。 */
-    balanceNoticeTick: number;
-    /** 本次余额是否由用户手动请求；手动请求即使关闭 balanceEnabled 也答复。 */
-    balanceManual: boolean;
     /** 工作状态快照。 */
     workStatus: WorkStatusSnapshot | null;
     /** 工作状态变化次数。 */

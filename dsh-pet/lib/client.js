@@ -1026,8 +1026,8 @@ const bubbleCss = [
 /** 档位 → 中文状态词。 */
 const STATE_WORD = {
 	thinking: "思考中",
-	working: "运行中",
-	result: "出结果",
+	working: "思考中",
+	result: "思考中",
 	waiting: "等待确认"
 };
 let cssInjected = false;
@@ -1059,7 +1059,7 @@ function makeSessionBubbles(rt) {
 		return h("div", {
 			className: "dsh-pet-sessions",
 			children: shown.map((it) => {
-				const word = it.state === "thinking" || it.state === "waiting" ? STATE_WORD[it.state] : void 0;
+				const word = STATE_WORD[it.state];
 				const main = it.tool ? h("div", {
 					className: "dsk",
 					children: it.detail ? it.tool + " · " + it.detail : it.tool

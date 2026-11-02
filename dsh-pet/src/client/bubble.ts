@@ -48,8 +48,8 @@ const bubbleCss = [
 /** 档位 → 中文状态词。 */
 const STATE_WORD: Record<string, string> = {
   thinking: '思考中',
-  working: '运行中',
-  result: '出结果',
+  working: '思考中',
+  result: '思考中',
   waiting: '等待确认',
 };
 
@@ -90,7 +90,7 @@ export function makeSessionBubbles(rt: {
       className: 'dsh-pet-sessions',
       children: shown.map((it) => {
         // 第二行：优先「最后调用的工具 · 细节」；无工具时仅对 思考中/等待确认 显示档位词（不再显示“运行中”）。
-        const word = it.state === 'thinking' || it.state === 'waiting' ? STATE_WORD[it.state] : undefined;
+        const word = STATE_WORD[it.state];
         const main = it.tool
           ? h('div', { className: 'dsk', children: it.detail ? it.tool + ' · ' + it.detail : it.tool })
           : word

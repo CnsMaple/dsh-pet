@@ -26,7 +26,7 @@ function topmostLevel(platform) {
  * 关闭后定时器仍按节拍空转（每秒一次纯判定，开销可忽略），因为源码守卫测试锚在
  * `topmostTimer = setInterval(...)` 上。
  */
-const TOPMOST_WATCHDOG_ENABLED = false;
+const TOPMOST_WATCHDOG_ENABLED = true;
 
 /**
  * 这一拍要不要重新置顶。

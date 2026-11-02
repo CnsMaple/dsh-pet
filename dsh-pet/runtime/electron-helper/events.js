@@ -118,6 +118,8 @@ function applySessionsLeaf(leaf) {
           title: typeof x.title === 'string' ? x.title : '',
           state: typeof x.state === 'string' ? x.state : '',
           tools: Array.isArray(x.tools) ? x.tools.filter((t) => typeof t === 'string') : [],
+          tool: typeof x.tool === 'string' ? x.tool : undefined,
+          detail: typeof x.detail === 'string' ? x.detail : undefined,
         }))
     : [];
   for (const s of sprites) {

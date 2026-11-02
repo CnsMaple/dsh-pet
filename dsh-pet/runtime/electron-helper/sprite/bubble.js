@@ -59,7 +59,7 @@ Object.assign(PetSprite.prototype, {
       return;
     }
     const shown = this.showAllSessions ? list : list.slice(0, 1);
-    const STATE_WORD = { thinking: '思考中', waiting: '等待确认' };
+    const STATE_WORD = { thinking: '思考中', working: '思考中', result: '思考中', waiting: '等待确认' };
     box.innerHTML = '';
     for (const it of shown) {
       const b = document.createElement('div');

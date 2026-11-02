@@ -2488,7 +2488,6 @@ function readMainConfig(merged) {
 	})) };
 	if (typeof main.notificationsEnabled === "boolean") patch.notificationsEnabled = main.notificationsEnabled;
 	if (typeof main.clickSoundEnabled === "boolean") patch.clickSoundEnabled = main.clickSoundEnabled;
-	if (typeof main.whisperImageEnabled === "boolean") patch.whisperImageEnabled = main.whisperImageEnabled;
 	if (typeof main.chatImageEnabled === "boolean") patch.chatImageEnabled = main.chatImageEnabled;
 	if (typeof main.chatAnimationEnabled === "boolean") patch.chatAnimationEnabled = main.chatAnimationEnabled;
 	if (typeof main.confineToScreen === "boolean") patch.confineToScreen = main.confineToScreen;
@@ -2541,7 +2540,6 @@ function buildSaveBody(fields) {
 		pets: fields.pets,
 		notificationsEnabled: fields.notificationsEnabled,
 		clickSoundEnabled: fields.clickSoundEnabled,
-		whisperImageEnabled: fields.whisperImageEnabled,
 		chatImageEnabled: fields.chatImageEnabled,
 		chatAnimationEnabled: fields.chatAnimationEnabled,
 		confineToScreen: fields.confineToScreen,
@@ -5789,7 +5787,6 @@ function makePetConfigSection(rt) {
 		const [clickSound, setClickSound] = useState(true);
 		const [confineScreen, setConfineScreen] = useState(false);
 		const [trayEnabled, setTrayEnabled] = useState(true);
-		const [whisperImage, setWhisperImage] = useState(false);
 		const [chatImage, setChatImage] = useState(false);
 		const [chatAnimation, setChatAnimation] = useState(true);
 		const [physics, setPhysics] = useState({ ...DEFAULT_PHYSICS });
@@ -5815,7 +5812,6 @@ function makePetConfigSection(rt) {
 			replace(entries);
 			if (patch.notificationsEnabled !== void 0) setNotifyEnabled(patch.notificationsEnabled);
 			if (patch.clickSoundEnabled !== void 0) setClickSound(patch.clickSoundEnabled);
-			if (patch.whisperImageEnabled !== void 0) setWhisperImage(patch.whisperImageEnabled);
 			if (patch.chatImageEnabled !== void 0) setChatImage(patch.chatImageEnabled);
 			if (patch.chatAnimationEnabled !== void 0) setChatAnimation(patch.chatAnimationEnabled);
 			if (patch.confineToScreen !== void 0) setConfineScreen(patch.confineToScreen);
@@ -5876,7 +5872,6 @@ function makePetConfigSection(rt) {
 				pets: mainPets,
 				notificationsEnabled: notifyEnabled,
 				clickSoundEnabled: clickSound,
-				whisperImageEnabled: whisperImage,
 				chatImageEnabled: chatImage,
 				chatAnimationEnabled: chatAnimation,
 				confineToScreen: confineScreen,

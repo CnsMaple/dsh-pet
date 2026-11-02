@@ -190,7 +190,6 @@ const GLOBAL_DEFAULT_KEYS = [
 	"physics",
 	"font",
 	"confineToScreen",
-	"whisperImageEnabled",
 	"chatImageEnabled",
 	"chatAnimationEnabled",
 	"chatImageLimit",
@@ -410,7 +409,6 @@ function topFieldValid(key, value) {
 		case "notificationQuestion": return typeof value === "boolean";
 		case "notificationSound": return value === "default" || value === "classic" || value === "none";
 		case "clickSoundEnabled": return typeof value === "boolean";
-		case "whisperImageEnabled": return typeof value === "boolean";
 		case "chatImageEnabled": return typeof value === "boolean";
 		case "chatAnimationEnabled": return typeof value === "boolean";
 		case "confineToScreen": return typeof value === "boolean";
@@ -690,8 +688,6 @@ function saveUserConfig(raw, existing) {
 	if (ne !== void 0 && typeof ne !== "boolean") return null;
 	const cse = o.clickSoundEnabled;
 	if (cse !== void 0 && typeof cse !== "boolean") return null;
-	const wie = o.whisperImageEnabled;
-	if (wie !== void 0 && typeof wie !== "boolean") return null;
 	const cie = o.chatImageEnabled;
 	if (cie !== void 0 && typeof cie !== "boolean") return null;
 	const cae = o.chatAnimationEnabled;
@@ -727,7 +723,6 @@ function saveUserConfig(raw, existing) {
 	const outConfig = { pets: out };
 	if (ne !== void 0) outConfig.notificationsEnabled = ne;
 	if (cse !== void 0) outConfig.clickSoundEnabled = cse;
-	if (wie !== void 0) outConfig.whisperImageEnabled = wie;
 	if (cie !== void 0) outConfig.chatImageEnabled = cie;
 	if (cae !== void 0) outConfig.chatAnimationEnabled = cae;
 	if (cts !== void 0) outConfig.confineToScreen = cts;
@@ -745,7 +740,6 @@ function saveUserConfig(raw, existing) {
 	const bodyOwned = new Set(["pets"]);
 	if (ne !== void 0) bodyOwned.add("notificationsEnabled");
 	if (cse !== void 0) bodyOwned.add("clickSoundEnabled");
-	if (wie !== void 0) bodyOwned.add("whisperImageEnabled");
 	if (cie !== void 0) bodyOwned.add("chatImageEnabled");
 	if (cae !== void 0) bodyOwned.add("chatAnimationEnabled");
 	if (cts !== void 0) bodyOwned.add("confineToScreen");

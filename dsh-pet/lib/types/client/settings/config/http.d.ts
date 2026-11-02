@@ -26,7 +26,6 @@ export interface SaveFields {
     pets: readonly Pet[];
     notificationsEnabled: boolean;
     clickSoundEnabled: boolean;
-    whisperImageEnabled: boolean;
     chatImageEnabled: boolean;
     /** 对话动作联动开关。 */
     chatAnimationEnabled: boolean;

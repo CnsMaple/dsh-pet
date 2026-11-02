@@ -85,8 +85,6 @@ export function saveUserConfig(
   // 点击音效开关（全局布尔，与 notificationsEnabled 同语义）：传了必须是布尔，没传走透传保留
   const cse = o.clickSoundEnabled;
   if (cse !== undefined && typeof cse !== 'boolean') return null;
-  const wie = o.whisperImageEnabled;
-  if (wie !== undefined && typeof wie !== 'boolean') return null;
   const cie = o.chatImageEnabled;
   if (cie !== undefined && typeof cie !== 'boolean') return null;
   // 对话动作联动开关（全局布尔）：与上面几个开关同一套语义——传了必须是布尔，没传走透传保留
@@ -141,7 +139,6 @@ export function saveUserConfig(
   const outConfig: { pets: unknown[]; [key: string]: unknown } = { pets: out };
   if (ne !== undefined) outConfig.notificationsEnabled = ne;
   if (cse !== undefined) outConfig.clickSoundEnabled = cse;
-  if (wie !== undefined) outConfig.whisperImageEnabled = wie;
   if (cie !== undefined) outConfig.chatImageEnabled = cie;
   if (cae !== undefined) outConfig.chatAnimationEnabled = cae;
   if (cts !== undefined) outConfig.confineToScreen = cts;
@@ -164,7 +161,6 @@ export function saveUserConfig(
   const bodyOwned = new Set(['pets']);
   if (ne !== undefined) bodyOwned.add('notificationsEnabled');
   if (cse !== undefined) bodyOwned.add('clickSoundEnabled');
-  if (wie !== undefined) bodyOwned.add('whisperImageEnabled');
   if (cie !== undefined) bodyOwned.add('chatImageEnabled');
   if (cae !== undefined) bodyOwned.add('chatAnimationEnabled');
   if (cts !== undefined) bodyOwned.add('confineToScreen');

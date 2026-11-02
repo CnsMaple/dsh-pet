@@ -7,7 +7,6 @@ export interface MainConfigPatch {
     pets?: Pet[];
     notificationsEnabled?: boolean;
     clickSoundEnabled?: boolean;
-    whisperImageEnabled?: boolean;
     chatImageEnabled?: boolean;
     /** 对话动作联动开关；缺省表示这次响应里没有可信值。 */
     chatAnimationEnabled?: boolean;

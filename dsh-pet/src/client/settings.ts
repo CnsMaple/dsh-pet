@@ -70,7 +70,6 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
     const [confineScreen, setConfineScreen] = useState(false);
     const [trayEnabled, setTrayEnabled] = useState(true);
     // 以下字段保留在写盘载荷里（配置 schema 尚未裁剪），但设置页已无对应控件，默认值随加载覆盖。
-    const [whisperImage, setWhisperImage] = useState(false);
     const [chatImage, setChatImage] = useState(false);
     const [chatAnimation, setChatAnimation] = useState(true);
     const [physics, setPhysics] = useState<PhysicsParams>({ ...DEFAULT_PHYSICS });
@@ -92,7 +91,6 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
         replace(entries);
         if (patch.notificationsEnabled !== undefined) setNotifyEnabled(patch.notificationsEnabled);
         if (patch.clickSoundEnabled !== undefined) setClickSound(patch.clickSoundEnabled);
-        if (patch.whisperImageEnabled !== undefined) setWhisperImage(patch.whisperImageEnabled);
         if (patch.chatImageEnabled !== undefined) setChatImage(patch.chatImageEnabled);
         if (patch.chatAnimationEnabled !== undefined) setChatAnimation(patch.chatAnimationEnabled);
         if (patch.confineToScreen !== undefined) setConfineScreen(patch.confineToScreen);
@@ -155,7 +153,6 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
         pets: mainPets,
         notificationsEnabled: notifyEnabled,
         clickSoundEnabled: clickSound,
-        whisperImageEnabled: whisperImage,
         chatImageEnabled: chatImage,
         chatAnimationEnabled: chatAnimation,
         confineToScreen: confineScreen,

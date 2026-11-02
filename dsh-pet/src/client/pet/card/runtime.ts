@@ -10,7 +10,7 @@ import { postAction } from '../../../shared/state.ts';
 import { ROUTE_PATH } from '../../../shared/constants.ts';
 import { resolveFontPx } from '../../../shared/fonts.ts';
 import { resolvePetSizePx } from '../../../shared/pet-size.ts';
-import { makeTextBubble } from '../../bubble.ts';
+import { makeSessionBubbles, makeTextBubble } from '../../bubble.ts';
 import { makeTodoBubble } from '../../todo-bubble.ts';
 import { petBridge } from '../../settings.ts';
 import { playClickSound } from '../click-sound.ts';
@@ -42,6 +42,8 @@ export function createCardRuntime(rt: PetRuntime) {
   const { h, useEffect, useRef, useState } = rt;
   /** 文本气泡：说话与工作状态共用。 */
   const TextBubble = makeTextBubble({ h });
+  /** 会话状态气泡：多枚向上堆叠，中键切换全部/仅一个。 */
+  const SessionBubbles = makeSessionBubbles({ h });
   /** 待办气泡：面板本体挂在自己身上，关闭按钮回调装配根。 */
   const TodoBubble = makeTodoBubble({ h, useEffect, useRef });
   /** 四种气泡的单槽：显隐、停留计时与优先级都在这里。 */
@@ -60,6 +62,8 @@ export function createCardRuntime(rt: PetRuntime) {
 
   return function useCardRuntime(props: PetCardProps): CardViewProps {
     const { cfg, lock, lockTick, menuItemsRef, sleep, sleepTick, workStatus } = props;
+    // 中键切换：false=只显示最新一个（默认），true=显示全部。
+    const [allSessions, setAllSessions] = useState(false);
 
     // 实际渲染宽度：百分比只在挂载与配置变更时按当次视口宽解析一次，拖窗口不跟随。
     // 物理、字号与 CSS 变量都吃这一个值——两处各算一次会让命中框与视觉错位。
@@ -122,6 +126,8 @@ export function createCardRuntime(rt: PetRuntime) {
     const bubbles = useBubbleSlots({
       workStatusEnabled: cfg.workStatusEnabled,
       workTerminal: workStatus?.state === 'success' || workStatus?.state === 'error',
+      // 有会话气泡时不显示工作状态气泡（让位）；没有会话时回落工作状态气泡。
+      suppressWork: props.sessions.length > 0,
     });
 
     const ownAnim = useCardAnimation({
@@ -275,9 +281,13 @@ export function createCardRuntime(rt: PetRuntime) {
       { h: halfH, w: halfW },
     );
 
+    // 会话气泡（有会话才显示），与工作状态气泡互斥：有会话时 sessionNode 兜底、工作气泡让位。
+    const sessionNode =
+      props.sessions.length > 0 ? h(SessionBubbles, { items: props.sessions, all: allSessions }) : null;
+
     return {
-      // 气泡单槽：四种气泡共用同一套定位，按优先级只挂一个。
-      bubble: bubbles.node(),
+      // 气泡：先按单槽（待办/说话），无则回落到会话气泡；工作状态气泡已在有会话时让位。
+      bubble: bubbles.node() ?? sessionNode,
       corner,
       facing,
       fontBubblePx: fontPx.bubble,
@@ -302,6 +312,11 @@ export function createCardRuntime(rt: PetRuntime) {
         drag.onClick();
       },
       onContextMenu: entry.handleContextMenu,
+      onAuxClick: (e) => {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        setAllSessions((v) => !v);
+      },
       onPointerDown: drag.onPointerDown,
       onPointerEnter: entry.onPointerEnter,
       onPointerLeave: entry.onPointerLeave,

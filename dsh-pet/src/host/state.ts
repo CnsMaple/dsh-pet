@@ -21,7 +21,7 @@ export interface StateLeaf {
  *  不能塞进每秒一次的 /state。当前只有 POST /pet-display 写它：桌面端右键改显示位置时，浏览器
  *  页面不是发起方，只能靠这个信号知道配置被别处改过；保存 / 同步配置的调用方自己拿到了成品聚合，
  *  所以不写。 */
-export type SectionName = 'balance' | 'workStatus' | 'notify' | 'config' | 'menu';
+export type SectionName = 'balance' | 'workStatus' | 'notify' | 'config' | 'menu' | 'sessions';
 
 /** 每宠物段（say = 要说的话；anim = 要播的动画名；position = 要挪到的位置；throw = 要给的初速度；
  *  lock = 占用锁状态；sleep = 睡觉状态）。
@@ -110,6 +110,8 @@ export class PollStateStore {
       // 第三方右键菜单项（src/host/menu 的注册表快照）：第三方注册 / 覆盖菜单时写它，两端据此在
       // 右键菜单里拼出「更多」。data 形状见 shared/menu 的 readMenuItems。
       menu: emptyLeaf(),
+      // 会话状态气泡（按会话的标题/档位/在途工具）：工作状态变化时由 host 重写。
+      sessions: emptyLeaf(),
     };
     this.pets = new Map();
     this.waiters = new Set();

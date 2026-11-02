@@ -1129,7 +1129,8 @@ const SECTION_LEAF_NAMES = [
 	"config",
 	"workStatus",
 	"notify",
-	"menu"
+	"menu",
+	"sessions"
 ];
 /** 宠物叶子名的全集；新增宠物叶子时与 {@link PetLeafName} 一起改。 */
 const PET_LEAF_NAMES = [

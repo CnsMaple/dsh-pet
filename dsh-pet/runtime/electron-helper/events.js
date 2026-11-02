@@ -107,6 +107,25 @@ let stateSince;
 /** 宿主支持长轮询吗？响应带 counter = 支持；不带 = 老宿主（会立刻返回全量，必须退避） */
 let stateLongPoll = true;
 
+/** 会话状态气泡叶子 → 所有宠物窗口换成同一份会话列表并重绘（多宠共享一份）。 */
+function applySessionsLeaf(leaf) {
+  const data = leaf && leaf.data;
+  const list = Array.isArray(data)
+    ? data
+        .filter((x) => x && typeof x.id === 'string')
+        .map((x) => ({
+          id: String(x.id),
+          title: typeof x.title === 'string' ? x.title : '',
+          state: typeof x.state === 'string' ? x.state : '',
+          tools: Array.isArray(x.tools) ? x.tools.filter((t) => typeof t === 'string') : [],
+        }))
+    : [];
+  for (const s of sprites) {
+    s.sessions = list;
+    s.renderBubble();
+  }
+}
+
 /** 说话叶子 → 对应宠物播说话动画 + 气泡。`kind: 'clear'` = 收起气泡，其余 = 弹一个气泡。 */
 function applySayLeaf(petId, leaf) {
   const said = S.readSay(leaf);
@@ -238,6 +257,8 @@ async function pollStateOnce() {
       stateBaseline = S.flattenCounters(s); // 首拉：只记基线，不渲染（避免启动/重载时重放旧气泡）
       // 第三方菜单项是状态而不是事件：首拉就要装上，否则 helper 重启后要等下次注册才出现
       applyMenuLeaf(s.sections ? s.sections.menu : null);
+      // 会话气泡是状态：首拉补一次，否则 helper 重启前已在跑的会话不显示。
+      applySessionsLeaf(s.sections ? s.sections.sessions : null);
       // 睡觉同样是状态：helper 重启 / 重载配置后宿主仍记着它在睡，这里必须补一次；
       // 否则渲染端显示醒着，而宿主因「已在睡」不回写叶子，只能等宿主重启才恢复。
       for (const [petId, entry] of Object.entries((s && s.pets) || {})) {
@@ -250,6 +271,7 @@ async function pollStateOnce() {
       else if (change.path === 'sections.workStatus') applyWorkStatusLeaf(change.leaf);
       else if (change.path === 'sections.menu') applyMenuLeaf(change.leaf);
       else if (change.path === 'sections.notify') applyNotifyFrame(change.leaf);
+      else if (change.path === 'sections.sessions') applySessionsLeaf(change.leaf);
       else if (change.path.startsWith('pets.') && change.path.endsWith('.say')) {
         // 宠物 id 允许含点号：按前缀/后缀切片，绝不 split('.')
         applySayLeaf(change.path.slice('pets.'.length, -'.say'.length), change.leaf);

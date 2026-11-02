@@ -170,3 +170,15 @@ export interface ClientConfig {
   animationWeights: Weights;
   /** 事件刷新周期（秒）：事件名 → 间隔；balance = 余额数据刷新与动画触发间隔 */
 }
+
+/** 会话状态气泡（sections.sessions 的条目）：标题 + 档位 + 在途工具细节。 */
+export interface SessionBubble {
+  /** 会话 id。 */
+  id: string;
+  /** 会话标题（取不到时由宿主回退成「会话 · id末4位」）。 */
+  title: string;
+  /** 工作档位（thinking/working/result/waiting 等）。 */
+  state: string;
+  /** 在途工具的单行细节文案（最多若干条）。 */
+  tools: string[];
+}

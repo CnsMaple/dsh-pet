@@ -230,6 +230,11 @@ export class WorkStatusStore {
     return true;
   }
 
+  /** 所有会话条目的快照（无序遍历；供 sessions 段按会话输出，调用方自行排序/过滤）。 */
+  entries(): Array<{ sessionId: string; state: HostWorkStatusState; task: string | null; seq: number }> {
+    return Array.from(this.sessions, ([sessionId, e]) => ({ sessionId, state: e.state, task: e.task, seq: e.seq }));
+  }
+
   /** 展示快照（对象引用稳定，供 /work-status 直接序列化）。 */
   snapshot(): WorkStatusSnapshot {
     return this.snap;

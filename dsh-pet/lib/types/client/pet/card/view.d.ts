@@ -52,6 +52,8 @@ export interface CardViewProps {
     onPointerLeave(): void;
     /** 右键菜单。 */
     onContextMenu(e: ReactNS.MouseEvent<HTMLDivElement>): void;
+    /** 中键：切换会话气泡显示全部 / 仅一个。 */
+    onAuxClick(e: ReactNS.MouseEvent<HTMLDivElement>): void;
 }
 /**
  * 制造宠物卡视图。

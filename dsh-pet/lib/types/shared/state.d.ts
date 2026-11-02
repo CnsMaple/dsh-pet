@@ -38,7 +38,7 @@ export declare function flattenCounters(s: PollState): Record<string, number>;
  *  首拉不要调它（用 flattenCounters 记基线），否则页面刷新会把旧数据重放一遍。 */
 export declare function takeChanged(s: PollState, baseline: Record<string, number>): StateChange[];
 /** `sections.<名>` 里会被消费端分发的那几个叶子。 */
-export type SectionLeafName = 'config' | 'workStatus' | 'notify' | 'menu';
+export type SectionLeafName = 'config' | 'workStatus' | 'notify' | 'menu' | 'sessions';
 /** `pets.<id>.<名>` 里会被消费端分发的那几个叶子。 */
 export type PetLeafName = 'say' | 'anim' | 'position' | 'lock' | 'sleep';
 /** 一次叶子分发的落点：分段叶子，或某只宠物的叶子。 */

@@ -20,14 +20,18 @@ export interface BubbleSlotInput {
   workStatusEnabled: boolean;
   sayOn: boolean;
   sayText: string | null;
+  /** 有会话气泡时让位：不显示工作状态气泡。 */
+  suppressWork: boolean;
 }
 
 /** 决定当前挂哪个气泡。 */
 export function decideBubbleSlot(input: BubbleSlotInput): BubbleSlot {
   if (input.todoOn) return 'todo';
-  if (input.workTerminal && input.workOn && input.workText && input.workStatusEnabled) return 'work-terminal';
+  if (!input.suppressWork) {
+    if (input.workTerminal && input.workOn && input.workText && input.workStatusEnabled) return 'work-terminal';
+  }
   if (input.sayOn && input.sayText) return 'say';
-  if (input.workOn && input.workText && input.workStatusEnabled) return 'work';
+  if (!input.suppressWork && input.workOn && input.workText && input.workStatusEnabled) return 'work';
   return 'none';
 }
 
@@ -54,6 +58,8 @@ export interface BubbleComponents {
 export interface BubbleSlotsInput {
   workStatusEnabled: boolean;
   workTerminal: boolean;
+  /** 有会话气泡时让位：不显示工作状态气泡。 */
+  suppressWork: boolean;
 }
 
 /** 气泡单槽对外的读写面。 */
@@ -146,6 +152,7 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
         workStatusEnabled: input.workStatusEnabled,
         sayOn,
         sayText,
+        suppressWork: input.suppressWork,
       });
       if (slot === 'todo') return h(TodoBubble, { on: todoOn, onClose: hideTodo });
       if (slot === 'say') return sayText === null ? null : h(TextBubble, { text: sayText, on: sayOn });

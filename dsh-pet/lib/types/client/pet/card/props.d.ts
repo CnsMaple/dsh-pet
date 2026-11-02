@@ -9,6 +9,7 @@ import type { LockState, PositionMode, SayCue, PetFacing, SleepState } from '../
 import type { MenuMoreItem } from '../../../shared/menu.ts';
 import type { WorkStatusSnapshot } from '../../../shared/work-status.ts';
 import type { RuntimePet } from '../types.ts';
+import type { SessionBubble } from '../../../shared/types.ts';
 /** 一张宠物卡的渲染输入。 */
 export interface PetCardProps {
     /** 成品配置。 */
@@ -53,4 +54,6 @@ export interface PetCardProps {
     sleepTick: number;
     /** 第三方菜单项快照；传 ref 是因为只在右键那一刻读。 */
     menuItemsRef: ReactNS.MutableRefObject<MenuMoreItem[]>;
+    /** 进行中的会话气泡（按最近活动倒序）；空数组表示没有会话、回落工作状态气泡。 */
+    sessions: SessionBubble[];
 }

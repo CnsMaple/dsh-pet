@@ -22,7 +22,7 @@ import {
   takeChanged,
 } from '../../shared/state.ts';
 import { fontStackOf } from '../../shared/fonts.ts';
-import type { Pet } from '../../shared/types.ts';
+import type { Pet, SessionBubble } from '../../shared/types.ts';
 import type {
   LockState,
   PetFacing,
@@ -64,6 +64,8 @@ export function createPetMulti(
     // 工作状态：容器统一轮询 sections.workStatus，快照与 tick 驱动各宠物播档位动画。
     const [workStatus, setWorkStatus] = useState<WorkStatusSnapshot | null>(null);
     const [workStatusTick, setWorkStatusTick] = useState(0);
+    // 会话状态气泡：容器轮询 sections.sessions，原样交给各宠物卡（多只共享同一份）。
+    const [sessions, setSessions] = useState<SessionBubble[]>([]);
     // 说话：容器把 pets.<id>.say 按宠物分发给对应 PetCard。
 
     // 字体族写到 documentElement：对话窗与得分弹窗挂在 body 下，继承不到宠物根容器。
@@ -151,6 +153,24 @@ export function createPetMulti(
     const sleepRef = useRef<Record<string, SleepState>>({});
     // 第三方菜单项只在打开右键菜单时读一次，不参与渲染。
     const menuItemsRef = useRef<MenuMoreItem[]>([]);
+    /** 解析 sections.sessions 叶子为会话气泡数组（形状异常一律空，不抛）。 */
+    const readSessions = (leaf: StateLeaf | undefined): SessionBubble[] => {
+      const d = leaf?.data;
+      if (!Array.isArray(d)) return [];
+      const out: SessionBubble[] = [];
+      for (const raw of d) {
+        if (!raw || typeof raw !== 'object') continue;
+        const o = raw as Record<string, unknown>;
+        if (typeof o.id !== 'string') continue;
+        out.push({
+          id: o.id,
+          title: typeof o.title === 'string' ? o.title : '',
+          state: typeof o.state === 'string' ? o.state : '',
+          tools: Array.isArray(o.tools) ? o.tools.filter((t): t is string => typeof t === 'string') : [],
+        });
+      }
+      return out;
+    };
     useEffect(() => {
       if (!ready) return;
       let alive = true;
@@ -179,6 +199,10 @@ export function createPetMulti(
             // 第三方菜单快照只更新 ref，不触发渲染；同一份交给页面内菜单镜像，供 petApi7340.menuEvents 读取。
             menuItemsRef.current = readMenuItems(leaf.data, 'web');
             setMenuItems(menuItemsRef.current);
+            return;
+          case 'sessions':
+            // 会话状态气泡：宿主按会话推送，原样交给各卡片渲染（气泡按最近活动倒序）。
+            setSessions(readSessions(leaf));
             return;
         }
       };
@@ -249,6 +273,8 @@ export function createPetMulti(
             if (hit) sleepRef.current[petId] = hit;
           }
           setSleepTick((t) => t + 1);
+          // 会话气泡是状态而非事件：首拉补一次，否则刷新前已在跑的会话气泡不显示。
+          setSessions(readSessions(s.sections.sessions));
           return;
         }
         for (const { path, leaf } of takeChanged(s, baseline)) {
@@ -295,6 +321,7 @@ export function createPetMulti(
             sleep: sleepRef.current[p.id],
             sleepTick,
             menuItemsRef,
+            sessions,
           }),
         )
       : null;

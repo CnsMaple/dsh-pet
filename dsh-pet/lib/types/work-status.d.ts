@@ -104,6 +104,13 @@ export declare class WorkStatusStore {
     setTask(sessionId: string, task: string | null): boolean;
     /** 清掉某会话（回合结束 / 终态过期）：它的 task 一并消失，不会残留到后续活动里。 */
     clear(sessionId: string): boolean;
+    /** 所有会话条目的快照（无序遍历；供 sessions 段按会话输出，调用方自行排序/过滤）。 */
+    entries(): Array<{
+        sessionId: string;
+        state: HostWorkStatusState;
+        task: string | null;
+        seq: number;
+    }>;
     /** 展示快照（对象引用稳定，供 /work-status 直接序列化）。 */
     snapshot(): WorkStatusSnapshot;
     /** 重算展示：state 与 task 任一变化才更新 ts（轮询侧据此触发，两端都靠它刷新）。 */

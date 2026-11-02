@@ -652,6 +652,7 @@ function makeCardView(rt) {
 							onPointerEnter: props.onPointerEnter,
 							onPointerLeave: props.onPointerLeave,
 							onContextMenu: props.onContextMenu,
+							onAuxClick: props.onAuxClick,
 							"aria-label": props.name
 						})
 					]
@@ -825,7 +826,8 @@ const SECTION_LEAF_NAMES = [
 	"config",
 	"workStatus",
 	"notify",
-	"menu"
+	"menu",
+	"sessions"
 ];
 /** 宠物叶子名的全集；新增宠物叶子时与 {@link PetLeafName} 一起改。 */
 const PET_LEAF_NAMES = [
@@ -1014,8 +1016,20 @@ const bubbleCss = [
 	".dsh-pet-bubble{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% - var(--dsh-pet-size)*0.108);width:max-content;min-width:calc(var(--f)*5.7143);max-width:min(calc(var(--f)*16),100%);box-sizing:content-box;padding:calc(var(--f)*0.4835) calc(var(--f)*0.6593);border-radius:calc(var(--f)*0.7692);background:rgba(255,255,255,.92);--f0:var(--dsh-pet-font-bubble,calc(var(--dsh-pet-size)*0.0455));--f:var(--f0);color:#2b2b2b;font-family:var(--dsh-pet-font-family,\"ShangshouSoftCandy\",\"Yuanti SC\",\"YouYuan\",\"幼圆\",\"Comic Sans MS\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif);font-size:var(--f);line-height:1.6;z-index:3;pointer-events:none;box-shadow:0 calc(var(--f)*0.1978) calc(var(--f)*0.7692) rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.08);backdrop-filter:blur(6px);opacity:0;transition:opacity .25s ease;white-space:normal;overflow-wrap:break-word}",
 	".dsh-pet-bubble::after{content:\"\";position:absolute;left:50%;bottom:calc(var(--f)*-0.3736);transform:translateX(-50%);border:calc(var(--f)*0.3736) solid transparent;border-top-color:rgba(255,255,255,.92);border-bottom:none}",
 	".dsh-pet-bubble.is-on{opacity:1}",
-	".dsh-pet-bubble.dsh-pet-whisper{font-size:calc(var(--f)*0.7473);min-width:calc(var(--f)*2.1978);max-width:min(calc(var(--f)*10.989),100%)}"
+	".dsh-pet-bubble.dsh-pet-whisper{font-size:calc(var(--f)*0.7473);min-width:calc(var(--f)*2.1978);max-width:min(calc(var(--f)*10.989),100%)}",
+	".dsh-pet-sessions{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% - var(--dsh-pet-size)*0.108);display:flex;flex-direction:column;gap:calc(var(--f)*0.22);align-items:center;z-index:3;pointer-events:none;--f0:var(--dsh-pet-font-bubble,calc(var(--dsh-pet-size)*0.0455));--f:var(--f0)}",
+	".dsh-pet-session-bubble{box-sizing:border-box;max-width:min(calc(var(--f)*18),78vw);padding:calc(var(--f)*0.42) calc(var(--f)*0.62);border-radius:calc(var(--f)*0.72);background:rgba(255,255,255,.92);color:#2b2b2b;font-family:var(--dsh-pet-font-family,\"ShangshouSoftCandy\",\"Yuanti SC\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif);font-size:var(--f);line-height:1.45;text-align:left;box-shadow:0 calc(var(--f)*0.16) calc(var(--f)*0.6) rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.08);backdrop-filter:blur(6px);white-space:normal;overflow-wrap:break-word}",
+	".dsh-pet-session-bubble .dst{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}",
+	".dsh-pet-session-bubble .dss{opacity:.6;font-size:calc(var(--f)*0.78)}",
+	".dsh-pet-session-bubble .dsk{font-size:calc(var(--f)*0.78);opacity:.82;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}"
 ];
+/** 档位 → 中文状态词。 */
+const STATE_WORD = {
+	thinking: "思考中",
+	working: "运行中",
+	result: "出结果",
+	waiting: "等待确认"
+};
 let cssInjected = false;
 function injectBubbleCss() {
 	if (cssInjected || typeof document === "undefined") return;
@@ -1032,6 +1046,36 @@ function makeTextBubble(rt) {
 		return h("div", {
 			className: "dsh-pet-bubble dsh-pet-whisper" + (on ? " is-on" : ""),
 			children: text
+		});
+	};
+}
+function makeSessionBubbles(rt) {
+	const { h } = rt;
+	injectBubbleCss();
+	return function SessionBubbles({ items, all }) {
+		const shown = all ? items : items.slice(0, 1);
+		if (shown.length === 0) return null;
+		return h("div", {
+			className: "dsh-pet-sessions",
+			children: shown.map((it) => h("div", {
+				key: it.id,
+				className: "dsh-pet-session-bubble",
+				children: [
+					h("div", {
+						className: "dst",
+						children: it.title
+					}),
+					it.state ? h("div", {
+						className: "dss",
+						children: STATE_WORD[it.state] ?? it.state
+					}) : null,
+					...it.tools.map((tool, i) => h("div", {
+						key: i,
+						className: "dsk",
+						children: "· " + tool
+					}))
+				].filter((x) => x !== null)
+			}))
 		});
 	};
 }
@@ -6283,9 +6327,11 @@ const STATE_FALLBACK_MS = 1e3;
 //#region src/client/pet/card/bubble-slots.ts
 function decideBubbleSlot(input) {
 	if (input.todoOn) return "todo";
-	if (input.workTerminal && input.workOn && input.workText && input.workStatusEnabled) return "work-terminal";
+	if (!input.suppressWork) {
+		if (input.workTerminal && input.workOn && input.workText && input.workStatusEnabled) return "work-terminal";
+	}
 	if (input.sayOn && input.sayText) return "say";
-	if (input.workOn && input.workText && input.workStatusEnabled) return "work";
+	if (!input.suppressWork && input.workOn && input.workText && input.workStatusEnabled) return "work";
 	return "none";
 }
 function createBubbleSlots(rt, components) {
@@ -6347,7 +6393,8 @@ function createBubbleSlots(rt, components) {
 				workText,
 				workStatusEnabled: input.workStatusEnabled,
 				sayOn,
-				sayText
+				sayText,
+				suppressWork: input.suppressWork
 			});
 			if (slot === "todo") return h(TodoBubble, {
 				on: todoOn,
@@ -8118,6 +8165,8 @@ function createCardRuntime(rt) {
 	const { h, useEffect, useRef, useState } = rt;
 	/** 文本气泡：说话与工作状态共用。 */
 	const TextBubble = makeTextBubble({ h });
+	/** 会话状态气泡：多枚向上堆叠，中键切换全部/仅一个。 */
+	const SessionBubbles = makeSessionBubbles({ h });
 	/** 待办气泡：面板本体挂在自己身上，关闭按钮回调装配根。 */
 	const TodoBubble = makeTodoBubble({
 		h,
@@ -8165,6 +8214,7 @@ function createCardRuntime(rt) {
 	});
 	return function useCardRuntime(props) {
 		const { cfg, lock, lockTick, menuItemsRef, sleep: sleep$1, sleepTick, workStatus } = props;
+		const [allSessions, setAllSessions] = useState(false);
 		const effectiveSizePx = resolvePetSizePx(cfg.size, cfg.sizePercent, window.innerWidth);
 		const card = useCardState({
 			anim: cfg.animations.idle[0] ?? "",
@@ -8211,7 +8261,8 @@ function createCardRuntime(rt) {
 		]);
 		const bubbles = useBubbleSlots({
 			workStatusEnabled: cfg.workStatusEnabled,
-			workTerminal: workStatus?.state === "success" || workStatus?.state === "error"
+			workTerminal: workStatus?.state === "success" || workStatus?.state === "error",
+			suppressWork: props.sessions.length > 0
 		});
 		const ownAnim = useCardAnimation({
 			card,
@@ -8349,8 +8400,12 @@ function createCardRuntime(rt) {
 			h: halfH,
 			w: halfW
 		});
+		const sessionNode = props.sessions.length > 0 ? h(SessionBubbles, {
+			items: props.sessions,
+			all: allSessions
+		}) : null;
 		return {
-			bubble: bubbles.node(),
+			bubble: bubbles.node() ?? sessionNode,
 			corner,
 			facing,
 			fontBubblePx: fontPx.bubble,
@@ -8370,6 +8425,11 @@ function createCardRuntime(rt) {
 				drag.onClick();
 			},
 			onContextMenu: entry.handleContextMenu,
+			onAuxClick: (e) => {
+				if (e.button !== 1) return;
+				e.preventDefault();
+				setAllSessions((v) => !v);
+			},
 			onPointerDown: drag.onPointerDown,
 			onPointerEnter: entry.onPointerEnter,
 			onPointerLeave: entry.onPointerLeave,
@@ -8456,6 +8516,7 @@ function createPetMulti(rt, Card) {
 		const [ready, setReady] = useState(false);
 		const [workStatus, setWorkStatus] = useState(null);
 		const [workStatusTick, setWorkStatusTick] = useState(0);
+		const [sessions, setSessions] = useState([]);
 		useEffect(() => {
 			const family = pets[0]?.font?.family;
 			if (family === void 0) return;
@@ -8519,6 +8580,24 @@ function createPetMulti(rt, Card) {
 		const [sleepTick, setSleepTick] = useState(0);
 		const sleepRef = useRef({});
 		const menuItemsRef = useRef([]);
+		/** 解析 sections.sessions 叶子为会话气泡数组（形状异常一律空，不抛）。 */
+		const readSessions = (leaf$1) => {
+			const d = leaf$1?.data;
+			if (!Array.isArray(d)) return [];
+			const out = [];
+			for (const raw of d) {
+				if (!raw || typeof raw !== "object") continue;
+				const o = raw;
+				if (typeof o.id !== "string") continue;
+				out.push({
+					id: o.id,
+					title: typeof o.title === "string" ? o.title : "",
+					state: typeof o.state === "string" ? o.state : "",
+					tools: Array.isArray(o.tools) ? o.tools.filter((t) => typeof t === "string") : []
+				});
+			}
+			return out;
+		};
 		useEffect(() => {
 			if (!ready) return;
 			let alive = true;
@@ -8543,6 +8622,9 @@ function createPetMulti(rt, Card) {
 					case "menu":
 						menuItemsRef.current = readMenuItems(leaf$1.data, "web");
 						setMenuItems(menuItemsRef.current);
+						return;
+					case "sessions":
+						setSessions(readSessions(leaf$1));
 						return;
 				}
 			};
@@ -8610,6 +8692,7 @@ function createPetMulti(rt, Card) {
 						if (hit) sleepRef.current[petId] = hit;
 					}
 					setSleepTick((t) => t + 1);
+					setSessions(readSessions(s.sections.sessions));
 					return;
 				}
 				for (const { path, leaf: leaf$1 } of takeChanged(s, baseline)) {
@@ -8649,7 +8732,8 @@ function createPetMulti(rt, Card) {
 			lockTick,
 			sleep: sleepRef.current[p.id],
 			sleepTick,
-			menuItemsRef
+			menuItemsRef,
+			sessions
 		})) : null;
 	};
 }

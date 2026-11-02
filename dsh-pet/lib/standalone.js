@@ -1773,7 +1773,8 @@ var PollStateStore = class {
 			workStatus: emptyLeaf(),
 			notify: emptyLeaf(),
 			config: emptyLeaf(),
-			menu: emptyLeaf()
+			menu: emptyLeaf(),
+			sessions: emptyLeaf()
 		};
 		this.pets = new Map();
 		this.waiters = new Set();
@@ -2012,6 +2013,15 @@ var WorkStatusStore = class {
 		if (!this.sessions.delete(sessionId)) return false;
 		this.refresh();
 		return true;
+	}
+	/** 所有会话条目的快照（无序遍历；供 sessions 段按会话输出，调用方自行排序/过滤）。 */
+	entries() {
+		return Array.from(this.sessions, ([sessionId, e]) => ({
+			sessionId,
+			state: e.state,
+			task: e.task,
+			seq: e.seq
+		}));
 	}
 	/** 展示快照（对象引用稳定，供 /work-status 直接序列化）。 */
 	snapshot() {
@@ -6437,6 +6447,45 @@ function apply(ctx) {
 		workStatus
 	});
 	const { pushNotifyFrame, turnFlags, terminalTimers, lastTodoText, lastReplyText, toolsInFlight, cancelTerminalCleanup, scheduleTerminalCleanup, notifyActivityTimers, scheduleCompletionNotify } = sessionNotify;
+	/** 取会话标题：DSH sessions 服务；取不到退回「会话 · id末4位」。 */
+	const sessionTitleOf = (id) => {
+		try {
+			const svc = typeof ctx?.get === "function" ? ctx.get("sessions") : void 0;
+			const meta = svc?.list?.getSnapshot?.()?.byId?.[id] ?? svc?.byId?.[id];
+			const title = typeof meta?.title === "string" ? meta.title.trim() : "";
+			return title || "会话 · " + id.slice(-4);
+		} catch {
+			return "会话 · " + id.slice(-4);
+		}
+	};
+	/** 写 sections.sessions：所有进行中的会话（thinking/working/result/waiting）及在途工具细节。 */
+	const publishSessions = () => {
+		const rows = [];
+		for (const e of workStatus.entries()) {
+			if (e.state === "success" || e.state === "error") continue;
+			const bucket = toolsInFlight.get(e.sessionId);
+			const tools = bucket ? Array.from(bucket.values()).slice(0, 3) : [];
+			rows.push({
+				id: e.sessionId,
+				title: sessionTitleOf(e.sessionId),
+				state: e.state,
+				tools,
+				seq: e.seq
+			});
+		}
+		rows.sort((a, b) => b.seq - a.seq);
+		state.writeSection("sessions", rows.map((r) => ({
+			id: r.id,
+			title: r.title,
+			state: r.state,
+			tools: r.tools
+		})));
+	};
+	/** 一次工作状态写入 = 同时刷新 workStatus 与 sessions 两段（在途工具变化也走这里）。 */
+	const publishWorkStatusAll = () => {
+		publishWorkStatus();
+		publishSessions();
+	};
 	const todos = new TodoStore({
 		file: join(userRoot, TODO_FILE_NAME),
 		log
@@ -6467,7 +6516,7 @@ function apply(ctx) {
 		lastTodoText,
 		lastReplyText,
 		notifyActivityTimers,
-		publishWorkStatus,
+		publishWorkStatus: publishWorkStatusAll,
 		pushNotifyFrame,
 		scheduleCompletionNotify,
 		scheduleTerminalCleanup,

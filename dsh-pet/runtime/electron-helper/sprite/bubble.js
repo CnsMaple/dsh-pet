@@ -49,7 +49,54 @@ Object.assign(PetSprite.prototype, {
     this.tip.classList.toggle('is-on', this.tipOn);
     window.__dshPetDebug.tooltipOn = this.tipOn;
   },
+  /** 会话状态气泡：有会话时渲染到 sessionBox（向上堆叠），并让工作状态气泡让位。 */
+  renderSessions(list) {
+    const box = this.sessionBox;
+    if (!box) return;
+    if (!list || list.length === 0) {
+      box.classList.remove('is-on');
+      box.innerHTML = '';
+      return;
+    }
+    const shown = this.showAllSessions ? list : list.slice(0, 1);
+    const STATE_WORD = { thinking: '思考中', working: '运行中', result: '出结果', waiting: '等待确认' };
+    box.innerHTML = '';
+    for (const it of shown) {
+      const b = document.createElement('div');
+      b.className = 'pet-session-bubble';
+      const t = document.createElement('div');
+      t.className = 'dst';
+      t.textContent = it.title || '';
+      b.appendChild(t);
+      if (it.state) {
+        const s = document.createElement('div');
+        s.className = 'dss';
+        s.textContent = STATE_WORD[it.state] || it.state;
+        b.appendChild(s);
+      }
+      for (const tool of Array.isArray(it.tools) ? it.tools : []) {
+        const k = document.createElement('div');
+        k.className = 'dsk';
+        k.textContent = '· ' + tool;
+        b.appendChild(k);
+      }
+      box.appendChild(b);
+    }
+    box.classList.add('is-on');
+  },
+
   renderBubble() {
+    const sessions = Array.isArray(this.sessions) ? this.sessions : [];
+    // 有会话状态气泡时让位：待办面板 / 说话气泡优先，其余情况显示会话气泡、收起工作状态气泡。
+    const showSessions = sessions.length > 0 && !this.todoOpen && !(this.whisperOn && this.whisperText);
+    if (showSessions) {
+      this.bubble.classList.remove('is-on');
+      window.__dshPetDebug.lastBubbleTitle = sessions[0] && sessions[0].title ? String(sessions[0].title) : '';
+      this.renderSessions(sessions);
+      this.syncInputBusy();
+      return;
+    }
+    this.renderSessions(null);
     this.bubble.classList.toggle('dsh-pet-todo-bubble', this.todoOpen);
     if (this.todoOpen) {
       this.bubble.classList.add('is-on');

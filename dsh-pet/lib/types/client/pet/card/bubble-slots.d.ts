@@ -12,6 +12,8 @@ export interface BubbleSlotInput {
     workStatusEnabled: boolean;
     sayOn: boolean;
     sayText: string | null;
+    /** 有会话气泡时让位：不显示工作状态气泡。 */
+    suppressWork: boolean;
 }
 /** 决定当前挂哪个气泡。 */
 export declare function decideBubbleSlot(input: BubbleSlotInput): BubbleSlot;
@@ -41,6 +43,8 @@ export interface BubbleComponents {
 export interface BubbleSlotsInput {
     workStatusEnabled: boolean;
     workTerminal: boolean;
+    /** 有会话气泡时让位：不显示工作状态气泡。 */
+    suppressWork: boolean;
 }
 /** 气泡单槽对外的读写面。 */
 export interface BubbleSlots {

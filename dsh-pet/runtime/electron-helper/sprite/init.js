@@ -133,6 +133,11 @@ Object.assign(PetSprite.prototype, {
     this.hit.style.height = ((S.HIT_BOX.y1 - S.HIT_BOX.y0) / 360) * 100 + '%';
     // 命中层挂 aria-label：原生 title 已换成自绘浮层，但无障碍名称不能跟着丢
     this.hit.setAttribute('aria-label', this.pet.name);
+    // 会话状态气泡容器：向上堆叠多个（与工作状态气泡互斥，有会话时让位）。
+    this.sessions = [];
+    this.showAllSessions = false;
+    this.sessionBox = document.createElement('div');
+    this.sessionBox.className = 'pet-sessions';
     this.bubble = document.createElement('div');
     this.bubble.className = 'pet-bubble';
     // 悬浮提示：this.el 内的绝对定位浮层，位置与翻边由 renderTip 决定，样式走 shared 的 TOOLTIP_CSS。
@@ -143,6 +148,7 @@ Object.assign(PetSprite.prototype, {
     stage.appendChild(this.videoA);
     stage.appendChild(this.videoB);
     stage.appendChild(this.hit);
+    this.el.appendChild(this.sessionBox);
     this.el.appendChild(this.bubble);
     this.el.appendChild(this.tip);
     this.el.appendChild(stage);
@@ -164,6 +170,17 @@ Object.assign(PetSprite.prototype, {
     this.hit.addEventListener('pointermove', (e) => this.onPointerMove(e), { signal: ac.signal });
     this.hit.addEventListener('click', (e) => this.onClick(e), { signal: ac.signal });
     this.hit.addEventListener('contextmenu', (e) => this.onContextMenu(e), { signal: ac.signal });
+    // 中键：切换会话气泡「显示全部 / 仅最新一个」。
+    this.hit.addEventListener(
+      'auxclick',
+      (e) => {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        this.showAllSessions = !this.showAllSessions;
+        this.renderBubble();
+      },
+      { signal: ac.signal },
+    );
     window.addEventListener('pointerup', (e) => this.onPointerUp(e), { signal: ac.signal });
     window.addEventListener('pointercancel', (e) => this.onPointerUp(e), { signal: ac.signal });
     this.hit.addEventListener('lostpointercapture', (e) => this.onPointerUp(e), { signal: ac.signal });

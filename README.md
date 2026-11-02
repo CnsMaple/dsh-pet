@@ -4,6 +4,20 @@
 > 内置（main）宠物形象已替换为 [CnsMaple/dsh-pet-sticker](https://github.com/CnsMaple/dsh-pet-sticker) 的「Maid DeepSeek Sticker」。
 > 素材署名与许可见 [NOTICE.md](NOTICE.md)；上游更新可用 `git fetch upstream` 拉取。
 
+## 从 GitHub 直接安装
+
+仓库根带有可直接加载的 `package.json` 与已构建产物 `dsh-pet/lib`，因此**可以直接用仓库地址安装、无需先构建**：
+
+```sh
+# dsh web（桌面应用把 --profile 换成 desktop）
+dsh plugin --profile web add https://github.com/CnsMaple/dsh-pet
+```
+
+也可以在图形化「插件管理」的安装框里粘贴 `https://github.com/CnsMaple/dsh-pet`。装完重启 DSH。
+WSL 下会自动启用远程显示层（见 [REMOTE-DISPLAY.md](REMOTE-DISPLAY.md)）。
+
+> 维护提示：`dsh-pet/lib` 与 `dsh-pet/runtime/electron-helper/shared-core.js` 是**随源码提交的构建产物**。改源码后请 `pnpm run build` 并把产物一并提交，否则 GitHub 直装会缺产物。
+
 <p align="center">
   <a href="https://www.npmjs.com/package/dsh-pet"><img alt="npm version" src="https://img.shields.io/npm/v/dsh-pet?label=npm&color=blue"></a>
   <a href="https://www.npmjs.com/package/dsh-pet"><img alt="npm monthly downloads" src="https://img.shields.io/npm/dm/dsh-pet?label=%E6%9C%88%E4%B8%8B%E8%BD%BD&color=brightgreen"></a>

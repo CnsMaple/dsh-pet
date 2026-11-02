@@ -3230,7 +3230,6 @@ const PET_LEAF_NAMES = [
 	"say",
 	"anim",
 	"position",
-	"throw",
 	"lock",
 	"sleep"
 ];
@@ -3349,16 +3348,6 @@ function readPosition(leaf$1) {
 		y: d.y,
 		mode: d.mode,
 		duration: 0
-	};
-}
-function readThrow(leaf$1) {
-	if (!leaf$1.data || typeof leaf$1.data !== "object") return null;
-	const d = leaf$1.data;
-	if (typeof d.angle !== "number" || !Number.isFinite(d.angle)) return null;
-	if (typeof d.power !== "number" || !Number.isFinite(d.power) || d.power <= 0) return null;
-	return {
-		angle: d.angle,
-		power: d.power
 	};
 }
 async function postAction(baseUrl, body) {
@@ -4713,7 +4702,6 @@ exports.readMenuItems = readMenuItems
 exports.readPosition = readPosition
 exports.readSay = readSay
 exports.readSleep = readSleep
-exports.readThrow = readThrow
 exports.readWorkStatus = readWorkStatus
 exports.rebaseCenter = rebaseCenter
 exports.rectAtPoint = rectAtPoint

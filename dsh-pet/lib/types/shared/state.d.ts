@@ -41,7 +41,7 @@ export declare function takeChanged(s: PollState, baseline: Record<string, numbe
 /** `sections.<名>` 里会被消费端分发的那几个叶子。 */
 export type SectionLeafName = 'config' | 'balance' | 'workStatus' | 'notify' | 'menu';
 /** `pets.<id>.<名>` 里会被消费端分发的那几个叶子。 */
-export type PetLeafName = 'say' | 'anim' | 'position' | 'throw' | 'lock' | 'sleep';
+export type PetLeafName = 'say' | 'anim' | 'position' | 'lock' | 'sleep';
 /** 一次叶子分发的落点：分段叶子，或某只宠物的叶子。 */
 export type LeafTarget = {
     where: 'section';
@@ -153,13 +153,6 @@ export declare function readPosition(leaf: StateLeaf): {
     y: number;
     mode: PositionMode;
     duration: number;
-} | null;
-/** 类型收窄：抛掷指令叶子 → `{ angle, power }`（形状非法 → null，消费端跳过这一拍）。
- *  angle 单位为度（0 = 正右，逆时针为正）；power 是力度倍率（1.0 = 1200 px/s 软钳速前）。
- *  同样是指令，前端不往回写。 */
-export declare function readThrow(leaf: StateLeaf): {
-    angle: number;
-    power: number;
 } | null;
 /** 动作端点：POST 一次，返回是否成功。
  *  动作不返回数据——数据只有 /state 一个出口。调用方收到 ok 后不需要再做别的：动作写叶子会让

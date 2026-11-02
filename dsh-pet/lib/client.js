@@ -514,16 +514,7 @@ function injectPetCss() {
 //#region src/shared/physics/constants.ts
 const SPRING_K = 200;
 const SPRING_C = 30;
-const TRAIL_KEEP_MS = 200;
-const RELEASE_WINDOW_MS = 150;
-const RELEASE_STALE_MS = 150;
-const MIN_SPAN_MS = 20;
-const SEG_MIN_DT_MS = 8;
-const DEAD_ZONE_SPEED = 500;
 const MAX_THROW_SPEED = 3600;
-const PEAK_WEIGHT = .5;
-const ACCEL_REF = 8e3;
-const ACCEL_GAIN_MAX = .6;
 const GRAVITY = 1400;
 const RESTITUTION = .78;
 const GROUND_FRICTION = 2.5;
@@ -549,7 +540,6 @@ const SQ_SOFT_SPEED = 300;
 const SQ_HARD_SPEED = 1500;
 const SQ_MAX_SQUASH = .55;
 const THROW_SPEED_ANCHOR = 1200;
-const SLINGSHOT_REF_RATIO = .6;
 const SUBSTEP_PX = 8;
 const SUBSTEP_MAX = 64;
 const PET_BOUNCE_E = .995;
@@ -734,86 +724,12 @@ const softClampSpeed = (speed) => {
 
 //#endregion
 //#region src/shared/physics/release.ts
-const trimTrail = (trail, now) => {
-	const cutoff = now - TRAIL_KEEP_MS;
-	let i = 0;
-	while (i < trail.length && trail[i].t < cutoff) i++;
-	return i === 0 ? trail : trail.slice(i);
-};
 const throwVelocity = (angleDeg, power) => {
 	const speed = softClampSpeed(power * THROW_SPEED_ANCHOR);
 	const rad = angleDeg * Math.PI / 180;
 	return {
 		vx: Math.cos(rad) * speed,
 		vy: -Math.sin(rad) * speed
-	};
-};
-const slingshotRefDist = (size) => size > 0 ? size * SLINGSHOT_REF_RATIO : 0;
-const slingshotPower = (dist, size) => {
-	const ref = slingshotRefDist(size);
-	if (!(ref > 0) || !(dist > 0) || !Number.isFinite(dist)) return 0;
-	return dist / ref;
-};
-const pullAngle = (pullX, pullY) => Math.atan2(pullY, -pullX) * 180 / Math.PI;
-const slingshotVelocity = (angleDeg, power, throwPower = DEFAULT_THROW_POWER) => {
-	const speed = THROW_SPEED_ANCHOR * Math.max(0, power) * Math.max(0, throwPower);
-	if (speed === 0) return {
-		vx: 0,
-		vy: 0
-	};
-	const rad = angleDeg * Math.PI / 180;
-	return {
-		vx: Math.cos(rad) * speed,
-		vy: -Math.sin(rad) * speed
-	};
-};
-const estimateReleaseVelocity = (trail, now, physics = DEFAULT_PHYSICS) => {
-	if (trail.length === 0) return null;
-	const last = trail[trail.length - 1];
-	if (now - last.t > RELEASE_STALE_MS) return null;
-	const win = trail.filter((s) => now - s.t <= RELEASE_WINDOW_MS);
-	if (win.length < 2) return null;
-	const t0 = win[0].t;
-	const x0 = win[0].x;
-	const y0 = win[0].y;
-	const t1 = win[win.length - 1].t;
-	const x1 = win[win.length - 1].x;
-	const y1 = win[win.length - 1].y;
-	const spanMs = t1 - t0;
-	if (spanMs < MIN_SPAN_MS) return null;
-	const baseVx = (x1 - x0) / spanMs * 1e3;
-	const baseVy = (y1 - y0) / spanMs * 1e3;
-	const baseSpeed = Math.hypot(baseVx, baseVy);
-	if (baseSpeed < 1e-6) return null;
-	const segSpeeds = [];
-	let px = x0;
-	let py = y0;
-	let pt$1 = t0;
-	for (const s of win.slice(1)) {
-		const dt = s.t - pt$1;
-		if (dt >= SEG_MIN_DT_MS) {
-			segSpeeds.push({
-				speed: Math.hypot(s.x - px, s.y - py) / dt * 1e3,
-				tEnd: s.t
-			});
-			px = s.x;
-			py = s.y;
-			pt$1 = s.t;
-		}
-	}
-	const peakSpeed = segSpeeds.length ? Math.max(...segSpeeds.map((v) => v.speed)) : baseSpeed;
-	let accel = 0;
-	if (segSpeeds.length >= 2) {
-		const lastSeg = segSpeeds[segSpeeds.length - 1];
-		const firstSeg = segSpeeds[0];
-		accel = (lastSeg.speed - firstSeg.speed) / Math.max((lastSeg.tEnd - firstSeg.tEnd) / 1e3, MIN_SPAN_MS / 1e3);
-	}
-	const speedBeforeClamp = ((1 - PEAK_WEIGHT) * baseSpeed + PEAK_WEIGHT * peakSpeed) * (1 + Math.min(Math.max(accel, 0) / ACCEL_REF, 1) * ACCEL_GAIN_MAX);
-	const speed = softClampSpeed(speedBeforeClamp) * physics.throwPower;
-	if (speed < DEAD_ZONE_SPEED) return null;
-	return {
-		vx: baseVx / baseSpeed * speed,
-		vy: baseVy / baseSpeed * speed
 	};
 };
 
@@ -1802,7 +1718,6 @@ const PET_LEAF_NAMES = [
 	"say",
 	"anim",
 	"position",
-	"throw",
 	"lock",
 	"sleep"
 ];
@@ -1921,16 +1836,6 @@ function readPosition(leaf$1) {
 		y: d.y,
 		mode: d.mode,
 		duration: 0
-	};
-}
-function readThrow(leaf$1) {
-	if (!leaf$1.data || typeof leaf$1.data !== "object") return null;
-	const d = leaf$1.data;
-	if (typeof d.angle !== "number" || !Number.isFinite(d.angle)) return null;
-	if (typeof d.power !== "number" || !Number.isFinite(d.power) || d.power <= 0) return null;
-	return {
-		angle: d.angle,
-		power: d.power
 	};
 }
 async function postAction(baseUrl, body) {
@@ -8472,28 +8377,6 @@ function createTouchPress(deps) {
 }
 
 //#endregion
-//#region src/client/pet/motion/drag-release.ts
-function decideRelease(input) {
-	if (input.sling) {
-		const pullX = input.box.x + input.half.w - input.anchor.x;
-		const pullY = input.box.y + input.half.h - input.anchor.y;
-		const dist = Math.hypot(pullX, pullY);
-		const power = slingshotPower(dist, input.size);
-		return {
-			kind: "sling",
-			dist,
-			power,
-			velocity: slingshotVelocity(pullAngle(pullX, pullY), power, input.physics.throwPower)
-		};
-	}
-	const velocity = estimateReleaseVelocity(input.trail, input.now, input.physics);
-	return velocity ? {
-		kind: "throw",
-		velocity
-	} : { kind: "place" };
-}
-
-//#endregion
 //#region src/client/pet/motion/drag.ts
 /** 复位的按下状态：避免每个实例各写一份字面量。 */
 const IDLE_PRESS = {
@@ -8546,8 +8429,6 @@ function createDrag(card) {
 	let justDraggedUntil = 0;
 	let pressScoreFired = false;
 	let lastPressAt = 0;
-	/** 指针轨迹采样，供初速估算。 */
-	let trail = [];
 	const follow = createDragFollow({ card });
 	let mousePressHit = null;
 	/** 捕获丢失后的松手：坐标来自 mouseup，落点判定与正常松开完全一致。 */
@@ -8634,7 +8515,6 @@ function createDrag(card) {
 		c.stopFlight();
 		follow.stop();
 		c.stopAutonomy();
-		trail = [];
 		press = beginPress(c, e);
 		clearMouseFallback();
 		if (e.pointerType === "mouse") armMouseFallback(e.currentTarget);
@@ -8664,12 +8544,6 @@ function createDrag(card) {
 				c.playAnim(name);
 			}
 		}
-		const now = performance.now();
-		trail = trimTrail([...trail, {
-			t: now,
-			x: e.clientX,
-			y: e.clientY
-		}], now);
 		follow.aim({
 			x: e.clientX - press.offX - c.halfW,
 			y: e.clientY - press.offY - c.halfH
@@ -8687,39 +8561,10 @@ function createDrag(card) {
 	*/
 	const settleRelease = (c, point) => {
 		const current$1 = c.box();
-		const box = current$1 ?? {
+		c.commitPlace(current$1 ?? {
 			x: point.x - press.offX - c.halfW,
 			y: point.y - press.offY - c.halfH
-		};
-		const decision = decideRelease({
-			anchor: {
-				x: press.anchorX,
-				y: press.anchorY
-			},
-			box,
-			half: {
-				w: c.halfW,
-				h: c.halfH
-			},
-			now: performance.now(),
-			physics: c.physics,
-			size: c.size,
-			sling: press.sling,
-			trail
 		});
-		trail = [];
-		if (decision.kind === "sling") {
-			log$1(c.petId, "sling dist=" + Math.round(decision.dist) + " power=" + decision.power.toFixed(2) + " vx=" + Math.round(decision.velocity.vx) + " vy=" + Math.round(decision.velocity.vy));
-			c.startFlight(box.x, box.y, decision.velocity.vx, decision.velocity.vy);
-			return;
-		}
-		if (decision.kind === "throw") {
-			const { vx, vy } = decision.velocity;
-			log$1(c.petId, "release vx=" + Math.round(vx) + " vy=" + Math.round(vy) + " |v|=" + Math.round(Math.hypot(vx, vy)));
-			c.startFlight(box.x, box.y, vx, vy);
-			return;
-		}
-		c.commitPlace(box);
 	};
 	/**
 	* 松手后把提示摆回光标处并点亮；指针已移出命中区时保持收起。
@@ -9858,7 +9703,7 @@ function createCueEffects(rt) {
 	const { useEffect, useRef } = rt;
 	return function useCueEffects(hub, props) {
 		const { balance, balanceManual, balanceNoticeTick, balanceTick } = props;
-		const { animCue, animCueTick, posCue, posCueTick, say, sayTick, throwCue, throwCueTick } = props;
+		const { animCue, animCueTick, posCue, posCueTick, say, sayTick } = props;
 		const { workStatus, workStatusTick } = props;
 		const prevBalanceRef = useRef(0);
 		const prevNoticeRef = useRef(0);
@@ -9867,7 +9712,6 @@ function createCueEffects(rt) {
 		const prevSayRef = useRef(0);
 		const prevAnimRef = useRef(0);
 		const prevPosRef = useRef(0);
-		const prevThrowRef = useRef(0);
 		/** 余额事件：按档位播事件动画并弹气泡。手动请求无条件弹，自动轮询要求开启且有百分比；
 		*  睡着时自动来源整拍丢弃，否则会顶掉睡姿。 */
 		const consumeBalance = () => {
@@ -9991,12 +9835,6 @@ function createCueEffects(rt) {
 			prevPosRef.current = posCue.seq;
 			hub.posFollow.apply(posCue.x, posCue.y, posCue.mode, posCue.duration);
 		};
-		/** 抛掷指令：交给抛掷驱动。 */
-		const consumeThrowCue = () => {
-			if (!throwCue || throwCue.seq === prevThrowRef.current) return;
-			prevThrowRef.current = throwCue.seq;
-			hub.applyThrow(throwCue.angle, throwCue.power);
-		};
 		useEffect(() => {
 			consumeBalance();
 			consumeBalanceNotice();
@@ -10004,15 +9842,13 @@ function createCueEffects(rt) {
 			consumeSay();
 			consumeAnimCue();
 			consumePosCue();
-			consumeThrowCue();
 		}, [
 			balanceTick,
 			balanceNoticeTick,
 			workStatusTick,
 			sayTick,
 			animCueTick,
-			posCueTick,
-			throwCueTick
+			posCueTick
 		]);
 	};
 }
@@ -10498,8 +10334,6 @@ function createPetMulti(rt, Card) {
 		const animCueRef = useRef({});
 		const [posCueTick, setPosCueTick] = useState(0);
 		const posCueRef = useRef({});
-		const [throwCueTick, setThrowCueTick] = useState(0);
-		const throwCueRef = useRef({});
 		const [lockTick, setLockTick] = useState(0);
 		const lockRef = useRef({});
 		const [sleepTick, setSleepTick] = useState(0);
@@ -10573,16 +10407,6 @@ function createPetMulti(rt, Card) {
 						setPosCueTick((t) => t + 1);
 						return;
 					}
-					case "throw": {
-						const hit = readThrow(leaf$1);
-						if (!hit) return;
-						throwCueRef.current[petId] = {
-							...hit,
-							seq: (throwCueRef.current[petId]?.seq ?? 0) + 1
-						};
-						setThrowCueTick((t) => t + 1);
-						return;
-					}
 					case "lock": {
 						const hit = readLock(leaf$1);
 						if (!hit) return;
@@ -10650,8 +10474,6 @@ function createPetMulti(rt, Card) {
 			animCueTick,
 			posCue: posCueRef.current[p.id],
 			posCueTick,
-			throwCue: throwCueRef.current[p.id],
-			throwCueTick,
 			lock: lockRef.current[p.id],
 			lockTick,
 			sleep: sleepRef.current[p.id],

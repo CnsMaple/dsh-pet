@@ -6,13 +6,11 @@
  * 鼠标松开兜底也在这里：指针捕获被浏览器提前丢掉时，window 上的 mouseup 走同一套收尾。
  * @module dsh-pet/src/client/pet/motion/drag
  */
-import { trimTrail, type DragSample } from '../../../shared/physics.ts';
 import { pick } from '../../../shared/pickers.ts';
 import { clickScore, mountScorePopup, SCORE_MIN_SPEED, spawnScoreBurst } from '../../../shared/score-popup.ts';
 import { DRAG_THRESHOLD, SLINGSHOT_DOUBLE_MS } from '../../../shared/constants.ts';
 import { createDragFollow } from './drag-follow.ts';
 import { createTouchPress } from './touch-press.ts';
-import { decideRelease } from './drag-release.ts';
 import type { BoxPoint } from './geometry.ts';
 import type { PhysicsParams } from '../../../shared/types.ts';
 import type * as ReactNS from 'react';
@@ -199,8 +197,6 @@ export function createDrag(card: () => DragCard): Drag {
   let justDraggedUntil = 0;
   let pressScoreFired = false;
   let lastPressAt = 0;
-  /** 指针轨迹采样，供初速估算。 */
-  let trail: DragSample[] = [];
   const follow = createDragFollow({ card });
   // 指针捕获可能先于鼠标松开被浏览器丢掉，那时真正的 pointerup 落在别的元素上，拖拽会卡在按下态。
   // 只在鼠标按下期间挂一个 window 级 mouseup 兜底，按当前坐标走同一套收尾，不伪造 pointerup 事件。
@@ -296,7 +292,6 @@ export function createDrag(card: () => DragCard): Drag {
     c.stopFlight();
     follow.stop();
     c.stopAutonomy();
-    trail = [];
     press = beginPress(c, e);
     clearMouseFallback();
     // 笔与触屏的 pointerup 会正常送达命中区；只有鼠标需要这条兜底。
@@ -330,10 +325,7 @@ export function createDrag(card: () => DragCard): Drag {
         c.playAnim(name);
       }
     }
-    // 记录指针轨迹，供初速估算。
-    const now = performance.now();
-    trail = trimTrail([...trail, { t: now, x: e.clientX, y: e.clientY }], now);
-    // 弹簧目标是包围盒左上角，跟随循环逐帧追赶。
+    // 弹簧目标是包围盒左上角，跟随循环逐帧追赶（纯跟手，无抛掷）。
     follow.aim({ x: e.clientX - press.offX - c.halfW, y: e.clientY - press.offY - c.halfH });
     const rootEl = c.root();
     if (rootEl) follow.start(rootEl);
@@ -348,44 +340,9 @@ export function createDrag(card: () => DragCard): Drag {
    * @param point - 松手现场；指针没跟上时用它的坐标兜底算落点。
    */
   const settleRelease = (c: DragCard, point: ReleasePoint): void => {
-    // 释放位置取弹簧跟随的实时包围盒，而不是指针目标。
+    // 纯跟手：松手即停在当前包围盒位置，不再抛掷 / 弹弓 / 惯性 / 下落。
     const current = c.box();
-    const box = current ?? { x: point.x - press.offX - c.halfW, y: point.y - press.offY - c.halfH };
-    const decision = decideRelease({
-      anchor: { x: press.anchorX, y: press.anchorY },
-      box,
-      half: { w: c.halfW, h: c.halfH },
-      now: performance.now(),
-      physics: c.physics,
-      size: c.size,
-      sling: press.sling,
-      trail,
-    });
-    trail = [];
-    if (decision.kind === 'sling') {
-      log(
-        c.petId,
-        'sling dist=' +
-          Math.round(decision.dist) +
-          ' power=' +
-          decision.power.toFixed(2) +
-          ' vx=' +
-          Math.round(decision.velocity.vx) +
-          ' vy=' +
-          Math.round(decision.velocity.vy),
-      );
-      c.startFlight(box.x, box.y, decision.velocity.vx, decision.velocity.vy);
-      return;
-    }
-    if (decision.kind === 'throw') {
-      const { vx, vy } = decision.velocity;
-      log(c.petId, 'release vx=' + Math.round(vx) + ' vy=' + Math.round(vy) + ' |v|=' + Math.round(Math.hypot(vx, vy)));
-      // 飞行期间由 rAF 直接写 left/top，落定后才提交归一化中心。
-      c.startFlight(box.x, box.y, vx, vy);
-      return;
-    }
-    // 原地放下：夹到可见下限后提交归一化中心；根节点位置由 commitPlace 直接写，不依赖重渲染。
-    c.commitPlace(box);
+    c.commitPlace(current ?? { x: point.x - press.offX - c.halfW, y: point.y - press.offY - c.halfH });
   };
 
   /**

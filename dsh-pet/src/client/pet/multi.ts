@@ -19,7 +19,6 @@ import {
   readPosition,
   readSay,
   readSleep,
-  readThrow,
   readWorkStatus,
   resolveLeafPath,
   takeChanged,
@@ -181,8 +180,6 @@ export function createPetMulti(
     const posCueRef = useRef<
       Record<string, { x: number; y: number; mode: PositionMode; duration: number; seq: number }>
     >({});
-    const [throwCueTick, setThrowCueTick] = useState(0);
-    const throwCueRef = useRef<Record<string, { angle: number; power: number; seq: number }>>({});
     // 占用锁是状态而不是指令：PetCard 读它决定冻结，并按 expiresAt 自行解除。
     const [lockTick, setLockTick] = useState(0);
     const lockRef = useRef<Record<string, LockState>>({});
@@ -257,13 +254,6 @@ export function createPetMulti(
             if (!hit) return;
             posCueRef.current[petId] = { ...hit, seq: (posCueRef.current[petId]?.seq ?? 0) + 1 };
             setPosCueTick((t) => t + 1);
-            return;
-          }
-          case 'throw': {
-            const hit = readThrow(leaf);
-            if (!hit) return;
-            throwCueRef.current[petId] = { ...hit, seq: (throwCueRef.current[petId]?.seq ?? 0) + 1 };
-            setThrowCueTick((t) => t + 1);
             return;
           }
           case 'lock': {
@@ -346,8 +336,6 @@ export function createPetMulti(
             animCueTick,
             posCue: posCueRef.current[p.id],
             posCueTick,
-            throwCue: throwCueRef.current[p.id],
-            throwCueTick,
             lock: lockRef.current[p.id],
             lockTick,
             sleep: sleepRef.current[p.id],

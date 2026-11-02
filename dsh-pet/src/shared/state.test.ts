@@ -21,7 +21,6 @@ import {
   readPosition,
   readSay,
   readSleep,
-  readThrow,
   resolveLeafPath,
   takeChanged,
   type PollState,
@@ -112,7 +111,7 @@ describe('resolveLeafPath —— 路径解析成落点（分发规则的唯一�
   });
 
   test('pets 的五类叶子各自带上宠物 id', () => {
-    for (const name of ['say', 'anim', 'position', 'throw', 'lock'] as const) {
+    for (const name of ['say', 'anim', 'position', 'lock'] as const) {
       assert.deepEqual(resolveLeafPath('pets.main.' + name), { where: 'pet', name, petId: 'main' });
     }
   });
@@ -431,24 +430,6 @@ describe('readPosition —— 位置指令叶子（中心归一化坐标 + 运�
     assert.equal(readPosition({ counter: 1, data: { x: '0.5', y: 0.5, mode: 'spring' } }), null);
     assert.equal(readPosition({ counter: 1, data: { x: NaN, y: 0.5, mode: 'spring' } }), null);
     assert.equal(readPosition({ counter: 1, data: { x: 0.5, y: Infinity, mode: 'spring' } }), null);
-  });
-});
-
-describe('readThrow —— 抛掷指令叶子（角度 + 力度）', () => {
-  test('角度与力度都取到（角度不归一化，负值原样保留）', () => {
-    assert.deepEqual(readThrow({ counter: 1, data: { angle: 45, power: 1 } }), { angle: 45, power: 1 });
-    assert.deepEqual(readThrow({ counter: 1, data: { angle: -90, power: 3 } }), { angle: -90, power: 3 });
-  });
-
-  test('脏数据 → null（power ≤ 0 也拒：那不是一个初速度）', () => {
-    assert.equal(readThrow({ counter: 1, data: null }), null);
-    assert.equal(readThrow({ counter: 1, data: 'nope' }), null);
-    assert.equal(readThrow({ counter: 1, data: { angle: 45 } }), null);
-    assert.equal(readThrow({ counter: 1, data: { power: 1 } }), null);
-    assert.equal(readThrow({ counter: 1, data: { angle: '45', power: 1 } }), null);
-    assert.equal(readThrow({ counter: 1, data: { angle: 45, power: 0 } }), null);
-    assert.equal(readThrow({ counter: 1, data: { angle: 45, power: -1 } }), null);
-    assert.equal(readThrow({ counter: 1, data: { angle: 45, power: NaN } }), null);
   });
 });
 

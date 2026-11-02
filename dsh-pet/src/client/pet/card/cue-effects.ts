@@ -40,7 +40,7 @@ export function createCueEffects(rt: CueEffectsRuntime) {
 
   return function useCueEffects(hub: CardHub, props: PetCardProps): void {
     const { balance, balanceManual, balanceNoticeTick, balanceTick } = props;
-    const { animCue, animCueTick, posCue, posCueTick, say, sayTick, throwCue, throwCueTick } = props;
+    const { animCue, animCueTick, posCue, posCueTick, say, sayTick } = props;
     const { workStatus, workStatusTick } = props;
 
     const prevBalanceRef = useRef(0);
@@ -51,7 +51,6 @@ export function createCueEffects(rt: CueEffectsRuntime) {
     const prevSayRef = useRef(0);
     const prevAnimRef = useRef(0);
     const prevPosRef = useRef(0);
-    const prevThrowRef = useRef(0);
 
     /** 余额事件：按档位播事件动画并弹气泡。手动请求无条件弹，自动轮询要求开启且有百分比；
      *  睡着时自动来源整拍丢弃，否则会顶掉睡姿。 */
@@ -205,13 +204,6 @@ export function createCueEffects(rt: CueEffectsRuntime) {
       hub.posFollow.apply(posCue.x, posCue.y, posCue.mode, posCue.duration);
     };
 
-    /** 抛掷指令：交给抛掷驱动。 */
-    const consumeThrowCue = (): void => {
-      if (!throwCue || throwCue.seq === prevThrowRef.current) return;
-      prevThrowRef.current = throwCue.seq;
-      hub.applyThrow(throwCue.angle, throwCue.power);
-    };
-
     // 七条指令共用一个 effect：每条自带已消费守卫，只有变化的那条真正动手。
     // 分开写七个 effect 时每个渲染期闭包都要重新订阅，守卫与依赖说明也重复七遍。
     useEffect(() => {
@@ -221,9 +213,8 @@ export function createCueEffects(rt: CueEffectsRuntime) {
       consumeSay();
       consumeAnimCue();
       consumePosCue();
-      consumeThrowCue();
       // 守卫函数每渲染重建，但只读 ref 与当拍的 props；进依赖会让每个渲染都重跑七个守卫。
       // eslint-disable-next-line react-hooks/exhaustive-deps -- 变化原因只有这七个计数器
-    }, [balanceTick, balanceNoticeTick, workStatusTick, sayTick, animCueTick, posCueTick, throwCueTick]);
+    }, [balanceTick, balanceNoticeTick, workStatusTick, sayTick, animCueTick, posCueTick]);
   };
 }

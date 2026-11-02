@@ -53,14 +53,6 @@ export interface PetCardProps {
     };
     /** 位置指令变化次数。 */
     posCueTick: number;
-    /** 本宠物的抛掷指令：angle 单位为度，0 为正右、逆时针为正。 */
-    throwCue?: {
-        angle: number;
-        power: number;
-        seq: number;
-    };
-    /** 抛掷指令变化次数。 */
-    throwCueTick: number;
     /** 本宠物的占用锁；expiresAt 是唯一过期真相，宿主不会推「锁没了」。 */
     lock?: LockState;
     /** 锁叶子变化次数。 */

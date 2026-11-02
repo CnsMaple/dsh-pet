@@ -3498,28 +3498,6 @@ const positionLeafData = (d) => d.duration === null ? {
 	mode: d.mode,
 	duration: d.duration
 };
-function decideThrow(args) {
-	const angle = finite(args.angle);
-	if (angle === null) return {
-		ok: false,
-		reason: "bad-request",
-		message: "angle 必须是有限数字"
-	};
-	const power = finite(args.power);
-	if (power === null || power <= 0) return {
-		ok: false,
-		reason: "bad-request",
-		message: "power 必须是大于 0 的有限数字"
-	};
-	const pet = resolvePet(args.cfg, args.requested);
-	if (!pet.ok) return pet;
-	return {
-		ok: true,
-		petId: pet.petId,
-		angle,
-		power
-	};
-}
 
 //#endregion
 //#region src/host/pose.ts
@@ -3622,8 +3600,7 @@ async function handleMotionRoutes(deps, input) {
 			return failResult("generate-error", e instanceof Error ? e.message : String(e));
 		}
 	}
-	if (rest === "position" || rest === "throw") {
-		const isPosition = rest === "position";
+	if (rest === "position") {
 		if (method !== "POST") return methodNotAllowed();
 		let parsed;
 		try {
@@ -3635,8 +3612,8 @@ async function handleMotionRoutes(deps, input) {
 		try {
 			const cfg = readAllConfig(configPaths);
 			const requested = String(url.searchParams.get("pet") ?? "");
-			if (isPosition) {
-				const d$1 = decidePosition({
+			{
+				const d = decidePosition({
 					cfg,
 					requested,
 					x: o.x,
@@ -3644,34 +3621,18 @@ async function handleMotionRoutes(deps, input) {
 					mode: o.mode,
 					duration: o.duration
 				});
-				if (!d$1.ok) return failResult(d$1.reason, d$1.message);
-				const noSurface$1 = surfaceBlocked(cfg, d$1.petId, url.searchParams);
-				if (noSurface$1) return noSurface$1;
-				const blocked$1 = lockBlocked(d$1.petId, url.searchParams);
-				if (blocked$1) return blocked$1;
-				state.writePet(d$1.petId, "position", positionLeafData(d$1));
+				if (!d.ok) return failResult(d.reason, d.message);
+				const noSurface = surfaceBlocked(cfg, d.petId, url.searchParams);
+				if (noSurface) return noSurface;
+				const blocked = lockBlocked(d.petId, url.searchParams);
+				if (blocked) return blocked;
+				state.writePet(d.petId, "position", positionLeafData(d));
 				return okResult({
 					ok: true,
-					x: d$1.x,
-					y: d$1.y
+					x: d.x,
+					y: d.y
 				});
 			}
-			const d = decideThrow({
-				cfg,
-				requested,
-				angle: o.angle,
-				power: o.power
-			});
-			if (!d.ok) return failResult(d.reason, d.message);
-			const noSurface = surfaceBlocked(cfg, d.petId, url.searchParams);
-			if (noSurface) return noSurface;
-			const blocked = lockBlocked(d.petId, url.searchParams);
-			if (blocked) return blocked;
-			state.writePet(d.petId, "throw", {
-				angle: d.angle,
-				power: d.power
-			});
-			return okResult({ ok: true });
 		} catch (e) {
 			return failResult("generate-error", e instanceof Error ? e.message : String(e));
 		}

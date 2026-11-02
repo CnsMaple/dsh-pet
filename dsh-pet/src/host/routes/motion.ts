@@ -6,7 +6,7 @@
  */
 import { readAllConfig } from '../config.ts';
 import { decideAnim } from '../anim.ts';
-import { decidePosition, decideThrow, positionLeafData } from '../motion-cue.ts';
+import { decidePosition, positionLeafData } from '../motion-cue.ts';
 import { normalizePoseInput } from '../pose.ts';
 import { displayCovers } from '../surface.ts';
 import type { PetRouteDeps, RouteInput } from './types.ts';
@@ -70,8 +70,7 @@ export async function handleMotionRoutes(deps: PetRouteDeps, input: RouteInput):
   // 抛掷复用已有的 startThrow，重力/反弹/摩擦/落地/碰撞一概照旧。这里只做校验与夹取。
   // x/y 是宠物中心的归一化坐标（0~1），越界夹取并把实际生效值回给调用方。
   // 与用户拖拽撞车时渲染端静默丢弃但宿主仍回 ok:true——宿主判不了拖拽状态，那只有渲染端知道。
-  if (rest === 'position' || rest === 'throw') {
-    const isPosition = rest === 'position';
+  if (rest === 'position') {
     if (method !== 'POST') return methodNotAllowed();
     let parsed: unknown;
     try {
@@ -83,7 +82,7 @@ export async function handleMotionRoutes(deps: PetRouteDeps, input: RouteInput):
     try {
       const cfg = readAllConfig(configPaths);
       const requested = String(url.searchParams.get('pet') ?? '');
-      if (isPosition) {
+      {
         const d = decidePosition({
           cfg,
           requested,
@@ -102,14 +101,6 @@ export async function handleMotionRoutes(deps: PetRouteDeps, input: RouteInput):
         // 回夹取后的实际生效值：调用方不必自己算边界，也不会误以为越界值被照单全收
         return okResult({ ok: true, x: d.x, y: d.y });
       }
-      const d = decideThrow({ cfg, requested, angle: o.angle, power: o.power });
-      if (!d.ok) return failResult(d.reason, d.message);
-      const noSurface = surfaceBlocked(cfg, d.petId, url.searchParams);
-      if (noSurface) return noSurface;
-      const blocked = lockBlocked(d.petId, url.searchParams);
-      if (blocked) return blocked;
-      state.writePet(d.petId, 'throw', { angle: d.angle, power: d.power });
-      return okResult({ ok: true });
     } catch (e) {
       // 配置读取失败等（安装损坏）→ 显式失败，不静默（与 /anim 同一口径）
       return failResult('generate-error', e instanceof Error ? e.message : String(e));

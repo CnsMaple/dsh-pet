@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-import { appendFileSync, chmodSync, closeSync, constants, cpSync, createReadStream, existsSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, closeSync, constants, cpSync, createReadStream, existsSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, normalize, resolve, sep } from "node:path";
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { execFileSync, spawn } from "node:child_process";
 import { homedir, networkInterfaces } from "node:os";
 import { createServer } from "node:http";
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { Readable } from "node:stream";
 import OpenAI from "openai";
@@ -53,7 +53,7 @@ function createFileLogger(options) {
 	const debugEnabled = options.debugEnabled ?? false;
 	const now = options.now ?? (() => new Date());
 	let pending = [];
-	let dropped$1 = 0;
+	let dropped = 0;
 	/** 已离开 pending、尚未提交到文件的文本；退出与 dispose 靠它补写。 */
 	let activeChunk = "";
 	let flushing = null;
@@ -63,10 +63,10 @@ function createFileLogger(options) {
 	const ensureDir = () => dirReady ??= mkdir(dirname(file), { recursive: true }).then(() => void 0).catch(() => void 0);
 	/** 取走当前缓冲（含溢出提示）；取出后 pending 为空，文本改由调用方保管。 */
 	const takePending = () => {
-		const note = dropped$1 > 0 ? formatLogLine("warn", `日志缓冲溢出，丢弃 ${dropped$1} 条`, now()) : "";
+		const note = dropped > 0 ? formatLogLine("warn", `日志缓冲溢出，丢弃 ${dropped} 条`, now()) : "";
 		const chunk = note + pending.join("");
 		pending = [];
-		dropped$1 = 0;
+		dropped = 0;
 		return chunk;
 	};
 	/** 同步提交 activeChunk；提交后这批文本与内存无关，退出路径不会重复写。 */
@@ -94,7 +94,7 @@ function createFileLogger(options) {
 		} catch {}
 		pending.push(formatLogLine(level, redactSensitive(String(message)), now()));
 		if (pending.length > maxPending) {
-			dropped$1 += pending.length - maxPending;
+			dropped += pending.length - maxPending;
 			pending.splice(0, pending.length - maxPending);
 		}
 		if (disposed) flushSync();
@@ -308,39 +308,6 @@ const BUBBLE_FONT_BASE_PX = .0455 * FONT_REF_SIZE;
 const TIP_FONT_BASE_PX = .026 * FONT_REF_SIZE;
 
 //#endregion
-//#region src/host/voice/voices.ts
-const VOICES = [
-	{
-		id: "zh-CN-XiaoxiaoNeural",
-		name: "晓晓",
-		tag: "女 · 通用",
-		default: false
-	},
-	{
-		id: "zh-CN-XiaoyiNeural",
-		name: "晓伊",
-		tag: "女 · 活泼",
-		default: true
-	},
-	{
-		id: "zh-CN-YunxiNeural",
-		name: "云希",
-		tag: "男 · 年轻",
-		default: false
-	},
-	{
-		id: "zh-CN-YunjianNeural",
-		name: "云健",
-		tag: "男 · 沉稳",
-		default: false
-	}
-];
-const DEFAULT_VOICE = "zh-CN-XiaoyiNeural";
-function isKnownVoice(id) {
-	return VOICES.some((voice) => voice.id === id);
-}
-
-//#endregion
 //#region src/host/config/validate.ts
 /** animations 段完整性校验（与旧 assertAnimationsHost 同一套规则；不 throw，非法返回 false） */
 function animationsValid(a) {
@@ -451,7 +418,7 @@ function topFieldValid(key, value) {
 		case "clickSoundEnabled": return typeof value === "boolean";
 		case "whisperImageEnabled": return typeof value === "boolean";
 		case "voiceEnabled": return typeof value === "boolean";
-		case "voiceName": return typeof value === "string" && isKnownVoice(value);
+		case "voiceName": return typeof value === "string";
 		case "voiceVolume": return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
 		case "voiceWhisperEnabled": return typeof value === "boolean";
 		case "voiceTodoEnabled": return typeof value === "boolean";
@@ -832,17 +799,6 @@ function syncUserConfigFromDefault(paths) {
 	const raw = readFileSync(paths.defaultFile, "utf8");
 	mkdirSync(dirname(paths.userFile), { recursive: true });
 	writeFileSync(paths.userFile, raw, "utf8");
-}
-function sliceMemoryRounds(messages, rounds) {
-	return rounds > 0 ? messages.slice(-Math.floor(rounds) * 2) : [];
-}
-function removeRoundsByTs(messages, ts) {
-	const doomed = new Set(ts);
-	const messages_ = messages.filter((m) => !doomed.has(m.ts));
-	return {
-		messages: messages_,
-		removed: messages.length - messages_.length
-	};
 }
 
 //#endregion
@@ -1319,496 +1275,6 @@ var HelperProcess = class {
 };
 
 //#endregion
-//#region src/host/balance/internal.ts
-/**
-* 余额取数的内部工具（host 半侧）：网络策略、响应校验与金额处理。
-*
-* 只给 ./providers/* 使用，不含服务商知识，也不负责注册与路由。
-* 统一 20s 超时加 3 次重试：目标端点多为境外，实测会间歇性超时。
-* 依赖全局 fetch；始终成立：必填字段缺失或非法一律抛错，绝不静默当 0。
-*
-* @module dsh-pet/src/host/balance/internal
-*/
-/** 单次抓取超时（ms）。 */
-const FETCH_TIMEOUT_MS = 2e4;
-/** 单次抓取失败后的重试次数（间隔 0.8s）。 */
-const RETRIES = 3;
-/** 发起一次带超时的 fetch；失败抛错，是否重试由调用方决定。 */
-async function fetchOnce(url, key) {
-	return fetch(url, {
-		headers: {
-			Authorization: "Bearer " + key,
-			"User-Agent": "dsh-pet-balance"
-		},
-		signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
-	});
-}
-async function fetchWithRetry(url, key) {
-	let last;
-	for (let i = 0; i <= RETRIES; i++) try {
-		return await fetchOnce(url, key);
-	} catch (e) {
-		last = e;
-		if (i < RETRIES) await new Promise((r) => setTimeout(r, 800));
-	}
-	throw last instanceof Error ? last : new Error(String(last));
-}
-function num(value, what) {
-	const n = Number(value);
-	if (!Number.isFinite(n)) throw new Error("dsh-pet: 余额数据非法字段 " + what);
-	return n;
-}
-function str$1(value, what) {
-	if (typeof value !== "string" || value.length === 0) throw new Error("dsh-pet: 余额数据非法字段 " + what);
-	return value;
-}
-function looseNum(value) {
-	if (value === void 0 || value === null || value === "") return void 0;
-	const n = Number(value);
-	return Number.isFinite(n) ? n : void 0;
-}
-function obj(value) {
-	return value !== null && typeof value === "object" && !Array.isArray(value) ? value : void 0;
-}
-/**
-* 归一重置时间：字符串原样返回，数字时间戳自动识别秒/毫秒。
-* 0、负数与非法值返回 undefined —— 报文里空闲窗口的 resetAt: 0 是占位，不是 1970 年。
-*/
-function resetTime(value) {
-	if (typeof value === "string") return value.length > 0 ? value : void 0;
-	const n = looseNum(value);
-	if (n === void 0 || n <= 0) return void 0;
-	const ms = n < 1e12 ? n * 1e3 : n;
-	const d = new Date(ms);
-	return Number.isNaN(d.getTime()) ? void 0 : d.toISOString();
-}
-function readWindow(value) {
-	const w = obj(value);
-	if (!w) return void 0;
-	const used = looseNum(w.used);
-	const cap = looseNum(w.cap);
-	if (used === void 0 || cap === void 0 || cap <= 0) return void 0;
-	return {
-		percent: Math.max(0, used / cap * 100),
-		capUsd: cap,
-		resetsAt: resetTime(w.resetAt)
-	};
-}
-function queryString(params) {
-	const pairs = Object.entries(params).filter(([, v]) => v !== void 0);
-	return pairs.length > 0 ? "?" + pairs.map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&") : "";
-}
-function money(value, what) {
-	const raw = str$1(value, what);
-	const n = Number(raw);
-	if (!Number.isFinite(n)) throw new Error("dsh-pet: 账号余额金额非法 " + what);
-	return n.toFixed(2);
-}
-function sumMoney(a, b) {
-	return ((Math.round(Number(a) * 100) + Math.round(Number(b) * 100)) / 100).toFixed(2);
-}
-
-//#endregion
-//#region src/host/balance/providers/commandcode.ts
-/** 控制面基址（/alpha/* 固定在根域名）。 */
-const API_BASE = "https://api.commandcode.ai";
-/** 滚动窗的展示名：本服务商的 5h 窗口即 windowLimits.fiveHour。 */
-const ROLLING_LABEL$1 = "5h";
-/** 抓一次 JSON，HTTP 非 2xx 抛错；label 是接口路径，只用于错误信息。 */
-async function fetchJson(url, key, label) {
-	const res = await fetchWithRetry(url, key);
-	if (!res.ok) throw new Error("commandcode " + label + " HTTP " + res.status);
-	return await res.json();
-}
-/**
-* 从 usage 响应读区间用量（本期累计）；五个字段齐全才返回，缺一个即视为没有这项数据。
-*
-* 这些字段来自批量聚合（窗口百分比才是实时的），所以宁可整页不出，也不拿半份数字拼一张会漂的卡片。
-*/
-function readUsage(summary) {
-	const totalTokens = looseNum(summary?.totalTokens);
-	const inputTokens = looseNum(summary?.totalTokensIn);
-	const outputTokens = looseNum(summary?.totalTokensOut);
-	const requests = looseNum(summary?.totalCount);
-	const spentUsd = looseNum(summary?.totalCost);
-	if (totalTokens === void 0 || inputTokens === void 0 || outputTokens === void 0 || requests === void 0 || spentUsd === void 0) return void 0;
-	return {
-		totalTokens,
-		inputTokens,
-		outputTokens,
-		requests,
-		spentUsd
-	};
-}
-function parseCommandCode(creditsBody, subscriptionBody, summaryBody, provider) {
-	const root = obj(creditsBody);
-	const credits = obj(root?.credits);
-	if (!credits) throw new Error("dsh-pet: commandcode 响应缺少 credits");
-	const creditFields = [
-		credits.monthlyCredits,
-		credits.purchasedCredits,
-		credits.freeCredits
-	];
-	if (creditFields.every((v) => looseNum(v) === void 0)) throw new Error("dsh-pet: commandcode credits 响应缺少额度字段");
-	const remaining = creditFields.reduce((sum, v) => sum + Math.max(0, looseNum(v) ?? 0), 0);
-	const summary = obj(summaryBody);
-	const spentRaw = summary?.totalCost;
-	if (spentRaw === void 0 || spentRaw === null) throw new Error("dsh-pet: commandcode usage 响应缺少 totalCost");
-	const spent = Math.max(0, num(spentRaw, "totalCost"));
-	const pool = spent + remaining;
-	const data = { monthly: pool > 0 ? spent / pool * 100 : 0 };
-	if (pool > 0) data.monthlyCapUsd = pool;
-	const usage = readUsage(summary);
-	if (usage) data.usage = usage;
-	const subscription = obj(obj(subscriptionBody)?.data);
-	const periodEnd = subscription?.currentPeriodEnd;
-	if (typeof periodEnd === "string" && periodEnd.length > 0) data.monthlyResetsAt = periodEnd;
-	const limits = obj(root?.windowLimits) ?? obj(credits.windowLimits);
-	if (limits?.limited === true) {
-		const fiveHour = readWindow(limits.fiveHour);
-		if (fiveHour) {
-			data.rolling = fiveHour.percent;
-			data.rollingCapUsd = fiveHour.capUsd;
-			data.rollingLabel = ROLLING_LABEL$1;
-			if (fiveHour.resetsAt) data.rollingResetsAt = fiveHour.resetsAt;
-		}
-		const weekly = readWindow(limits.weekly);
-		if (weekly) {
-			data.weekly = weekly.percent;
-			data.weeklyCapUsd = weekly.capUsd;
-			if (weekly.resetsAt) data.weeklyResetsAt = weekly.resetsAt;
-		}
-	}
-	return {
-		ok: true,
-		provider,
-		shape: "windows",
-		data
-	};
-}
-const commandCode = {
-	id: "commandcode",
-	credential: {
-		mode: "ref",
-		ref: "COMMANDCODE_API_KEY"
-	},
-	async fetch({ key, provider }) {
-		const whoami = obj(await fetchJson(API_BASE + "/alpha/whoami" + queryString({ limits: "1" }), key, "/alpha/whoami"));
-		const org = obj(whoami?.org);
-		const orgId = typeof org?.id === "string" && org.id.length > 0 ? org.id : void 0;
-		const credits = await fetchJson(API_BASE + "/alpha/billing/credits" + queryString({ orgId }), key, "/alpha/billing/credits");
-		let subscription;
-		try {
-			subscription = await fetchJson(API_BASE + "/alpha/billing/subscriptions" + queryString({ orgId }), key, "/alpha/billing/subscriptions");
-		} catch {
-			subscription = void 0;
-		}
-		const summary = await fetchJson(API_BASE + "/alpha/usage/summary" + queryString({ orgId }), key, "/alpha/usage/summary");
-		return parseCommandCode(credits, subscription, summary, provider);
-	}
-};
-
-//#endregion
-//#region src/host/balance/deepseek-common.ts
-const DEEPSEEK_FULL_BALANCE = {
-	CNY: "20",
-	USD: "5"
-};
-function deepseekFullBalance(currency) {
-	return DEEPSEEK_FULL_BALANCE[currency];
-}
-function deepseekPricingTier(now = new Date()) {
-	const parts = new Intl.DateTimeFormat("en-US", {
-		timeZone: "Asia/Shanghai",
-		weekday: "short",
-		hour: "2-digit",
-		hourCycle: "h23"
-	}).formatToParts(now);
-	const pick = (type) => parts.find((p) => p.type === type)?.value;
-	const weekday = pick("weekday");
-	const hour = Number(pick("hour"));
-	if (weekday === "Sat" || weekday === "Sun") return "idle";
-	return hour >= 9 && hour < 12 || hour >= 14 && hour < 18 ? "peak" : "idle";
-}
-
-//#endregion
-//#region src/host/balance/providers/deepseek-account.ts
-function parseAccountBalance(snapshot, provider) {
-	if (!snapshot) throw new Error("dsh-pet: 账号未登录（deepseek-account）");
-	if (snapshot.status !== "ready") throw new Error("dsh-pet: 账号余额查询失败");
-	const wallets = Array.isArray(snapshot.value) ? snapshot.value : [];
-	if (wallets.length === 0) throw new Error("dsh-pet: 账号没有充值钱包余额");
-	const candidates = wallets.map((w) => obj(w)).filter((w) => w !== void 0);
-	if (candidates.length === 0) throw new Error("dsh-pet: 账号钱包结构非法");
-	const toppedUpBy = new Map();
-	for (const w of candidates) {
-		const currency = typeof w.currency === "string" && w.currency.length > 0 ? w.currency : "CNY";
-		const amount = money(w.balance, "balance");
-		const prev = toppedUpBy.get(currency);
-		toppedUpBy.set(currency, prev === void 0 ? amount : sumMoney(prev, amount));
-	}
-	const grantedBy = new Map();
-	for (const raw of Array.isArray(snapshot.bonusWallets) ? snapshot.bonusWallets : []) {
-		const w = obj(raw);
-		if (!w || typeof w.currency !== "string" || w.currency.length === 0) continue;
-		const amount = money(w.balance, "bonus balance");
-		const prev = grantedBy.get(w.currency);
-		grantedBy.set(w.currency, prev === void 0 ? amount : sumMoney(prev, amount));
-	}
-	for (const currency of grantedBy.keys()) if (!toppedUpBy.has(currency)) toppedUpBy.set(currency, "0.00");
-	const walletsOut = [...toppedUpBy.entries()].map(([currency, toppedUp]) => {
-		const granted = grantedBy.get(currency) ?? "0.00";
-		const fullBalance = deepseekFullBalance(currency);
-		return {
-			currency,
-			total: sumMoney(granted, toppedUp),
-			granted,
-			toppedUp,
-			...fullBalance === void 0 ? {} : { fullBalance }
-		};
-	});
-	return {
-		ok: true,
-		provider,
-		shape: "money",
-		data: {
-			wallets: walletsOut,
-			tier: deepseekPricingTier()
-		}
-	};
-}
-const deepseekAccount = {
-	id: "deepseek-account",
-	credential: { mode: "none" },
-	async fetch({ provider, resolveAccount }) {
-		if (!resolveAccount) throw new Error("dsh-pet: 缺少账号服务（" + provider + "）");
-		return parseAccountBalance(await resolveAccount(), provider);
-	}
-};
-
-//#endregion
-//#region src/host/balance/providers/deepseek-official.ts
-const deepseekOfficial = {
-	id: "deepseek-official",
-	credential: {
-		mode: "ref",
-		ref: "DEEPSEEK_API_KEY"
-	},
-	async fetch({ key, provider }) {
-		const res = await fetchWithRetry("https://api.deepseek.com/user/balance", key);
-		if (!res.ok) throw new Error("deepseek balance HTTP " + res.status);
-		const body = await res.json();
-		const infos = body?.balance_infos;
-		if (!Array.isArray(infos) || infos.length === 0) throw new Error("dsh-pet: deepseek balance 响应缺少 balance_infos");
-		const wallets = infos.map((raw) => {
-			const w = obj(raw) ?? {};
-			const currency = str$1(w.currency, "currency");
-			const fullBalance = deepseekFullBalance(currency);
-			return {
-				currency,
-				total: str$1(w.total_balance, "total_balance"),
-				granted: str$1(w.granted_balance, "granted_balance"),
-				toppedUp: str$1(w.topped_up_balance, "topped_up_balance"),
-				...fullBalance === void 0 ? {} : { fullBalance }
-			};
-		});
-		return {
-			ok: true,
-			provider,
-			shape: "money",
-			data: {
-				wallets,
-				tier: deepseekPricingTier()
-			}
-		};
-	}
-};
-
-//#endregion
-//#region src/host/balance/providers/opencode-go.ts
-/** 各窗口满额度（USD）：滚动 12、周 30、月 60；接口不回传，属业务常量。 */
-const QUOTA_USD = {
-	rolling: 12,
-	weekly: 30,
-	monthly: 60
-};
-/** 滚动窗的展示名：本服务商是 5 小时。 */
-const ROLLING_LABEL = "5h";
-const opencodeGo = {
-	id: "opencode-go",
-	credential: {
-		mode: "ref",
-		ref: "OPENCODE_GO_API_KEY"
-	},
-	async fetch({ key, provider }) {
-		const res = await fetchWithRetry("https://opencode.ai/zen/go/v1/usage", key);
-		if (!res.ok) throw new Error("opencode usage HTTP " + res.status);
-		const body = await res.json();
-		const usage = body?.usage;
-		if (!usage || typeof usage !== "object") throw new Error("dsh-pet: opencode usage 响应缺少 usage");
-		const u = usage;
-		const rolling = u.rolling, weekly = u.weekly, monthly = u.monthly;
-		if (!rolling || !weekly || !monthly) throw new Error("dsh-pet: opencode usage 响应缺少窗口");
-		return {
-			ok: true,
-			provider,
-			shape: "windows",
-			data: {
-				rolling: num(rolling.percent, "rolling.percent"),
-				weekly: num(weekly.percent, "weekly.percent"),
-				monthly: num(monthly.percent, "monthly.percent"),
-				rollingCapUsd: QUOTA_USD.rolling,
-				weeklyCapUsd: QUOTA_USD.weekly,
-				monthlyCapUsd: QUOTA_USD.monthly,
-				rollingLabel: ROLLING_LABEL,
-				rollingResetsAt: str$1(rolling.resetsAt, "rolling.resetsAt"),
-				weeklyResetsAt: str$1(weekly.resetsAt, "weekly.resetsAt"),
-				monthlyResetsAt: str$1(monthly.resetsAt, "monthly.resetsAt")
-			}
-		};
-	}
-};
-
-//#endregion
-//#region src/host/balance/registry.ts
-const BUILTIN_PROVIDERS = [
-	opencodeGo,
-	commandCode,
-	deepseekOfficial,
-	deepseekAccount
-];
-/** 第三方运行时登记表：provider id → 定义。 */
-const external = new Map();
-function registerBalanceProvider(def) {
-	if (!def || typeof def !== "object") throw new TypeError("provider 定义必须是对象");
-	if (typeof def.id !== "string" || def.id.length === 0) throw new TypeError("id 必须是非空字符串");
-	if (typeof def.fetch !== "function") throw new TypeError("fetch 必须是函数");
-	if (BUILTIN_PROVIDERS.some((p) => p.id === def.id)) throw new Error("不能覆盖内置服务商: " + def.id);
-	if (external.has(def.id)) throw new Error("该服务商 id 已被注册: " + def.id);
-	external.set(def.id, def);
-	return () => {
-		if (external.get(def.id) === def) external.delete(def.id);
-	};
-}
-function listBalanceProviders() {
-	return {
-		builtin: BUILTIN_PROVIDERS.map((p) => p.id),
-		external: [...external.keys()]
-	};
-}
-function matchBalanceProvider(provider) {
-	return BUILTIN_PROVIDERS.find((p) => p.id === provider) ?? external.get(provider);
-}
-
-//#endregion
-//#region src/host/balance/index.ts
-/** 第三方取数等待上限（ms）；内置 HTTP 服务商走各自的超时与重试。 */
-const PLUGIN_FETCH_TIMEOUT_MS = 2e4;
-/**
-* 构造失败结果：三种 reason 走同一个出口，避免各处手写字段。
-* `message` 缺省时不写这个键——叶子形状是对外契约，多一个 undefined 键会破坏严格比对。
-*/
-function failed(provider, reason, message) {
-	return message === void 0 ? {
-		ok: false,
-		provider,
-		reason
-	} : {
-		ok: false,
-		provider,
-		reason,
-		message
-	};
-}
-/** 把取数异常归一成 fetch-error（内置与第三方同一口径）。 */
-function fetchFailed(provider, e) {
-	return failed(provider, "fetch-error", e instanceof Error ? e.message : String(e));
-}
-async function queryBalance(provider, resolveKey, resolveAccount) {
-	const def = matchBalanceProvider(provider);
-	if (!def) return failed(provider, "unsupported");
-	if (!("credential" in def)) {
-		let timer;
-		try {
-			const timeout = new Promise((_, reject) => {
-				timer = setTimeout(() => reject(new Error("余额查询超时（20 秒），请稍后重试")), PLUGIN_FETCH_TIMEOUT_MS);
-				timer.unref();
-			});
-			return await Promise.race([def.fetch({ provider }), timeout]);
-		} catch (e) {
-			return fetchFailed(provider, e);
-		} finally {
-			if (timer !== void 0) clearTimeout(timer);
-		}
-	}
-	let key = "";
-	if (def.credential.mode === "ref") {
-		const resolved = await resolveKey(def.credential.ref);
-		if (!resolved) return failed(provider, "credential-missing", "缺少凭证 " + def.credential.ref);
-		key = resolved;
-	} else if (!resolveAccount) return failed(provider, "credential-missing", "缺少账号服务（" + provider + "）");
-	try {
-		return await def.fetch({
-			provider,
-			key,
-			resolveAccount
-		});
-	} catch (e) {
-		return fetchFailed(provider, e);
-	}
-}
-
-//#endregion
-//#region src/host/voice/registry.ts
-const BUILTIN_VOICE_ID = "edge";
-/** 当前生效的第三方实现；`null` = 没注册，合成走内置实现。 */
-let current$1 = null;
-function registerVoiceProvider(def) {
-	if (!def || typeof def !== "object") throw new TypeError("voice provider 定义必须是对象");
-	if (typeof def.id !== "string" || def.id.length === 0) throw new TypeError("id 必须是非空字符串");
-	if (def.id === BUILTIN_VOICE_ID) throw new TypeError("不能与内置实现同名: " + BUILTIN_VOICE_ID);
-	if (typeof def.synthesize !== "function") throw new TypeError("synthesize 必须是函数");
-	current$1 = def;
-	return () => {
-		if (current$1 === def) current$1 = null;
-	};
-}
-function activeVoiceProvider() {
-	return current$1;
-}
-function listVoiceProviders() {
-	return {
-		builtin: [BUILTIN_VOICE_ID],
-		external: current$1 ? [current$1.id] : []
-	};
-}
-
-//#endregion
-//#region src/host/voice/speech-registry.ts
-const BUILTIN_SPEECH_ID = "dsh";
-/** 当前生效的第三方实现；`null` = 没注册，识别走宿主自带能力。 */
-let current = null;
-function registerSpeechProvider(def) {
-	if (!def || typeof def !== "object") throw new TypeError("speech provider 定义必须是对象");
-	if (typeof def.id !== "string" || def.id.length === 0) throw new TypeError("id 必须是非空字符串");
-	if (def.id === BUILTIN_SPEECH_ID) throw new TypeError("不能与内置来源同名: " + BUILTIN_SPEECH_ID);
-	if (typeof def.transcribe !== "function") throw new TypeError("transcribe 必须是函数");
-	current = def;
-	return () => {
-		if (current === def) current = null;
-	};
-}
-function activeSpeechProvider() {
-	return current;
-}
-function listSpeechProviders() {
-	return {
-		builtin: [BUILTIN_SPEECH_ID],
-		external: current ? [current.id] : []
-	};
-}
-
-//#endregion
 //#region src/host/menu.ts
 /**
 * 第三方右键菜单注册表（进程内存态，DSH 重启即清空，不落盘）。
@@ -1999,12 +1465,12 @@ var MenuRegistry = class {
 			hold.timer = setTimeout(finish, Math.min(waitMs, MENU_WAIT_MAX_MS));
 			set.add(finish);
 		});
-		const current$2 = this.owners.get(owner);
-		if (!current$2) return null;
+		const current = this.owners.get(owner);
+		if (!current) return null;
 		const out = {};
-		for (const [label, pet] of current$2.items) {
+		for (const [label, pet] of current.items) {
 			out[label] = pet;
-			current$2.items.set(label, null);
+			current.items.set(label, null);
 		}
 		return out;
 	}
@@ -2336,8 +1802,8 @@ function sendFile(req, res, file, contentType) {
 	stream.on("error", () => res.destroy());
 	res.on("close", () => stream.destroy());
 }
-function sendJson$1(res, status, obj$1, headers = {}) {
-	const body = JSON.stringify(obj$1);
+function sendJson$1(res, status, obj, headers = {}) {
+	const body = JSON.stringify(obj);
 	res.writeHead(status, {
 		"content-type": "application/json; charset=utf-8",
 		"content-length": Buffer.byteLength(body),
@@ -2599,10 +2065,10 @@ function reduceWorkStatus(event, turn) {
 const TASK_TEXT_MAX = 40;
 function currentTaskFromTodo(event) {
 	const todos = Array.isArray(event?.data?.todos) ? event.data.todos : [];
-	let current$2;
-	for (const t of todos) if (t?.status === "in_progress") current$2 = t;
-	if (!current$2) current$2 = todos.find((t) => t?.status === "pending");
-	const content = String(current$2?.content ?? "").trim();
+	let current;
+	for (const t of todos) if (t?.status === "in_progress") current = t;
+	if (!current) current = todos.find((t) => t?.status === "pending");
+	const content = String(current?.content ?? "").trim();
 	if (!content) return null;
 	const points = Array.from(content);
 	return points.length > TASK_TEXT_MAX ? `${points.slice(0, TASK_TEXT_MAX).join("")}…` : content;
@@ -2714,8 +2180,6 @@ function createHostSetup(ctx) {
 		if (typeof get === "function") return get.call(ctx, name, false);
 		return ctx[name];
 	};
-	/** 独立模式的碎碎念授权策略（可选能力）：DSH 宿主里是 undefined → 回落到只看 pet.whisperEnabled。 */
-	const standaloneAiPolicy = () => optionalService("standaloneAi");
 	const userConfigPath = join(userRoot, "main-config.jsonc");
 	const legacyUserConfigPath = join(userRoot, "main-config.json");
 	const petConfigDir = join(userRoot, "pet");
@@ -2741,20 +2205,6 @@ function createHostSetup(ctx) {
 	};
 	const state = new PollStateStore();
 	const menuRegistry = new MenuRegistry();
-	ctx.provide("petApi7340", {
-		balance: {
-			register: registerBalanceProvider,
-			list: listBalanceProviders
-		},
-		voice: {
-			register: registerVoiceProvider,
-			list: listVoiceProviders
-		},
-		speech: {
-			register: registerSpeechProvider,
-			list: listSpeechProviders
-		}
-	});
 	const playback = new PlaybackStore();
 	const workStatus = new WorkStatusStore();
 	/** 外部写入槽：固定会话 id，最后写入者生效；不做多写者仲裁/租约/会话管理 */
@@ -2772,7 +2222,6 @@ function createHostSetup(ctx) {
 		memesUserRoot,
 		memeDirsFor,
 		optionalService,
-		standaloneAiPolicy,
 		state,
 		menuRegistry,
 		playback,
@@ -2792,11 +2241,11 @@ function failureBody(reason, message, extra) {
 		message
 	};
 }
-function okResult(obj$1 = {}, headers) {
+function okResult(obj = {}, headers) {
 	return {
 		kind: "json",
 		status: 200,
-		obj: obj$1,
+		obj,
 		headers
 	};
 }
@@ -2969,284 +2418,6 @@ async function handleAssetsRoutes(deps, input) {
 		file,
 		contentType: MIME[servedExt] ?? "application/octet-stream"
 	};
-}
-
-//#endregion
-//#region src/host/routes/attachment.ts
-/** 附件 id 的合法形状（与宿主附件服务同一规则）：`sha256:` + 64 位小写 hex。 */
-const ATTACHMENT_ID = /^sha256:[a-f0-9]{64}$/;
-/** 嗅探读取的文件头长度：覆盖四种格式魔数所需的最大偏移（WebP 要看到第 12 字节）。 */
-const HEAD_BYTES = 16;
-async function handleAttachmentRoutes(deps, input) {
-	const { method, rest, url } = input;
-	if (rest === "attachment") {
-		if (method !== "GET") return {
-			kind: "text",
-			status: 405,
-			body: "dsh-pet: method not allowed"
-		};
-		const id = url.searchParams.get("id") ?? "";
-		if (!ATTACHMENT_ID.test(id)) return {
-			kind: "text",
-			status: 400,
-			body: "dsh-pet: invalid attachment id"
-		};
-		const sink = deps.optionalService("attachments");
-		const file = locate(sink, id);
-		if (file === void 0) return {
-			kind: "text",
-			status: 404,
-			body: "dsh-pet: attachment not found"
-		};
-		const contentType = sniffImageType(file);
-		if (contentType === void 0) return {
-			kind: "text",
-			status: 404,
-			body: "dsh-pet: attachment is not a displayable image"
-		};
-		return {
-			kind: "file",
-			file,
-			contentType
-		};
-	}
-	return void 0;
-}
-/** 用附件服务定位对象；服务缺失、后端非文件式、引用非法或对象已被清掉都返回 undefined。 */
-function locate(sink, id) {
-	if (typeof sink?.imageHostPath !== "function") return void 0;
-	try {
-		const file = sink.imageHostPath({ attachmentId: id });
-		return file !== void 0 && existsSync(file) ? file : void 0;
-	} catch {
-		return void 0;
-	}
-}
-/** 按文件头判断图片类型；只认附件服务会存的四种，读不到或认不出返回 undefined。 */
-function sniffImageType(file) {
-	try {
-		const fd = openSync(file, "r");
-		try {
-			const head = Buffer.alloc(HEAD_BYTES);
-			return imageTypeOf(head, readSync(fd, head, 0, HEAD_BYTES, 0));
-		} finally {
-			closeSync(fd);
-		}
-	} catch {
-		return void 0;
-	}
-}
-/**
-* 魔数判定（PNG / JPEG / GIF / WebP）。
-*
-* @param header - 文件头缓冲（可能不满 {@link HEAD_BYTES}）。
-* @param size - header 里实际读到的字节数。
-* @returns 图片的 Content-Type；不是这四种之一时返回 undefined。
-*/
-function imageTypeOf(header, size) {
-	if (size >= 8 && header.readUInt32BE(0) === 2303741511 && header.readUInt32BE(4) === 218765834) return "image/png";
-	if (size >= 3 && header[0] === 255 && header[1] === 216 && header[2] === 255) return "image/jpeg";
-	if (size >= 6) {
-		const tag = header.toString("latin1", 0, 6);
-		if (tag === "GIF87a" || tag === "GIF89a") return "image/gif";
-	}
-	if (size >= 12 && header.toString("latin1", 0, 4) === "RIFF" && header.toString("latin1", 8, 12) === "WEBP") return "image/webp";
-	return void 0;
-}
-
-//#endregion
-//#region src/host/routes/balance.ts
-async function handleBalanceRoutes(deps, input) {
-	const { refreshBalance } = deps;
-	const { method, rest } = input;
-	if (rest === "balance") {
-		if (method !== "POST") return methodNotAllowed();
-		await refreshBalance(true);
-		return okResult({ ok: true });
-	}
-	return void 0;
-}
-
-//#endregion
-//#region src/host/image-attachment.ts
-/** 允许的媒体类型；顺序用于错误文案，与宿主附件服务的白名单保持一份事实。 */
-const MEDIA_TYPES = [
-	"image/png",
-	"image/jpeg",
-	"image/webp",
-	"image/gif"
-];
-/** base64 字符上限：请求体上限 1 MiB 下留出 text 与 JSON 结构的余量。 */
-const MAX_BASE64_CHARS = 9e5;
-function parseImageAttachment(raw) {
-	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return {
-		ok: false,
-		message: "attachment 必须是对象"
-	};
-	const { mediaType, data } = raw;
-	if (typeof mediaType !== "string" || !MEDIA_TYPES.includes(mediaType)) return {
-		ok: false,
-		message: `attachment.mediaType 必须是 ${MEDIA_TYPES.join(" / ")} 之一`
-	};
-	if (typeof data !== "string" || data === "") return {
-		ok: false,
-		message: "attachment.data 必须是非空 base64 字符串"
-	};
-	if (data.length > MAX_BASE64_CHARS) return {
-		ok: false,
-		message: "attachment.data 过长（请压缩或降低分辨率）"
-	};
-	const decoded = Buffer.from(data, "base64");
-	if (decoded.length === 0 || decoded.toString("base64") !== data) return {
-		ok: false,
-		message: "attachment.data 不是合法的 base64"
-	};
-	return {
-		ok: true,
-		mediaType,
-		bytes: new Uint8Array(decoded)
-	};
-}
-
-//#endregion
-//#region src/host/routes/chat.ts
-async function handleChatRoutes(deps, input) {
-	const { configPaths, log, memoryPath, memoryRounds, readMemory, requirePet } = deps;
-	const { body, method, rest, url } = input;
-	if (rest === "chat/memory") {
-		if (method !== "GET" && method !== "DELETE") return methodNotAllowed();
-		try {
-			if (method === "DELETE") return okResult(await deps.deleteOrphans());
-			return okResult({
-				ok: true,
-				orphans: await deps.orphanHistory()
-			});
-		} catch (e) {
-			return failResult("generate-error", e instanceof Error ? e.message : String(e));
-		}
-	}
-	if (rest === "chat") {
-		if (method !== "GET" && method !== "POST" && method !== "DELETE") return methodNotAllowed();
-		try {
-			const roundsRaw = method === "GET" ? url.searchParams.get("rounds") : null;
-			let roundsOverride = null;
-			if (roundsRaw !== null && roundsRaw.trim() !== "") {
-				const n = Number(roundsRaw);
-				if (!Number.isInteger(n) || n < 0 || n > 200) return failResult("bad-request", "rounds 必须是 0–200 的整数（不传则用配置）");
-				roundsOverride = n;
-			}
-			let tsList;
-			if (method === "DELETE") {
-				const parsed = parseTsList(url.searchParams.getAll("ts"));
-				if (parsed === null) return failResult("bad-request", "ts 必须是非负整数（毫秒时间戳）");
-				tsList = parsed.length > 0 ? parsed : void 0;
-			}
-			let cfgCache;
-			const cfg = () => cfgCache ??= readAllConfig(configPaths);
-			const who = requirePet(url.searchParams, cfg, { surface: method === "POST" });
-			if (!who.ok) return who.res;
-			const petId = who.petId;
-			if (method === "GET") {
-				const mem = await readMemory();
-				const rawMessages = mem[who.entry]?.[petId]?.messages;
-				const list = Array.isArray(rawMessages) ? rawMessages.filter((m) => m && typeof m.content === "string") : [];
-				if (rawMessages !== void 0 && !Array.isArray(rawMessages)) log.error(`[dsh-pet] 记忆结构异常（messages 不是数组）pet=${petId}，按空历史处理：${memoryPath}`);
-				const rounds = roundsOverride ?? memoryRounds(who.conf);
-				const messages = sliceMemoryRounds(list, rounds);
-				return okResult({
-					ok: true,
-					messages,
-					rounds
-				});
-			}
-			if (method === "DELETE") return okResult(await deps.deleteHistory(petId, tsList));
-			return await postChat(deps, petId, body);
-		} catch (e) {
-			return failResult("generate-error", e instanceof Error ? e.message : String(e));
-		}
-	}
-	return void 0;
-}
-/**
-* 解析 DELETE 的 `?ts=`（可重复）。
-*
-* @param raws - 查询串里所有 `ts` 的原值。
-* @returns 去重后的时间戳数组；任一值不是非负整数时返回 `null`（调用方转 bad-request）。
-*/
-function parseTsList(raws) {
-	const out = [];
-	for (const raw of raws) {
-		const n = Number(raw);
-		if (raw.trim() === "" || !Number.isInteger(n) || n < 0) return null;
-		out.push(n);
-	}
-	return [...new Set(out)];
-}
-/**
-* POST /chat：解析文本与可选图片，交给对话层生成回复。
-*
-* @param deps - 路由依赖。
-* @param petId - 已校验存在的宠物 id。
-* @param body - 请求体原文；不是合法 JSON 时回 400。
-* @returns 与加入图片前同形的应答：成功只带 `text`（配图时另有 `image`）。
-*/
-async function postChat(deps, petId, body) {
-	let parsed;
-	try {
-		parsed = JSON.parse(body ?? "null") ?? {};
-	} catch {
-		return invalidJson();
-	}
-	const text = typeof parsed.text === "string" ? parsed.text.trim() : "";
-	if (!text) return failResult("bad-request", "消息为空");
-	if (text.length > 2e3) return failResult("bad-request", "消息过长（限 2000 字）");
-	const admitted = await admitImage(deps, parsed.attachment);
-	if (!admitted.ok) return admitted.res;
-	return okResult(await deps.chatWithPet(petId, text, admitted.ref));
-}
-/**
-* 校验图片入参并交给宿主附件服务落盘。
-*
-* @param deps - 路由依赖（附件服务经 optionalService 软取，不进 inject）。
-* @param raw - 请求体里的 `attachment` 原始值；`undefined` 表示没传图。
-* @returns 已落盘的图片引用，或可直接返回的失败应答。
-*/
-async function admitImage(deps, raw) {
-	if (raw === void 0) return { ok: true };
-	const parsed = parseImageAttachment(raw);
-	if (!parsed.ok) return {
-		ok: false,
-		res: failResult("bad-request", parsed.message)
-	};
-	const sink = deps.optionalService("attachments");
-	if (typeof sink?.saveImages !== "function") return {
-		ok: false,
-		res: failResult("bad-request", "当前模式不支持图片（缺少附件服务）")
-	};
-	const maxBytes = sink.imageLimits?.maxImageBytes;
-	if (maxBytes !== void 0 && parsed.bytes.length > maxBytes) return {
-		ok: false,
-		res: failResult("bad-request", `图片过大（上限 ${maxBytes} 字节，请压缩或降低分辨率）`)
-	};
-	try {
-		const [ref] = await sink.saveImages([{
-			data: parsed.bytes,
-			mediaType: parsed.mediaType
-		}]);
-		if (ref === void 0) return {
-			ok: false,
-			res: failResult("generate-error", "附件服务未返回图片引用")
-		};
-		return {
-			ok: true,
-			ref
-		};
-	} catch (e) {
-		return {
-			ok: false,
-			res: failResult("generate-error", e instanceof Error ? e.message : String(e))
-		};
-	}
 }
 
 //#endregion
@@ -3822,9 +2993,6 @@ function displayCovers(want, display) {
 		case "both": return display === "both";
 	}
 }
-function isDisplayed(display) {
-	return displayCovers("web", display) || displayCovers("desktop", display);
-}
 function pickVoiceSurface(display) {
 	if (displayCovers("desktop", display)) return "desktop";
 	if (displayCovers("web", display)) return "web";
@@ -3851,35 +3019,9 @@ function readMemePool(memes, dirs) {
 	}
 	return out;
 }
-function pickMeme(pool, random = Math.random) {
-	if (pool.length === 0) return void 0;
-	const idx = Math.floor(random() * pool.length) % pool.length;
-	return pool[idx];
-}
 function matchMeme(pool, name) {
 	const key = String(name ?? "").trim();
 	return key ? pool.find((m) => m.name === key) : void 0;
-}
-/** 配图选择标记：`[图:名称]` 附在回复末尾（容忍全角冒号与前后空白）。 */
-const IMG_TAG = /\[图[:：]\s*([^\]\n]+?)\s*\]\s*$/;
-function extractChatImage(text, pool) {
-	const m = IMG_TAG.exec(text);
-	if (!m) return { text };
-	const hit = matchMeme(pool, m[1] ?? "");
-	const body = text.slice(0, m.index).trim();
-	if (!hit || !body) return { text };
-	return {
-		text: body,
-		image: hit.name
-	};
-}
-function memeCatalog(pool) {
-	return pool.map((m) => "- " + m.name + "：" + m.desc).join("\n");
-}
-function limitPool(pool, limit) {
-	const n = Math.floor(Number(limit));
-	if (!Number.isFinite(n) || n <= 0) return pool;
-	return pool.slice(0, n);
 }
 
 //#endregion
@@ -4110,7 +3252,7 @@ function decideBubbleClear(args) {
 //#endregion
 //#region src/host/routes/interaction.ts
 async function handleInteractionRoutes(deps, input) {
-	const { configPaths, lock, lockBlocked, memeDirsFor, publishWhisper, requirePet, sleep, state, surfaceBlocked } = deps;
+	const { configPaths, lock, lockBlocked, memeDirsFor, requirePet, sleep, state, surfaceBlocked } = deps;
 	const { body, method, rest, url } = input;
 	if (rest === "lock" || rest === "lock/release") {
 		const isRelease = rest === "lock/release";
@@ -4153,23 +3295,6 @@ async function handleInteractionRoutes(deps, input) {
 				petId: d.petId,
 				expiresAt: d.expiresAt
 			});
-		} catch (e) {
-			return failResult("generate-error", e instanceof Error ? e.message : String(e));
-		}
-	}
-	if (rest === "whisper") {
-		if (method !== "POST") return methodNotAllowed();
-		try {
-			const who = requirePet(url.searchParams, () => readAllConfig(configPaths), { surface: true });
-			if (!who.ok) return who.res;
-			const want = normalizeSurface(url.searchParams.get("surface"));
-			const r = await publishWhisper(who.petId, url.searchParams.get("image") ?? void 0, want === null ? void 0 : voiceTargetOfSurface(want));
-			if (r.ok) return okResult({
-				ok: true,
-				text: r.text,
-				...r.image ? { image: r.image } : {}
-			});
-			return failResult(r.reason, r.message ?? "生成失败");
 		} catch (e) {
 			return failResult("generate-error", e instanceof Error ? e.message : String(e));
 		}
@@ -4701,8 +3826,8 @@ async function handleStateRoutes(deps, input) {
 		const headers = { "cache-control": "no-cache, no-store" };
 		const parsed = parseStateWaitQuery(url.searchParams.get("since"), url.searchParams.get("timeout"));
 		if (parsed.kind === "error") return failResult("bad-request", parsed.error);
-		const current$2 = state.read();
-		if (parsed.kind === "none" || current$2.counter !== parsed.since) return okResult(current$2, headers);
+		const current = state.read();
+		if (parsed.kind === "none" || current.counter !== parsed.since) return okResult(current, headers);
 		const since = parsed.since;
 		return await new Promise((resolveWait) => {
 			let settled = false;
@@ -5005,51 +4130,6 @@ async function handleTodoRoutes(deps, input) {
 }
 
 //#endregion
-//#region src/host/routes/voice.ts
-async function handleVoiceRoutes(deps, input) {
-	const { body, method, rest, signal } = input;
-	if (rest === "voice/voices") {
-		if (method !== "GET") return methodNotAllowed();
-		return okResult({
-			ok: true,
-			voices: deps.voice.listVoices()
-		});
-	}
-	if (rest === "voice/speak") {
-		if (method !== "POST") return methodNotAllowed();
-		let parsed;
-		try {
-			parsed = JSON.parse(body ?? "null");
-		} catch {
-			return invalidJson();
-		}
-		const result = await deps.voice.speak(parsed);
-		if (!result.ok) return failResult(result.reason, result.message);
-		return {
-			kind: "file",
-			file: result.file,
-			contentType: "audio/mpeg"
-		};
-	}
-	if (rest === "voice/hear") {
-		if (method !== "POST") return methodNotAllowed();
-		let parsed;
-		try {
-			parsed = JSON.parse(body ?? "null");
-		} catch {
-			return invalidJson();
-		}
-		const result = await deps.speech.hear(parsed, signal);
-		if (!result.ok) return failResult(result.reason, result.message);
-		return okResult({
-			ok: true,
-			text: result.text
-		});
-	}
-	return void 0;
-}
-
-//#endregion
 //#region src/host/routes/index.ts
 /** 处理器顺序：越靠前越先匹配；素材兜底必须在末尾。 */
 const HANDLERS = [
@@ -5057,15 +4137,11 @@ const HANDLERS = [
 	handleDesktopRoutes,
 	handleMenuRoutes,
 	handleStateRoutes,
-	handleBalanceRoutes,
 	handleInteractionRoutes,
 	handleMotionRoutes,
 	handlePlaybackRoutes,
 	handleSleepRoutes,
-	handleChatRoutes,
-	handleAttachmentRoutes,
 	handleTodoRoutes,
-	handleVoiceRoutes,
 	handleAssetsRoutes
 ];
 /**
@@ -5076,9 +4152,8 @@ const HANDLERS = [
 * 不会造成「宠物叫不醒」。
 */
 function sleepGated(rest, method) {
-	if (rest === "chat") return method === "POST";
 	if (rest === "todos") return method === "POST" || method === "DELETE";
-	return rest === "anim" || rest === "whisper" || rest === "balance" || rest === "broadcast" || rest === "bubble/clear" || rest === "menu/click" || rest === "voice";
+	return rest === "anim" || rest === "broadcast" || rest === "bubble/clear" || rest === "menu/click";
 }
 function createPetRouter(deps) {
 	return async (url, rest, method, body, signal) => {
@@ -5176,317 +4251,6 @@ function registerLifecycle(deps) {
 }
 
 //#endregion
-//#region src/host/plugin/command-chat.ts
-function registerChatCommand(deps) {
-	const { ctx, chatWithPet, log, publishWhisper, resolveActivePetId, sleep, sleepRefusalText } = deps;
-	ctx.effect(() => ctx.commands.register({
-		name: "chat",
-		description: "与桌宠对话：留空 = 碎碎念一句；输入消息 = 正常对话",
-		input: { hint: "[消息]（留空 = 碎碎念）" },
-		handler: ({ rawInput }) => {
-			const petId = resolveActivePetId();
-			if (!petId) return {
-				kind: "error",
-				text: "没有可交互的桌宠"
-			};
-			if (sleep.sleeping(petId)) return {
-				kind: "error",
-				text: sleepRefusalText(petId)
-			};
-			const text = rawInput.trim();
-			if (!text) {
-				publishWhisper(petId).catch((e) => log.warn("[dsh-pet] 碎碎念异常：" + (e instanceof Error ? e.message : String(e))));
-				return {
-					kind: "success",
-					text: "已让桌宠碎碎念一句"
-				};
-			}
-			if (text.length > 2e3) return {
-				kind: "error",
-				text: "消息过长（限 2000 字）"
-			};
-			chatWithPet(petId, text).then((r) => {
-				if (!r.ok) log.warn("[dsh-pet] 对话失败 reason=" + r.reason + (r.message ? " " + r.message : ""));
-			}).catch((e) => log.warn("[dsh-pet] 对话异常：" + (e instanceof Error ? e.message : String(e))));
-			return {
-				kind: "success",
-				text: "已发送，桌宠马上回应"
-			};
-		}
-	}), "dsh-pet: /chat command");
-}
-
-//#endregion
-//#region src/host/plugin/command-pet.ts
-function registerPetCommand(deps) {
-	const { ctx, effectivePetList, petDisplayName, resolveActivePetId, setActivePetId } = deps;
-	ctx.effect(() => ctx.commands.register({
-		name: "pet",
-		description: "选择桌宠（/chat 对话的目标；支持选择框或手输 id/名字）",
-		input: { hint: "[宠物 id 或名字]（留空查看当前）" },
-		handler: ({ rawInput }) => {
-			const arg = rawInput.trim();
-			let eff;
-			try {
-				eff = effectivePetList();
-			} catch {
-				eff = [];
-			}
-			if (!arg) {
-				const cur = resolveActivePetId();
-				const found = eff.find((p) => String(p.id) === cur);
-				return {
-					kind: "success",
-					text: "当前桌宠：" + (found ? petDisplayName(found) : cur || "（无可交互桌宠）")
-				};
-			}
-			const byId = eff.find((p) => String(p.id) === arg);
-			if (byId) {
-				setActivePetId(String(byId.id));
-				return {
-					kind: "success",
-					text: "已选择桌宠：" + petDisplayName(byId)
-				};
-			}
-			const byName = eff.filter((p) => petDisplayName(p) === arg);
-			if (byName.length === 1) {
-				setActivePetId(String(byName[0].id));
-				return {
-					kind: "success",
-					text: "已选择桌宠：" + petDisplayName(byName[0])
-				};
-			}
-			if (byName.length > 1) return {
-				kind: "error",
-				text: "「" + arg + "」有 " + byName.length + " 只桌宠（id：" + byName.map((p) => String(p.id)).join("、") + "），请用 id 指定"
-			};
-			return {
-				kind: "error",
-				text: "找不到桌宠「" + arg + "」（id 或名字都行；/pet 回车可打开选择框）"
-			};
-		}
-	}), "dsh-pet: /pet command");
-}
-
-//#endregion
-//#region src/host/whisper-policy.ts
-function automaticWhisperSchedule(policy, petEnabled, configuredPeriodSec) {
-	if (!policy) return {
-		enabled: petEnabled,
-		periodSec: configuredPeriodSec
-	};
-	const period = policy.whisperIntervalSec();
-	return {
-		enabled: petEnabled && policy.isReady() && policy.canWhisper(),
-		periodSec: Number.isFinite(period) ? Math.max(60, period) : 300
-	};
-}
-
-//#endregion
-//#region src/host/plugin/loops.ts
-/** 梦话周期的兜底值（秒）：配置里 eventsRefreshSec.sleepTalk 缺失/非法时用它。 */
-const SLEEP_TALK_DEFAULT_SEC = 60;
-/** 错峰队列里相邻两只之间的间隔（ms）：同拍到点的宠物依次开口，才会错开冒泡与语音。 */
-const WHISPER_STAGGER_MS = 1e4;
-/** 错峰队列上限：6 只 × 10s = 60s，正好覆盖最短周期，队列不会追着拍跑。 */
-const WHISPER_QUEUE_MAX = 6;
-function registerLoops(deps) {
-	const { ctx, balancePeriodSec, configPaths, lastWhisperAt, lock, log, publishWhisper, publishSleepTalk, refreshBalance, sleep, standaloneAiPolicy, whisperPeriodSec } = deps;
-	ctx.effect(() => {
-		let disposed = false;
-		let timer = null;
-		function arm(sec) {
-			if (disposed) return;
-			timer = setTimeout(() => void tick(), Math.max(1e3, sec * 1e3));
-		}
-		async function tick() {
-			let sec;
-			try {
-				const cfg = readAllConfig(configPaths);
-				sec = balancePeriodSec(cfg);
-				const pets = flattenPetList(cfg);
-				if (pets.some((p) => p.balanceEnabled === true && !sleep.sleeping(String(p.id ?? "")))) await refreshBalance();
-				else log.info("[dsh-pet] 余额周期跳过：没有醒着且启用余额的宠物");
-			} catch (e) {
-				log.warn("[dsh-pet] 余额周期读配置失败，周期刷新已停止（重启 DSH 后恢复）：" + (e instanceof Error ? e.message : String(e)));
-				return;
-			}
-			arm(sec);
-		}
-		tick();
-		return () => {
-			disposed = true;
-			if (timer !== null) clearTimeout(timer);
-		};
-	}, "dsh-pet: balance poll");
-	ctx.effect(() => {
-		let disposed = false;
-		let timer = null;
-		/** 待发布的宠物（FIFO）；一次只发一只，两只之间隔 {@link WHISPER_STAGGER_MS}。 */
-		const pending = [];
-		/** 队列内相邻两只之间的等待句柄；与拍定时器分开计，两者都要在卸载时清掉。 */
-		let drainTimer = null;
-		/** 是否已经有一只正在生成；同一时刻只允许一只，否则两只仍会同时写出气泡。 */
-		let pumping = false;
-		/**
-		* 从队列取下一只发布，等它写完再隔一个间隔发下一只。
-		*
-		* 间隔从「文字真的写进状态」算起，而不是从发起点算：单次生成耗时在 3–15 秒之间波动，
-		* 从发起点算的固定间隔会被慢的那只吃掉，两只又撞到一起。
-		*/
-		async function pump() {
-			if (disposed || pumping || drainTimer !== null) return;
-			const petId = pending.shift();
-			if (petId === void 0) return;
-			pumping = true;
-			try {
-				await publishWhisper(petId, void 0, void 0, "whisper");
-			} catch {} finally {
-				pumping = false;
-			}
-			if (disposed || pending.length === 0) return;
-			drainTimer = setTimeout(() => {
-				drainTimer = null;
-				pump();
-			}, WHISPER_STAGGER_MS);
-		}
-		function arm(sec) {
-			if (disposed) return;
-			timer = setTimeout(() => void tick(), Math.max(1e3, sec * 1e3));
-		}
-		function tick() {
-			let next = 300;
-			try {
-				const cfg = readAllConfig(configPaths);
-				const now = Date.now();
-				let min = Infinity;
-				let checked = 0;
-				let due = 0;
-				let notDue = 0;
-				const skipped = [];
-				for (const pet of flattenPetList(cfg)) {
-					const petId = String(pet.id ?? "");
-					if (!petId) continue;
-					const found = findPetInstance(cfg, petId);
-					if (!found) continue;
-					checked += 1;
-					const schedule = automaticWhisperSchedule(standaloneAiPolicy(), pet.whisperEnabled === true, whisperPeriodSec(found.conf));
-					if (!schedule.enabled) {
-						skipped.push(petId + ": " + (pet.whisperEnabled === true ? "独立模式未授权自动碎碎念" : "whisperEnabled=false"));
-						continue;
-					}
-					const display = String(pet.display ?? "");
-					if (!isDisplayed(display)) {
-						skipped.push(petId + ": display=none");
-						continue;
-					}
-					const sec = schedule.periodSec;
-					min = Math.min(min, sec);
-					if (now - (lastWhisperAt.get(petId) ?? 0) < sec * 1e3) {
-						notDue += 1;
-						continue;
-					}
-					if (lock.locked(petId)) {
-						skipped.push(petId + ": 占用锁跳过");
-						continue;
-					}
-					if (sleep.sleeping(petId)) {
-						skipped.push(petId + ": 睡觉中");
-						continue;
-					}
-					if (pending.length >= WHISPER_QUEUE_MAX) {
-						skipped.push(petId + ": 错峰队列已满");
-						continue;
-					}
-					due += 1;
-					lastWhisperAt.set(petId, now);
-					log.info(`[dsh-pet] 碎碎念到点 pet=${petId}（周期 ${sec}s），入队待发`);
-					pending.push(petId);
-				}
-				pump();
-				if (Number.isFinite(min)) next = min;
-				log.info(`[dsh-pet] 碎碎念调度：检查 ${checked} 只 → 到点 ${due}、未到点 ${notDue}、跳过 ${skipped.length}` + (due > 1 ? `；${due} 只按 ${WHISPER_STAGGER_MS / 1e3}s 间隔依次说` : "") + (skipped.length > 0 ? `（${skipped.join("；")}）` : "") + `；下一拍 ${next}s`);
-			} catch (e) {
-				log.warn("[dsh-pet] 碎碎念调度读配置失败，自动碎碎念已停止（重启 DSH 后恢复）：" + (e instanceof Error ? e.message : String(e)));
-				return;
-			}
-			arm(next);
-		}
-		tick();
-		return () => {
-			disposed = true;
-			if (timer !== null) clearTimeout(timer);
-			if (drainTimer !== null) clearTimeout(drainTimer);
-		};
-	}, "dsh-pet: whisper poll");
-	ctx.effect(() => {
-		let disposed = false;
-		let timer = null;
-		/** petId → 上一次说梦话的时刻；醒来不清，下次睡着时按周期自然接着算。 */
-		const lastTalkAt = new Map();
-		function arm(sec) {
-			if (disposed) return;
-			timer = setTimeout(() => void tick(), Math.max(1e3, sec * 1e3));
-		}
-		function tick() {
-			let next = SLEEP_TALK_DEFAULT_SEC;
-			try {
-				const cfg = readAllConfig(configPaths);
-				const now = Date.now();
-				let min = Infinity;
-				for (const petId of sleep.ids()) {
-					const found = findPetInstance(cfg, petId);
-					if (!found) continue;
-					const sec = sleepTalkPeriodSec(found.conf);
-					min = Math.min(min, sec);
-					if (now - (lastTalkAt.get(petId) ?? 0) < sec * 1e3) continue;
-					lastTalkAt.set(petId, now);
-					publishSleepTalk(petId).catch(() => {});
-				}
-				if (Number.isFinite(min)) next = min;
-			} catch (e) {
-				log.warn("[dsh-pet] 梦话调度读配置失败，说梦话已停止（重启 DSH 后恢复）：" + (e instanceof Error ? e.message : String(e)));
-				return;
-			}
-			arm(next);
-		}
-		tick();
-		return () => {
-			disposed = true;
-			if (timer !== null) clearTimeout(timer);
-		};
-	}, "dsh-pet: sleep talk poll");
-}
-/** 梦话周期（秒）：条目级 eventsRefreshSec.sleepTalk，读不到按 60 兜底（与配置注释同一口径）。 */
-function sleepTalkPeriodSec(conf) {
-	const table = conf.eventsRefreshSec;
-	const sec = Number(table?.sleepTalk);
-	return Number.isFinite(sec) && sec > 0 ? sec : SLEEP_TALK_DEFAULT_SEC;
-}
-
-//#endregion
-//#region src/host/plugin/command-balance.ts
-function registerBalanceCommand(deps) {
-	const { ctx, effectivePetList, refreshBalance, sleep, sleepRefusalText } = deps;
-	ctx.effect(() => ctx.commands.register({
-		name: "balance",
-		description: "手动触发桌宠余额显示（立即弹出余额气泡）",
-		handler: () => {
-			const visible = effectivePetList().filter((pet) => String(pet.display ?? "") !== "none");
-			if (visible.length > 0 && visible.every((pet) => sleep.sleeping(String(pet.id ?? "")))) return {
-				kind: "error",
-				text: sleepRefusalText(String(visible[0].id ?? ""))
-			};
-			refreshBalance(true);
-			return {
-				kind: "success",
-				text: "已触发桌宠余额显示"
-			};
-		}
-	}), "dsh-pet: /balance command");
-}
-
-//#endregion
 //#region src/host/tool-detail/target.ts
 function str(value) {
 	if (typeof value !== "string") return null;
@@ -5558,12 +4322,12 @@ function trimEdges(token) {
 }
 function tokenizeCommand(command) {
 	const tokens = [];
-	let current$2 = "";
+	let current = "";
 	let quote = null;
 	for (const ch of command) {
 		if (quote !== null) {
 			if (ch === quote) quote = null;
-			else current$2 += ch;
+			else current += ch;
 			continue;
 		}
 		if (ch === "\"" || ch === "'" || ch === "`") {
@@ -5571,13 +4335,13 @@ function tokenizeCommand(command) {
 			continue;
 		}
 		if (/\s/.test(ch) || ch === ";" || ch === "|") {
-			if (current$2 !== "") tokens.push(current$2);
-			current$2 = "";
+			if (current !== "") tokens.push(current);
+			current = "";
 			continue;
 		}
-		current$2 += ch;
+		current += ch;
 	}
-	if (current$2 !== "") tokens.push(current$2);
+	if (current !== "") tokens.push(current);
 	return tokens.map(trimEdges).filter((token) => token !== "");
 }
 /** arguments 的解析上限（UTF-16 码元数）：超过就不解析（write / edit 会带上整个文件内容）。 */
@@ -6593,8 +5357,8 @@ async function readJsonBody(req) {
 	}
 }
 /** 回一个 JSON 应答。 */
-function writeJson(res, status, obj$1) {
-	const body = JSON.stringify(obj$1);
+function writeJson(res, status, obj) {
+	const body = JSON.stringify(obj);
 	res.writeHead(status, {
 		"content-type": "application/json; charset=utf-8",
 		"content-length": Buffer.byteLength(body)
@@ -7068,1234 +5832,6 @@ function createDesktopHelper(deps) {
 		assetRootFor: spawn$1.assetRootFor,
 		userRootFor: spawn$1.userRootFor,
 		markDisposed: spawn$1.markDisposed
-	};
-}
-
-//#endregion
-//#region src/standalone/shims/dsh-credentials.ts
-function credentialRef(ref) {
-	return ref;
-}
-
-//#endregion
-//#region src/host/plugin/balance-poll.ts
-function createBalancePoll(deps) {
-	const { ctx, configPaths, getActivePetId, log, state } = deps;
-	/** 当前生效宠物列表：成品配置拍平（合并器已保证 id 唯一、字段填满），命令与桌面模式共用。 */
-	const effectivePetList = () => flattenPetList(readAllConfig(configPaths));
-	/** 余额刷新周期（秒）：成品 main 条目的 eventsRefreshSec.balance（合并器已填默认；非法兜底 1800） */
-	const balancePeriodSec = (cfg) => {
-		const ers = cfg.main?.eventsRefreshSec;
-		const n = Number(ers?.balance);
-		return Number.isFinite(n) && n > 0 ? n : 1800;
-	};
-	/** 碎碎念周期（秒）：该宠物所属条目的 eventsRefreshSec.whisper（合并器已填默认；非法兜底 300）。
-	*  收已解析的条目配置：唯一调用方是周期调度，它的 petId 就是从同一份 cfg 拍平出来的。 */
-	const whisperPeriodSec = (conf) => {
-		const ers = conf.eventsRefreshSec;
-		const n = Number(ers?.whisper);
-		return Number.isFinite(n) && n > 0 ? n : 300;
-	};
-	/**
-	* 账号服务要求的调用方身份（`AccountClientMetadata`）：只影响请求来源标识与服务端本地化文案，
-	* 不参与余额数值与币种。version 读自身 package.json（读不到回落 '0.0.0'）；locale 固定 zh-CN。
-	*/
-	const accountClientMetadata = () => {
-		let version = "0.0.0";
-		try {
-			const raw = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"));
-			if (typeof raw.version === "string" && raw.version.length > 0) version = raw.version;
-		} catch {}
-		return {
-			version,
-			locale: "zh-CN",
-			timezoneOffsetSeconds: -new Date().getTimezoneOffset() * 60
-		};
-	};
-	/**
-	* 刷新余额并写入轮询状态：host 侧唯一的余额查询点，两端从 /state 读同一份结果。
-	* 失败也写进状态（reason 区分 unsupported / credential-missing / fetch-error）：余额不可用要弹
-	* 文字说明，不能静默；意外异常同样落成 fetch-error。
-	*
-	* @param manual - 这次刷新是否由用户触发（/balance 命令、桌面「查看余额」菜单）；标记随数据写进
-	*   叶子，前端据此决定余额不可用时是否必弹文字说明（周期刷新只在原因变化时弹一次）。
-	*/
-	const refreshBalance = async (manual = false) => {
-		log.info(`[dsh-pet] 余额刷新开始（${manual ? "手动" : "周期"}）`);
-		const mark = (v) => manual ? {
-			...v,
-			manual: true
-		} : v;
-		try {
-			const sel = ctx.agentDefaultModel.currentSelection();
-			const result = await queryBalance(
-				sel.provider,
-				async (ref) => {
-					const rc = await ctx.credentials.resolve(credentialRef(ref));
-					return rc?.value;
-				},
-				// `deepseek-account`（免费额度 / 平台登录）没有 API Key：它的凭证是 DSH 账号服务
-				// 持有的授权记录，只能经 getBalance 查询。账号服务是可选服务（软取，不放进 inject）
-				// ——没装账号插件时它不在场，此时该路由报 credential-missing 而不是崩。
-				async () => {
-					const account = ctx.get("deepseekAccount", false);
-					if (!account) return void 0;
-					return account.getBalance(accountClientMetadata());
-				}
-);
-			state.writeSection("balance", mark(result));
-			if (result.ok) log.info(`[dsh-pet] 余额刷新成功 provider=${result.provider}（${result.shape}）`);
-			else log.warn(`[dsh-pet] 余额刷新失败 provider=${result.provider} reason=${result.reason}` + (result.message ? " " + result.message : ""));
-		} catch (e) {
-			const message = e instanceof Error ? e.message : String(e);
-			state.writeSection("balance", mark({
-				ok: false,
-				provider: "unknown",
-				reason: "fetch-error",
-				message
-			}));
-			log.warn("[dsh-pet] 余额刷新异常：" + message);
-		}
-	};
-	/** 当前交互桌宠 id：/pet 已选且仍存在 → 该宠物；未选/已失效 → 有效宠物列表第一只（进程内，重启回默认） */
-	const resolveActivePetId = () => {
-		try {
-			const eff = effectivePetList();
-			if (eff.length === 0) return "";
-			if (getActivePetId() && eff.some((p) => String(p.id) === getActivePetId())) return getActivePetId();
-			return String(eff[0].id);
-		} catch {
-			return getActivePetId();
-		}
-	};
-	/** 宠物的显示名（name，缺失回落 id）——命令文案用 */
-	const petDisplayName = (pet) => {
-		const n = String(pet.name ?? "").trim();
-		return n || String(pet.id ?? "");
-	};
-	return {
-		effectivePetList,
-		balancePeriodSec,
-		whisperPeriodSec,
-		refreshBalance,
-		resolveActivePetId,
-		petDisplayName
-	};
-}
-
-//#endregion
-//#region src/standalone/shims/dsh-llm.ts
-function createUserMessage(input) {
-	return {
-		role: "user",
-		content: input.content,
-		source: input.source
-	};
-}
-function createAssistantMessage(input) {
-	return {
-		role: "assistant",
-		content: input.content,
-		source: input.source
-	};
-}
-var BlockAssembler = class {
-	/** 已收集的文本片段。 */
-	chunks = [];
-	/** 收集一个文本块；其他类型忽略。 */
-	push(chunk) {
-		if (chunk !== null && typeof chunk === "object" && chunk.type === "text") {
-			const text = chunk.text;
-			if (typeof text === "string") this.chunks.push(text);
-		}
-	}
-	/** 返回当前拼装结果。 */
-	blocks() {
-		const text = this.chunks.join("");
-		return text === "" ? [] : [{
-			type: "text",
-			text
-		}];
-	}
-};
-function ReasoningEffortId(id) {
-	return id;
-}
-
-//#endregion
-//#region src/host/chat-action.ts
-function chatActionNames(animations) {
-	const a = animations && typeof animations === "object" ? animations : {};
-	if (!Array.isArray(a.categories)) return [];
-	const out = [];
-	for (const category of a.categories) {
-		if (!category || typeof category !== "object") continue;
-		const actions = category.actions;
-		if (!Array.isArray(actions)) continue;
-		for (const name of actions) {
-			if (typeof name !== "string" || name === "") continue;
-			if (!out.includes(name)) out.push(name);
-		}
-	}
-	return out;
-}
-function actionInstruction(names) {
-	return "\n\n[动作] 回复结尾可选做一个动作给用户看，从下列清单里挑最贴合当前语境的：\n" + names.map((name) => "- " + name).join("\n") + "\n挑中就在回复最后另起一行写 [动作:名称]（名称原样照抄）；没有合适的就完全不要写这个标记。";
-}
-function extractChatAction(text, names) {
-	const tag = /\[动作[:：]\s*([^\]\n]+?)\s*\]/g;
-	let action;
-	let tagged = false;
-	const cleaned = text.replace(tag, (_tag, raw) => {
-		tagged = true;
-		const name = raw.trim();
-		if (action === void 0 && names.includes(name)) action = name;
-		return "";
-	});
-	if (!tagged) return { text };
-	const body = cleaned.replace(/[ \t]+$/gm, "").replace(/\n{2,}/g, "\n").trim();
-	return action === void 0 ? { text: body } : {
-		text: body,
-		action
-	};
-}
-
-//#endregion
-//#region src/host/llm-call.ts
-const PET_CALL_IDENTITY = "dsh-pet";
-function noTextReason(finish) {
-	const { kind, failure } = finish ?? {};
-	if (kind === "aborted") return "生成已取消";
-	if (kind === "max-tokens") return "输出达到上限，未产出正文";
-	if (kind !== "error") return "模型未返回文本";
-	const { message, code } = failure ?? {};
-	if (typeof message === "string" && message.trim() !== "") return message;
-	if (typeof code === "string" && code.trim() !== "") return code;
-	return "未提供失败原因";
-}
-
-//#endregion
-//#region src/host/llm-reasoning.ts
-async function supportsReasoningOff(ctx, provider, model) {
-	const llm = ctx.llm;
-	if (!llm || typeof llm.resolveModelInfo !== "function") return false;
-	try {
-		const info = await llm.resolveModelInfo(provider, model);
-		return info?.reasoning?.efforts?.some((e) => e.id === "off") ?? false;
-	} catch {
-		return false;
-	}
-}
-
-//#endregion
-//#region src/host/model-selection.ts
-function configuredModel(conf, key) {
-	const raw = conf?.[key];
-	if (!raw || typeof raw !== "object") return void 0;
-	const m = raw;
-	if (typeof m.provider !== "string" || typeof m.model !== "string") return void 0;
-	const provider = m.provider.trim();
-	const model = m.model.trim();
-	return provider && model ? {
-		provider,
-		model
-	} : void 0;
-}
-function currentModel(ctx) {
-	try {
-		const sel = ctx.agentDefaultModel?.currentSelection();
-		return sel?.provider && sel?.model ? {
-			provider: sel.provider,
-			model: sel.model
-		} : void 0;
-	} catch {
-		return void 0;
-	}
-}
-function modelCandidates(ctx, preferred) {
-	const out = [];
-	const push = (m) => {
-		if (!m) return;
-		if (out.some((x) => x.provider === m.provider && x.model === m.model)) return;
-		out.push(m);
-	};
-	push(preferred);
-	push(currentModel(ctx));
-	return out;
-}
-function modelLabel(m) {
-	return m.provider + "/" + m.model;
-}
-
-//#endregion
-//#region src/host/chat.ts
-/** 单次生成超时（ms）：对话等 LLM 回复，60s 足够。 */
-const TIMEOUT_MS$1 = 6e4;
-/** 配图指令：附在 user 正文之后（紧邻回答位置，模型更容易遵守）。
-*  交给模型选而不是随机抽：对话有真实上下文（用户输入 + 历史），按语境挑才贴合。 */
-function imageInstruction(pool) {
-	return "\n\n[配图] 回复结尾可选附一张表情包给用户看，从下列清单里挑最贴合当前语境的：\n" + memeCatalog(pool) + "\n挑中就在回复最后另起一行写 [图:名称]（名称原样照抄）；没有合适的就完全不要写这个标记。";
-}
-async function generateChat(input) {
-	const { ctx, system, history, userText, preferred, image } = input;
-	const pool = [...input.pool ?? []];
-	const actions = [...input.actions ?? []];
-	const candidates = modelCandidates(ctx, preferred);
-	if (candidates.length === 0) return {
-		ok: false,
-		reason: "provider-missing",
-		message: "当前对话未配置模型"
-	};
-	const llm = ctx.llm;
-	if (!llm || typeof llm.stream !== "function") return {
-		ok: false,
-		reason: "generate-error",
-		message: "LLM 服务不可用"
-	};
-	let last = {
-		ok: false,
-		reason: "generate-error",
-		message: noTextReason(void 0)
-	};
-	for (const [i, sel] of candidates.entries()) {
-		const result = await generateWith$1(ctx, {
-			llm,
-			sel,
-			system,
-			history,
-			userText,
-			pool,
-			actions,
-			image
-		});
-		if (result.ok) return result;
-		last = result;
-		if (i + 1 < candidates.length) defaultLog("warn", `dsh-pet: 对话用 ${modelLabel(sel)} 生成失败（${result.message ?? result.reason}），回落到 ${modelLabel(candidates[i + 1])}`);
-	}
-	return last;
-}
-/** 用一个确定的 provider/model 跑一次对话生成（失败原样返回结构化原因，不吞）。 */
-async function generateWith$1(ctx, once) {
-	const { llm, sel, system, history, userText, pool, actions, image } = once;
-	const historyMessages = history.map((m) => m.role === "user" ? createUserMessage({
-		content: [{
-			type: "text",
-			text: m.content
-		}],
-		source: { kind: "user" }
-	}) : createAssistantMessage({
-		content: [{
-			type: "text",
-			text: m.content
-		}],
-		source: {
-			provider: sel.provider,
-			model: sel.model
-		}
-	}));
-	const deadline = AbortSignal.timeout(TIMEOUT_MS$1);
-	const supportsOff = await supportsReasoningOff(ctx, sel.provider, sel.model);
-	const wantImage = pool.length > 0;
-	const wantAction = actions.length > 0;
-	const instruction = (wantImage ? imageInstruction(pool) : "") + (wantAction ? actionInstruction(actions) : "");
-	const content = [{
-		type: "text",
-		text: instruction === "" ? userText : userText + instruction
-	}];
-	if (image !== void 0) content.push({
-		type: "image",
-		attachment: image
-	});
-	const options = {
-		provider: sel.provider,
-		model: sel.model,
-		sessionId: PET_CALL_IDENTITY,
-		messages: [...historyMessages, createUserMessage({
-			content,
-			source: { kind: "user" }
-		})],
-		system,
-		temperature: 1,
-		...supportsOff ? { reasoningEffort: ReasoningEffortId("off") } : {},
-		signal: deadline
-	};
-	const assembler = new BlockAssembler();
-	try {
-		for await (const chunk of llm.stream(options)) assembler.push(chunk);
-	} catch (e) {
-		return {
-			ok: false,
-			reason: "generate-error",
-			message: e instanceof Error ? e.message : String(e)
-		};
-	}
-	const text = assembler.blocks().filter((b) => b.type === "text").map((b) => "text" in b ? b.text : "").join("").trim();
-	if (!text) return {
-		ok: false,
-		reason: "generate-error",
-		message: noTextReason(assembler.finish)
-	};
-	if (!wantImage && !wantAction) return {
-		ok: true,
-		text
-	};
-	const acted = wantAction ? extractChatAction(text, actions) : { text };
-	const picked = wantImage ? extractChatImage(acted.text, pool) : { text: acted.text };
-	return {
-		ok: true,
-		text: picked.text,
-		...picked.image ? { image: picked.image } : {},
-		...acted.action ? { action: acted.action } : {}
-	};
-}
-
-//#endregion
-//#region src/host/time-context/constants.ts
-/**
-* 时段划分表：[起始小时, 时段]，按起始小时从晚到早排列——匹配时取第一个不超过当前小时的档。
-* 口径含起始小时（0–23 全覆盖、不重叠）：凌晨 0–4、清晨 5–6、早上 7–8、上午 9–10、中午 11–12、
-* 下午 13–16、傍晚 17–18、晚上 19–22、深夜 23。
-*/
-const SLOTS = [
-	[23, "深夜"],
-	[19, "晚上"],
-	[17, "傍晚"],
-	[13, "下午"],
-	[11, "中午"],
-	[9, "上午"],
-	[7, "早上"],
-	[5, "清晨"],
-	[0, "凌晨"]
-];
-const WEEKDAYS = [
-	"星期日",
-	"星期一",
-	"星期二",
-	"星期三",
-	"星期四",
-	"星期五",
-	"星期六"
-];
-const DAY_MS$1 = 864e5;
-const DEFAULT_AHEAD = 3;
-const DEFAULT_SPAN = 1;
-const DEFAULT_AFTER = 3;
-const SEASON_AHEAD = 3;
-const SEASON_ENDING_AHEAD = 3;
-const SEASON_AFTER = 3;
-function pad2(n) {
-	return String(n).padStart(2, "0");
-}
-function timeSlotOf(hour) {
-	for (const [start, slot] of SLOTS) if (hour >= start) return slot;
-	return "凌晨";
-}
-function dayKindOf(day) {
-	return day === 0 || day === 6 ? "周末" : "工作日";
-}
-
-//#endregion
-//#region src/host/time-context/entries.ts
-/**
-* 顺序 = 优先级（靠前的先说话）。一天只出一个从句，所以同一天被多个节日/假期覆盖时，谁在数组里
-* 靠前就由谁说；想改优先级就挪那几行，不必动逻辑。几条硬约束：只有当天值得说的小节排在邻座之前
-* 并掐掉回味；除夕、元宵必须排在春节之前；寒暑假排在传统节日之后、纪念日之前——假期里的节日仍由
-* 节日说话，7/1 这类与纪念日撞车的日子则由暑假说话。`ahead / span / after` 缺省 3 / 1 / 3。
-*/
-const PRIORITY = [
-	{
-		kind: "solar",
-		key: "2-14",
-		name: "情人节",
-		after: 0
-	},
-	{
-		kind: "solar",
-		key: "12-31",
-		name: "跨年夜",
-		after: 0
-	},
-	{
-		kind: "solar",
-		key: "4-1",
-		name: "愚人节",
-		after: 0
-	},
-	{
-		kind: "solar",
-		key: "5-4",
-		name: "青年节",
-		ahead: 0,
-		after: 0
-	},
-	{
-		kind: "lunarEve",
-		name: "除夕",
-		ahead: 1,
-		after: 0
-	},
-	{
-		kind: "lunar",
-		key: "1-15",
-		name: "元宵节"
-	},
-	{
-		kind: "lunar",
-		key: "1-1",
-		name: "春节",
-		spoken: "大年初一",
-		span: 15
-	},
-	{
-		kind: "lunar",
-		key: "8-15",
-		name: "中秋节",
-		span: 3,
-		after: 2
-	},
-	{
-		kind: "solar",
-		key: "10-1",
-		name: "国庆节",
-		span: 7
-	},
-	{
-		kind: "solar",
-		key: "1-1",
-		name: "元旦",
-		spoken: "新年第一天",
-		span: 3
-	},
-	{
-		kind: "lunar",
-		key: "5-5",
-		name: "端午节",
-		span: 3
-	},
-	{
-		kind: "solar",
-		key: "4-4",
-		name: "清明节",
-		span: 3,
-		ahead: 1
-	},
-	{
-		kind: "solar",
-		key: "5-1",
-		name: "劳动节",
-		span: 3
-	},
-	{
-		kind: "solar",
-		key: "6-1",
-		name: "儿童节"
-	},
-	{
-		kind: "lunar",
-		key: "7-7",
-		name: "七夕"
-	},
-	{
-		kind: "lunar",
-		key: "7-15",
-		name: "中元节"
-	},
-	{
-		kind: "lunar",
-		key: "2-2",
-		name: "龙抬头"
-	},
-	{
-		kind: "lunar",
-		key: "9-9",
-		name: "重阳节"
-	},
-	{
-		kind: "lunar",
-		key: "12-8",
-		name: "腊八节"
-	},
-	{
-		kind: "lunar",
-		key: "12-23",
-		name: "小年"
-	},
-	{
-		kind: "season",
-		from: "1-20",
-		to: "2-18",
-		name: "寒假"
-	},
-	{
-		kind: "season",
-		from: "7-1",
-		to: "8-29",
-		name: "暑假"
-	},
-	{
-		kind: "solar",
-		key: "3-8",
-		name: "妇女节"
-	},
-	{
-		kind: "solar",
-		key: "9-10",
-		name: "教师节"
-	},
-	{
-		kind: "solar",
-		key: "7-1",
-		name: "建党节"
-	},
-	{
-		kind: "solar",
-		key: "8-1",
-		name: "建军节"
-	},
-	{
-		kind: "solar",
-		key: "10-31",
-		name: "万圣夜"
-	},
-	{
-		kind: "solar",
-		key: "12-24",
-		name: "平安夜",
-		after: 0
-	},
-	{
-		kind: "solar",
-		key: "12-25",
-		name: "圣诞节"
-	}
-];
-const SOLAR_INDEX = new Map();
-const LUNAR_INDEX = new Map();
-const SEASON_ENTRIES = [];
-let LUNAR_EVE;
-PRIORITY.forEach((entry, priority) => {
-	if (entry.kind === "solar") SOLAR_INDEX.set(entry.key, {
-		entry,
-		priority
-	});
-	else if (entry.kind === "lunar") LUNAR_INDEX.set(entry.key, {
-		entry,
-		priority
-	});
-	else if (entry.kind === "lunarEve") LUNAR_EVE = {
-		entry,
-		priority
-	};
-	else SEASON_ENTRIES.push({
-		entry,
-		priority,
-		from: entry.from,
-		to: entry.to
-	});
-});
-/** 条目里最长的预热天数与回看距离（长假 15 天 + 回味 3 天），据此决定扫描窗口。 */
-const HOLIDAY_ENTRIES = PRIORITY.filter((e) => e.kind !== "season");
-const MAX_AHEAD = Math.max(...HOLIDAY_ENTRIES.map((e) => e.ahead ?? DEFAULT_AHEAD));
-const MAX_LOOKBACK = Math.max(...HOLIDAY_ENTRIES.map((e) => (e.span ?? DEFAULT_SPAN) - 1 + (e.after ?? DEFAULT_AFTER)));
-
-//#endregion
-//#region src/host/time-context/lunar.ts
-/** ICU 中国农历格式器；null = 已判定本环境不可用（不重试、不抛错）。 */
-let lunarFormatter;
-/**
-* 取 ICU 农历格式器。Intl 在缺少该日历时不会抛错，而是静默退回公历——那会让每个月都被当成农历
-* 同月同日，所以用 resolvedOptions().calendar 确认它真的解析成了 'chinese'，否则一律判不可用。
-*/
-function getLunarFormatter() {
-	if (lunarFormatter === null) return void 0;
-	if (!lunarFormatter) {
-		const fmt = new Intl.DateTimeFormat("en-u-ca-chinese", {
-			month: "numeric",
-			day: "numeric",
-			year: "numeric"
-		});
-		lunarFormatter = fmt.resolvedOptions().calendar === "chinese" ? fmt : null;
-	}
-	return lunarFormatter ?? void 0;
-}
-function dayOfYear(date) {
-	return (Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) - Date.UTC(date.getFullYear(), 0, 1)) / DAY_MS$1;
-}
-function dayOfYearOf(year, monthDay) {
-	const [month, day] = monthDay.split("-").map(Number);
-	return (Date.UTC(year, (month ?? 1) - 1, day ?? 1) - Date.UTC(year, 0, 1)) / DAY_MS$1;
-}
-/**
-* 公历日期 → 农历月日。
-*
-* 已知精度边界（已评估并接受）：朔时刻贴近 UTC+8 午夜时 ICU 会把农历初一放错一天——2025–2060 的
-* 445 个月起点里错 2 个，都是正月（2027-02-06 距午夜 8 分钟、2030-02-03 距午夜 5 分钟），表现为那
-* 两年春节与元宵各差一天；2027 一例已与香港天文台官方对照表核对。要绝对准确只需换掉本函数实现
-* （换库或加修正表），下游逻辑一行不用动。
-* @returns 农历月/日（闰月 month 为负）；环境不支持农历、取不到月日，或农历年与公历年不吻合
-*   （自洽校验：农历年只可能是当年或前一年，挡住 ICU 退化时把公历当农历返回）→ undefined。
-*/
-function lunarPartsOf(date) {
-	const fmt = getLunarFormatter();
-	if (!fmt) return void 0;
-	const parts = fmt.formatToParts(date);
-	const pick = (type) => parts.find((p) => p.type === type)?.value;
-	const rawMonth = pick("month");
-	const rawDay = pick("day");
-	const rawYear = pick("relatedYear") ?? pick("year");
-	if (!rawMonth || !rawDay || !rawYear) return void 0;
-	const month = Number.parseInt(rawMonth, 10);
-	const day = Number.parseInt(rawDay, 10);
-	const year = Number.parseInt(rawYear, 10);
-	if (!Number.isFinite(month) || !Number.isFinite(day) || !Number.isFinite(year)) return void 0;
-	const gregorianYear = date.getFullYear();
-	if (year !== gregorianYear && year !== gregorianYear - 1) return void 0;
-	return {
-		month: /bis/i.test(rawMonth) ? -month : month,
-		day
-	};
-}
-/** 当天是否是除夕（腊月最后一天：次日为正月初一即成立，廿九/三十都能认）。 */
-function isLunarEve(date) {
-	const today = lunarPartsOf(date);
-	if (!today || today.month !== 12) return false;
-	const next = lunarPartsOf(new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1));
-	return Boolean(next && next.month === 1 && next.day === 1);
-}
-function entriesAt(date) {
-	const out = [];
-	const solar = SOLAR_INDEX.get(date.getMonth() + 1 + "-" + date.getDate());
-	if (solar) out.push(solar);
-	const lunar = lunarPartsOf(date);
-	if (lunar && lunar.month > 0) {
-		const hit = LUNAR_INDEX.get(lunar.month + "-" + lunar.day);
-		if (hit) out.push(hit);
-	}
-	if (LUNAR_EVE && isLunarEve(date)) out.push(LUNAR_EVE);
-	return out;
-}
-
-//#endregion
-//#region src/host/time-context/context.ts
-/**
-* 相位 → 从句措辞。
-* @param entry - 节日条目；`name`/`spoken`/`span` 决定措辞与默认窗口。
-* @param delta - 相对节日起始日的天数：> 0 = 还有这么多天；0 = 起始当天；< 0 = 已在节期内或过后。
-*/
-function phraseOf(entry, delta) {
-	const span = entry.span ?? DEFAULT_SPAN;
-	if (delta > 0) return delta === 1 ? "明天就是" + entry.name : "快要过" + entry.name + "了";
-	if (delta === 0) return "今天是" + (entry.spoken ?? entry.name);
-	const daysIn = -delta;
-	if (daysIn < span) return span - daysIn === 1 ? entry.name + "假期最后一天了" : "还在" + entry.name + "假期里";
-	const rest = daysIn - span;
-	return rest <= 1 ? entry.name + "刚过完" : entry.name + "这么快就过完了";
-}
-/**
-* 条目 → 候选从句（不在自身窗口内则返回 undefined）。
-* @param ranked - 已排序条目；`priority` 高者先出候选。
-* @param delta - 相对节日起始日的天数。
-*/
-function candidateOf(ranked, delta) {
-	const { entry, priority } = ranked;
-	const ahead = entry.ahead ?? DEFAULT_AHEAD;
-	const span = entry.span ?? DEFAULT_SPAN;
-	const after = entry.after ?? DEFAULT_AFTER;
-	const daysIn = -delta;
-	if (delta > 0) {
-		if (delta > ahead) return void 0;
-	} else if (delta < 0) {
-		if (daysIn >= span + after) return void 0;
-	}
-	return {
-		clause: phraseOf(entry, delta),
-		priority
-	};
-}
-/** 假期区间 → 候选从句（不在窗口内返回 undefined）。 */
-function seasonCandidateOf(date) {
-	const year = date.getFullYear();
-	const today = dayOfYear(date);
-	for (const ranked of SEASON_ENTRIES) {
-		const { entry, priority, from: fromMd, to: toMd } = ranked;
-		const name = entry.name;
-		const from = dayOfYearOf(year, fromMd);
-		const to = dayOfYearOf(year, toMd);
-		if (today < from) {
-			const ahead = from - today;
-			if (ahead > SEASON_AHEAD) continue;
-			return {
-				clause: ahead === 1 ? "明天就放" + name + "了" : "快要放" + name + "了",
-				priority
-			};
-		}
-		if (today <= to) {
-			if (today === from) return {
-				clause: name + "开始了",
-				priority
-			};
-			if (to - today < SEASON_ENDING_AHEAD) return {
-				clause: name + "快结束了",
-				priority
-			};
-			return {
-				clause: "正在放" + name,
-				priority
-			};
-		}
-		const rest = today - to - 1;
-		if (rest >= SEASON_AFTER) continue;
-		return {
-			clause: rest <= 1 ? name + "刚结束" : name + "这么快就过完了",
-			priority
-		};
-	}
-	return void 0;
-}
-/**
-* 节日从句：扫描窗口内枚举每一天命中的条目、算出各自相位与措辞，取优先级最小（数组里最靠前）的那个。
-* @returns 如「今天是大年初一」「快要过国庆节了」「还在春节假期里」「正在放暑假」；无节日时 ''。
-*/
-function holidayClauseOf(date) {
-	let best;
-	const keep = (candidate) => {
-		if (candidate && (!best || candidate.priority < best.priority)) best = candidate;
-	};
-	for (let delta = -MAX_LOOKBACK; delta <= MAX_AHEAD; delta++) {
-		const day = new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta);
-		for (const ranked of entriesAt(day)) keep(candidateOf(ranked, delta));
-	}
-	keep(seasonCandidateOf(date));
-	return best ? best.clause : "";
-}
-function timeContextOf(date) {
-	if (Number.isNaN(date.getTime())) return "";
-	const day = date.getDay();
-	const hour = date.getHours();
-	const holiday = holidayClauseOf(date);
-	return "【当下】现在是" + date.getFullYear() + "年" + (date.getMonth() + 1) + "月" + date.getDate() + "日" + (WEEKDAYS[day] ?? "星期?") + " " + pad2(hour) + ":" + pad2(date.getMinutes()) + "，" + timeSlotOf(hour) + "，" + dayKindOf(day) + (holiday ? "，" + holiday : "") + "。这只是背景，不必刻意报时，也别句句都提节日——多数时候正常说话就好，真贴切时才顺口带一句。";
-}
-
-//#endregion
-//#region src/host/persona.ts
-function petPersona(conf, pet) {
-	const own$1 = pet.whisperPrompt;
-	if (typeof own$1 === "string" && own$1.trim() !== "") return own$1;
-	const entry = conf.whisperPrompt;
-	return typeof entry === "string" ? entry : "";
-}
-function composeSystemPrompt(parts) {
-	const name = String(parts.name || parts.id);
-	const nameLine = name ? "你的名字是“" + name + "”。" : "";
-	const lines = [parts.prompt, nameLine].filter((line) => line !== "");
-	const time = timeContextOf(parts.now);
-	if (time) lines.push(time);
-	return lines.join("\n");
-}
-
-//#endregion
-//#region src/host/whisper.ts
-/** 单次生成超时（ms）：碎碎念不需要长输出，30s 足够。 */
-const TIMEOUT_MS = 3e4;
-/** 碎碎念指令：纯文本（没有配图时的原样请求）。 */
-const USER_TEXT = "随便说一句日常碎碎念，一句就好，20 字以内。";
-/** 梦话指令：睡觉期间嘟囔一句。与碎碎念指令同属「功能指令」，不进配置（配置里只有人设）。 */
-const SLEEP_TALK_TEXT = "你正在睡觉，随便嘟囔一句梦话，一句就好，20 字以内；含糊、半梦半醒，不要清醒地回应任何人。";
-const SLEEP_TALK_INSTRUCTION = SLEEP_TALK_TEXT;
-/**
-* 碎碎念指令：带表情包时要求模型配合作画说一句。
-*
-* 明确「正文仍是一句话」：图是配图，不是让模型描述画面本身。
-* 图由调用方随机抽而不是让模型选：碎碎念没有上下文可依（人设固定、无用户输入），
-* 交模型选只能盲选，还多一层幻觉风险。
-*/
-function userTextWithMeme(meme) {
-	return "随便说一句日常碎碎念，一句就好，20 字以内。\n这次会配一张表情包一起显示，图的内容是：" + meme.name + "（" + meme.desc + "）。\n请让这句话和这张图的情绪/场景自然契合，像是配合画面说出来的；不要描述画面本身。";
-}
-async function generateWhisper(ctx, request) {
-	const candidates = modelCandidates(ctx, request.preferred);
-	if (candidates.length === 0) return {
-		ok: false,
-		reason: "provider-missing",
-		message: "当前对话未配置模型"
-	};
-	const llm = ctx.llm;
-	if (!llm || typeof llm.stream !== "function") return {
-		ok: false,
-		reason: "generate-error",
-		message: "LLM 服务不可用"
-	};
-	let last = {
-		ok: false,
-		reason: "generate-error",
-		message: noTextReason(void 0)
-	};
-	for (const [i, sel] of candidates.entries()) {
-		const result = await generateWith(ctx, llm, sel, request);
-		if (result.ok) return result;
-		last = result;
-		if (i + 1 < candidates.length) defaultLog("warn", `dsh-pet: 碎碎念用 ${modelLabel(sel)} 生成失败（${result.message ?? result.reason}），回落到 ${modelLabel(candidates[i + 1])}`);
-	}
-	return last;
-}
-/** 用一个确定的 provider/model 跑一次生成（候选链的一环；失败原样返回结构化原因，不吞）。 */
-async function generateWith(ctx, llm, sel, request) {
-	const deadline = AbortSignal.timeout(TIMEOUT_MS);
-	const supportsOff = await supportsReasoningOff(ctx, sel.provider, sel.model);
-	const options = {
-		provider: sel.provider,
-		model: sel.model,
-		sessionId: PET_CALL_IDENTITY,
-		messages: [createUserMessage({
-			content: [{
-				type: "text",
-				text: request.instruction ?? (request.meme ? userTextWithMeme(request.meme) : USER_TEXT)
-			}],
-			source: { kind: "user" }
-		})],
-		system: request.system,
-		temperature: 1,
-		...supportsOff ? { reasoningEffort: ReasoningEffortId("off") } : {},
-		signal: deadline
-	};
-	const assembler = new BlockAssembler();
-	try {
-		for await (const chunk of llm.stream(options)) assembler.push(chunk);
-	} catch (e) {
-		return {
-			ok: false,
-			reason: "generate-error",
-			message: e instanceof Error ? e.message : String(e)
-		};
-	}
-	const text = assembler.blocks().filter((b) => b.type === "text").map((b) => "text" in b ? b.text : "").join("").trim();
-	if (!text) return {
-		ok: false,
-		reason: "generate-error",
-		message: noTextReason(assembler.finish)
-	};
-	return request.meme ? {
-		ok: true,
-		text,
-		image: request.meme.name
-	} : {
-		ok: true,
-		text
-	};
-}
-
-//#endregion
-//#region src/host/plugin/memory-orphans.ts
-function createMemoryOrphans(deps) {
-	const { configPaths, readMemory, writeMemory, withLock } = deps;
-	/** 读出配置里已不存在的宠物分桶；只看条数与最后时间，不带正文。 */
-	const orphanHistory = async () => {
-		const cfg = readAllConfig(configPaths);
-		const mem = await readMemory();
-		const out = [];
-		for (const [entry, byPet] of Object.entries(mem)) {
-			if (!byPet || typeof byPet !== "object") continue;
-			for (const [petId, leaf] of Object.entries(byPet)) {
-				if (findPetInstance(cfg, petId)) continue;
-				const list = Array.isArray(leaf?.messages) ? leaf.messages : [];
-				out.push({
-					entry,
-					petId,
-					messages: list.length,
-					lastTs: Number(list[list.length - 1]?.ts ?? 0)
-				});
-			}
-		}
-		return out;
-	};
-	/** 清掉所有残留分桶；空条目一并摘除。 */
-	const deleteOrphans = async () => withLock(async () => {
-		const cfg = readAllConfig(configPaths);
-		const mem = await readMemory();
-		let pets = 0;
-		let messages = 0;
-		for (const [entry, byPet] of Object.entries(mem)) {
-			if (!byPet || typeof byPet !== "object") continue;
-			for (const [petId, leaf] of Object.entries(byPet)) {
-				if (findPetInstance(cfg, petId)) continue;
-				messages += Array.isArray(leaf?.messages) ? leaf.messages.length : 0;
-				pets += 1;
-				delete byPet[petId];
-			}
-			if (Object.keys(byPet).length === 0) delete mem[entry];
-		}
-		if (pets > 0) await writeMemory(mem);
-		deps.log.info(`[dsh-pet] 清理已删宠物的历史 pets=${pets}，messages=${messages}`);
-		return {
-			ok: true,
-			pets,
-			messages
-		};
-	});
-	return {
-		orphanHistory,
-		deleteOrphans
-	};
-}
-
-//#endregion
-//#region src/host/plugin/chat-memory.ts
-/** 这一句该由哪一端念：取宠物实例的 display 推导（桌面优先）；两端都不显示时为 `undefined`。 */
-function voiceTargetFor(pet) {
-	return pickVoiceSurface(String(pet.display ?? "")) ?? void 0;
-}
-function createChatMemory(deps) {
-	const { ctx, configPaths, log, memeDirsFor, playback, state, userRoot } = deps;
-	let activePetId = "";
-	const lastWhisperAt = new Map();
-	const memoryPath = join(userRoot, "memory.json");
-	let chatQueue = Promise.resolve();
-	/** 读记忆文件：不存在 → 空；解析失败/根不是对象 → 记日志 + 空记忆（不备份、不改写源文件） */
-	const readMemory = async () => {
-		let raw;
-		try {
-			raw = await readFile(memoryPath, "utf8");
-		} catch {
-			return {};
-		}
-		try {
-			const parsed = JSON.parse(raw);
-			if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
-			return parsed;
-		} catch (e) {
-			log.error(`dsh-pet: 记忆文件无法解析（对话将从头开始）：${memoryPath}（${e instanceof Error ? e.message : String(e)}）`);
-			return {};
-		}
-	};
-	const writeMemory = async (mem) => {
-		await mkdir(userRoot, { recursive: true });
-		await writeFile(memoryPath, JSON.stringify(mem, null, 2), "utf8");
-	};
-	/** 把一次读写封进串行队列（同进程内防交错），返回 fn 的结果 */
-	const withMemoryLock = (fn) => {
-		const run$1 = chatQueue.then(fn, fn);
-		chatQueue = run$1.then(() => void 0, () => void 0);
-		return run$1;
-	};
-	/** 某宠物的最终人设 system：实例级 `pets[].whisperPrompt` 优先，没写回落到所属条目的那份。
-	*  拼装在 ./persona（纯函数）：人设正文 + 名字声明 + 一行时间背景，时间每次现算。
-	*  收 `findPetInstance` 的命中结果而不是 (petId, cfg)：调用方都已解析过，再查只会多一处
-	*  「查不到就兜底 main」的不可达分支。 */
-	const petSystemPrompt = (found) => composeSystemPrompt({
-		prompt: petPersona(found.conf, found.pet),
-		name: String(found.pet.name ?? ""),
-		id: String(found.pet.id ?? ""),
-		now: new Date()
-	});
-	/** 对话记忆轮数（1 轮 = 1 问 1 答）：该宠物所属条目的 chatMemoryRounds（合并器已填默认）。
-	*  收已解析的条目配置：调用方都已拿到 `findPetInstance` 的结果。 */
-	const memoryRounds = (conf) => {
-		const v = Number(conf.chatMemoryRounds);
-		return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 5;
-	};
-	/** 生成并返回某宠物的一句碎碎念（周期调度、菜单手动触发与命令行共用）：人设取它自己的 whisperPrompt，
-	*  没写回落到所属条目；成功写进 S 的 pets.<id>.say——碎碎念 / 命令气泡 / 对话回复在前端是同一条
-	*  展示链路，所以共用一个叶子。配图开关开启时从表情包池随机抽 1 张。
-	*  失败带回真实 reason（含 unknown-pet / unknown-image），成功带回生成的文本——调用方不必再拉一拍 /state。
-	*
-	*  @param petId - 目标宠物实例 id。
-	*  @param image - 指定配图的名称：给了就只用这张（不受 whisperImageEnabled 门控，手动点图是显式意图），
-	*  不在池内返回 unknown-image；缺省 = 按开关随机抽或纯文本。
-	*  @param voiceTo - 这一句该由哪一端念；缺省按它自己的 display 推导（桌面优先，见 {@link pickVoiceSurface}）。
-	*  路由层带 `?surface=` 的会显式传请求面，其余调用点留空即可。
-	*  @param kind - 这次生成的来源：`whisper` = 周期调度，受 `voiceWhisperEnabled` 管；`manual` = 菜单、
-	*  斜杠命令、路由主动触发，不看那个开关（用户主动点的就是这一句）。缺省 `manual`。
-	*/
-	const publishWhisper = async (petId, image, voiceTo, kind = "manual") => {
-		const cfg = readAllConfig(configPaths);
-		const found = findPetInstance(cfg, petId);
-		if (!found) return {
-			ok: false,
-			reason: "unknown-pet",
-			message: "没有这只桌宠：" + petId
-		};
-		const whisperVoiceOn = cfg.main?.voiceWhisperEnabled === true;
-		const target = kind === "whisper" && !whisperVoiceOn ? void 0 : voiceTo ?? voiceTargetFor(found.pet);
-		const system = petSystemPrompt(found);
-		const pool = readMemePool(found.conf.memes, memeDirsFor(found.entry));
-		const forced = image === void 0 ? void 0 : matchMeme(pool, image);
-		if (image !== void 0 && forced === void 0) return {
-			ok: false,
-			reason: "unknown-image",
-			message: "表情包不在池内：" + image
-		};
-		const meme = forced ?? (found.conf.whisperImageEnabled === true ? pickMeme(pool) : void 0);
-		const result = await generateWhisper(ctx, {
-			system,
-			meme,
-			preferred: configuredModel(found.conf, "whisperModel")
-		});
-		if (!result.ok) {
-			log.warn("[dsh-pet] 碎碎念生成失败 pet=" + petId + " reason=" + result.reason + (result.message ? " " + result.message : ""));
-			return result;
-		}
-		state.writePet(petId, "say", {
-			text: result.text,
-			...result.image ? { image: result.image } : {},
-			...target ? { voiceTo: target } : {}
-		});
-		log.info(`[dsh-pet] 碎碎念生成成功 pet=${petId}，${result.text.length} 字` + (result.image ? `，配图=${result.image}` : ""));
-		return {
-			ok: true,
-			text: result.text,
-			...result.image ? { image: result.image } : {}
-		};
-	};
-	/** 生成并写一句梦话：system 只用人设，功能指令在 whisper（与碎碎念同属代码常量）；不配图、不念、不换动画。
-	*  睡着时「换动画」本身就是打扰，所以写 `say` 显式 `anim: false`，也不写 `voiceTo`。
-	*  @returns 是否真的生成并写进了 S；失败只留一行日志，调度下一拍再试。 */
-	const publishSleepTalk = async (petId) => {
-		const cfg = readAllConfig(configPaths);
-		const found = findPetInstance(cfg, petId);
-		if (!found) return false;
-		const system = petSystemPrompt(found);
-		const result = await generateWhisper(ctx, {
-			system,
-			preferred: configuredModel(found.conf, "whisperModel"),
-			instruction: SLEEP_TALK_INSTRUCTION
-		});
-		if (!result.ok) {
-			log.warn("[dsh-pet] 梦话生成失败 pet=" + petId + " reason=" + result.reason + (result.message ? " " + result.message : ""));
-			return false;
-		}
-		state.writePet(petId, "say", {
-			text: result.text,
-			anim: false
-		});
-		log.info(`[dsh-pet] 梦话生成成功 pet=${petId}，${result.text.length} 字`);
-		return true;
-	};
-	/** 与某只宠物对话：截取最近记忆 → 生成回复 → 写入记忆 → 写进 S 的 pets.<id>.say。
-	*  供 POST /chat 与 /chat 命令共用（锁内读写，防两端交错写盘）；成功带回回复文本。 */
-	const chatWithPet = async (petId, text, image) => withMemoryLock(async () => {
-		const cfg = readAllConfig(configPaths);
-		const found = findPetInstance(cfg, petId);
-		if (!found) return {
-			ok: false,
-			reason: "unknown-pet",
-			message: "没有这只桌宠：" + petId
-		};
-		const rounds = memoryRounds(found.conf);
-		const system = petSystemPrompt(found);
-		const pool = found.conf.chatImageEnabled === true ? limitPool(readMemePool(found.conf.memes, memeDirsFor(found.entry)), Number(found.conf.chatImageLimit)) : [];
-		const actions = found.conf.chatAnimationEnabled === true ? chatActionNames(found.conf.animations) : [];
-		const mem = await readMemory();
-		const bucket = mem[found.entry] && typeof mem[found.entry] === "object" && !Array.isArray(mem[found.entry]) ? mem[found.entry] : mem[found.entry] = {};
-		const existing = bucket[petId];
-		if (existing !== void 0 && (!existing || !Array.isArray(existing.messages))) log.error(`[dsh-pet] 记忆结构异常（messages 不是数组）pet=${petId}，按新会话处理：${memoryPath}`);
-		const entry = existing && Array.isArray(existing.messages) ? existing : bucket[petId] = { messages: [] };
-		const list = sliceMemoryRounds(entry.messages, rounds);
-		if (image !== void 0) log.info(`[dsh-pet] 对话附带图片 pet=${petId}，${image.width}x${image.height}，${image.bytes} 字节（模型不支持读图时内核会以占位文本代替）`);
-		const generated = await generateChat({
-			ctx,
-			system,
-			history: list,
-			userText: text,
-			pool,
-			actions,
-			preferred: configuredModel(found.conf, "chatModel"),
-			image
-		});
-		if (!generated.ok) return generated;
-		const now = Date.now();
-		entry.messages.push({
-			role: "user",
-			content: text,
-			ts: now,
-			...image ? { image } : {}
-		});
-		entry.messages.push({
-			role: "assistant",
-			content: generated.text,
-			ts: now,
-			...generated.image ? { meme: generated.image } : {},
-			...generated.action ? { action: generated.action } : {}
-		});
-		await writeMemory(mem);
-		if (generated.action !== void 0) {
-			const record = playback.create(petId, generated.action);
-			state.writePet(petId, "anim", {
-				name: generated.action,
-				playbackId: record.playbackId
-			});
-		}
-		const replyVoiceTo = voiceTargetFor(found.pet);
-		if (generated.text !== "") state.writePet(petId, "say", {
-			text: generated.text,
-			...generated.image ? { image: generated.image } : {},
-			...generated.action !== void 0 ? { anim: false } : {},
-			...replyVoiceTo ? { voiceTo: replyVoiceTo } : {}
-		});
-		return {
-			ok: true,
-			text: generated.text,
-			...generated.image ? { image: generated.image } : {}
-		};
-	});
-	/** 删除某只宠物的对话记忆：`ts` 缺省 = 清空全部，给了 ts = 只删命中的轮（一轮两条共享 ts，成对删）。
-	*  与对话共用同一条串行队列——删除不会插进一次回复的读-改-写中间，也不会被它覆盖写回。
-	*  删空的宠物连叶子与空条目一起摘掉：否则 memory.json 里会永久堆着空对象，看不出这里曾有历史。 */
-	const deleteHistory = async (petId, ts) => withMemoryLock(async () => {
-		const cfg = readAllConfig(configPaths);
-		const found = findPetInstance(cfg, petId);
-		if (!found) return {
-			ok: false,
-			reason: "unknown-pet",
-			message: "没有这只桌宠：" + petId
-		};
-		const mem = await readMemory();
-		const byPet = mem[found.entry];
-		const before = byPet?.[petId]?.messages;
-		const list = Array.isArray(before) ? before : [];
-		const kept = ts === void 0 ? [] : removeRoundsByTs(list, ts).messages;
-		const removed = list.length - kept.length;
-		if (removed > 0) {
-			const leaf = byPet?.[petId];
-			if (kept.length > 0 && leaf !== void 0) leaf.messages = kept;
-			else if (byPet !== void 0) {
-				delete byPet[petId];
-				if (Object.keys(byPet).length === 0) delete mem[found.entry];
-			}
-			await writeMemory(mem);
-		}
-		log.info(`[dsh-pet] 删除对话记忆 pet=${petId}，removed=${removed}` + (ts === void 0 ? "（清空）" : ""));
-		return {
-			ok: true,
-			removed
-		};
-	});
-	/** 已删宠物残留历史的查询与清理（判定与读写细节见 ./memory-orphans）。 */
-	const { orphanHistory, deleteOrphans } = createMemoryOrphans({
-		configPaths,
-		readMemory,
-		writeMemory,
-		withLock: withMemoryLock,
-		log
-	});
-	/** 当前活跃宠物 id（会话事件写入，余额与碎念读取）。 */
-	const getActivePetId = () => activePetId;
-	/** 改写当前活跃宠物 id。 */
-	const setActivePetId = (id) => {
-		activePetId = id;
-	};
-	return {
-		lastWhisperAt,
-		memoryPath,
-		readMemory,
-		memoryRounds,
-		publishWhisper,
-		publishSleepTalk,
-		chatWithPet,
-		deleteHistory,
-		orphanHistory,
-		deleteOrphans,
-		getActivePetId,
-		setActivePetId
 	};
 }
 
@@ -9025,423 +6561,12 @@ function registerTodoReminders(deps) {
 }
 
 //#endregion
-//#region src/host/voice/cache.ts
-const CACHE_MAX_BYTES = 20 * 1024 * 1024;
-const CACHE_MAX_FILES = 200;
-function cachePath(userRoot, key) {
-	return join(userRoot, "voice-cache", `${key}.mp3`);
-}
-function cacheKey(source, voice, rate, text) {
-	return createHash("sha1").update(`${source}\n${voice}\n${rate}\n${text}`).digest("hex");
-}
-async function ensureCacheDir(userRoot) {
-	const dir = join(userRoot, "voice-cache");
-	await mkdir(dir, { recursive: true });
-	return dir;
-}
-async function pruneCache(dir, limits = {}) {
-	const maxBytes = limits.maxBytes ?? CACHE_MAX_BYTES;
-	const maxFiles = limits.maxFiles ?? CACHE_MAX_FILES;
-	let names;
-	try {
-		names = await readdir(dir);
-	} catch {
-		return 0;
-	}
-	const entries = [];
-	for (const name of names) {
-		if (!name.endsWith(".mp3")) continue;
-		const file = join(dir, name);
-		try {
-			const info = await stat(file);
-			entries.push({
-				file,
-				size: info.size,
-				mtimeMs: info.mtimeMs
-			});
-		} catch {}
-	}
-	entries.sort((a, b) => a.mtimeMs - b.mtimeMs);
-	let totalBytes = entries.reduce((sum, entry) => sum + entry.size, 0);
-	let totalFiles = entries.length;
-	let removed = 0;
-	for (const entry of entries) {
-		if (totalBytes <= maxBytes && totalFiles <= maxFiles) break;
-		try {
-			await rm(entry.file, { force: true });
-			removed += 1;
-			totalBytes -= entry.size;
-			totalFiles -= 1;
-		} catch {}
-	}
-	return removed;
-}
-
-//#endregion
-//#region src/host/voice/edge.ts
-/**
-* 按需加载可选依赖用的 CommonJS require。
-*
-* 不用动态 `import()`：宿主产物按单文件加载，动态 import 会被打包器拆成 chunk；这个依赖是 CJS，
-* require 既能在包缺失时抛出可捕获的错误，也不会把可选依赖拖进启动路径。
-*/
-const requireOptional = createRequire(import.meta.url);
-/** 单次合成超时（ms）：上游长时间无响应就判失败，不拖住串行队列。 */
-const SYNTHESIS_TIMEOUT_MS = 15e3;
-var VoiceSynthError = class extends Error {
-	constructor(message) {
-		super(message);
-		this.name = "VoiceSynthError";
-	}
-};
-async function synthesize({ signal, text, voice, rate, target }) {
-	const staging = `${target}.part`;
-	try {
-		const { EdgeTTS } = requireOptional("@andresaya/edge-tts");
-		const tts = new EdgeTTS();
-		const result = await tts.generate(text, voice, {
-			rate,
-			signal,
-			timeout: SYNTHESIS_TIMEOUT_MS
-		});
-		await writeFile(staging, result.audio);
-		await rename(staging, target);
-	} catch (error) {
-		await rm(staging, { force: true }).catch(() => void 0);
-		throw new VoiceSynthError(error instanceof Error ? error.message : String(error));
-	}
-}
-
-//#endregion
-//#region src/host/voice/speak.ts
-const MAX_TEXT_CHARS = 500;
-const MAX_QUEUE = 3;
-/** 语速表达式：`+N%` 或 `-N%`。 */
-const RATE_PATTERN = /^[+-]\d{1,3}%$/;
-/** 语速下界（百分比）。 */
-const RATE_MIN_PERCENT = -50;
-/** 语速上界（百分比）。 */
-const RATE_MAX_PERCENT = 100;
-/** 第三方实现的单次合成上限（ms）：与内置同口径，避免一句卡住串行队列。 */
-const PROVIDER_TIMEOUT_MS = 15e3;
-/** 内置 edge 合成的总时限（ms）：依赖自带的 15s 只是「静默」超时，每来一帧就重置，不能当总时限用。 */
-const BUILTIN_TIMEOUT_MS = 28e3;
-/** 排队超过这么久还没轮到就丢弃（ms）：等得比一次合成还久，客户端早已放弃，再合成只是白烧上游。 */
-const STALE_WAIT_MS = BUILTIN_TIMEOUT_MS;
-/** 校验请求体；只认 `text` / `voice` / `rate` 三个字段，其余忽略。 */
-function parseSpeakInput(raw) {
-	const body = raw && typeof raw === "object" ? raw : {};
-	const text = typeof body.text === "string" ? body.text.trim() : "";
-	if (!text) return {
-		ok: false,
-		message: "text is required"
-	};
-	if (text.length > MAX_TEXT_CHARS) return {
-		ok: false,
-		message: `text too long (max ${MAX_TEXT_CHARS} chars)`
-	};
-	const voice = body.voice === void 0 ? DEFAULT_VOICE : body.voice;
-	if (typeof voice !== "string" || !isKnownVoice(voice)) return {
-		ok: false,
-		message: `unknown voice; allowed: ${VOICES.map((item) => item.id).join(", ")}`
-	};
-	const rate = body.rate === void 0 ? "+0%" : body.rate;
-	if (typeof rate !== "string" || !RATE_PATTERN.test(rate)) return {
-		ok: false,
-		message: "rate must look like +0% or -10%"
-	};
-	const percent = Number(rate.slice(1, -1));
-	if (!Number.isFinite(percent) || percent < RATE_MIN_PERCENT || percent > RATE_MAX_PERCENT) return {
-		ok: false,
-		message: `rate out of range (${RATE_MIN_PERCENT}%..+${RATE_MAX_PERCENT}%)`
-	};
-	return {
-		ok: true,
-		value: {
-			text,
-			voice,
-			rate
-		}
-	};
-}
-/** 断言用：`SpeakResult` 的构造点都经过这里，避免各处手写同一句文案。 */
-function dropped() {
-	return {
-		ok: false,
-		reason: "voice-busy",
-		message: "queued too long, dropped"
-	};
-}
-function isQueueStale(queuedMs, nowMs, waitMs = STALE_WAIT_MS) {
-	return nowMs - queuedMs > waitMs;
-}
-function createVoiceService(options) {
-	const { userRoot, log } = options;
-	const synthesizeImpl = options.synthesize ?? synthesize;
-	const staleWaitMs = options.staleWaitMs ?? STALE_WAIT_MS;
-	/** 已占用的队列名额（含正在跑的那个）。 */
-	let queueUsed = 0;
-	/** 串行链：上一件事收尾（成功或失败）后才轮到下一件。 */
-	let chain = Promise.resolve();
-	/** 把一次合成排进串行链；无论成败都释放名额。 */
-	function enqueue(task) {
-		queueUsed += 1;
-		const run$1 = chain.then(task, task);
-		chain = run$1.then(() => void 0, () => void 0);
-		return run$1.finally(() => {
-			queueUsed -= 1;
-		});
-	}
-	/** 缓存命中返回文件路径；不存在或空文件返回 undefined。 */
-	async function findCached(target) {
-		try {
-			const info = await stat(target);
-			return info.isFile() && info.size > 0 ? target : void 0;
-		} catch {
-			return void 0;
-		}
-	}
-	async function speak(raw) {
-		const parsed = parseSpeakInput(raw);
-		if (!parsed.ok) return {
-			ok: false,
-			reason: "bad-request",
-			message: parsed.message
-		};
-		const { text, voice, rate } = parsed.value;
-		const provider = activeVoiceProvider();
-		const source = provider ? provider.id : BUILTIN_VOICE_ID;
-		const target = cachePath(userRoot, cacheKey(source, provider ? "" : voice, rate, text));
-		const startedMs = Date.now();
-		const cached = await findCached(target);
-		if (cached) {
-			log?.info?.(`[dsh-pet] voice speak: cache=hit chars=${text.length} voice=${source}`);
-			return {
-				ok: true,
-				file: cached
-			};
-		}
-		if (queueUsed >= MAX_QUEUE) {
-			log?.warn?.(`[dsh-pet] voice speak: queue full (max ${MAX_QUEUE}) chars=${text.length} voice=${source}`);
-			return {
-				ok: false,
-				reason: "voice-busy",
-				message: "voice queue is full, retry later"
-			};
-		}
-		const queue = { dropped: false };
-		const queuedMs = Date.now();
-		try {
-			await enqueue(async () => {
-				if (isQueueStale(queuedMs, Date.now(), staleWaitMs)) {
-					queue.dropped = true;
-					return;
-				}
-				const dir = await ensureCacheDir(userRoot);
-				if (provider) await synthesizeWithProvider(provider, {
-					text,
-					voice,
-					rate,
-					target
-				});
-				else await synthesizeImpl({
-					signal: AbortSignal.timeout(BUILTIN_TIMEOUT_MS),
-					target,
-					text,
-					voice,
-					rate
-				});
-				await pruneCache(dir);
-			});
-		} catch (error) {
-			log?.warn?.(`[dsh-pet] voice speak: failed chars=${text.length} voice=${source} ms=${Date.now() - startedMs} reason=${error instanceof VoiceSynthError ? error.message : String(error)}`);
-			return {
-				ok: false,
-				reason: "generate-error",
-				message: "voice synthesis failed"
-			};
-		}
-		if (queue.dropped) {
-			log?.warn?.(`[dsh-pet] voice speak: dropped chars=${text.length} voice=${source} queued=${Date.now() - queuedMs}ms`);
-			return dropped();
-		}
-		log?.info?.(`[dsh-pet] voice speak: cache=miss chars=${text.length} voice=${source} ms=${Date.now() - startedMs}`);
-		return {
-			ok: true,
-			file: target
-		};
-	}
-	return {
-		listVoices: () => VOICES,
-		speak
-	};
-}
-/** 给一个 Promise 套超时；超时 reject，原 Promise 不被取消（provider 自己该处理放弃）。 */
-function withTimeout(task, timeoutMs) {
-	return new Promise((resolve$1, reject) => {
-		const timer = setTimeout(() => reject(new Error("voice provider timed out")), timeoutMs);
-		timer.unref?.();
-		task.then((value) => {
-			clearTimeout(timer);
-			resolve$1(value);
-		}, (error) => {
-			clearTimeout(timer);
-			reject(error);
-		});
-	});
-}
-/**
-* 用第三方实现合成并落盘。
-*
-* 空字节按失败处理：0 字节文件会被 {@link findCached} 的 `size > 0` 跳过，
-* 于是每次请求都重新合成、每次又得到空文件，白烧上游。
-*/
-async function synthesizeWithProvider(provider, input) {
-	let bytes;
-	try {
-		bytes = await withTimeout(provider.synthesize({
-			text: input.text,
-			rate: input.rate
-		}), PROVIDER_TIMEOUT_MS);
-	} catch (error) {
-		throw new VoiceSynthError(error instanceof Error ? error.message : String(error));
-	}
-	if (bytes.length === 0) throw new VoiceSynthError("voice provider returned empty audio");
-	await writeFile(input.target, bytes);
-}
-
-//#endregion
-//#region src/host/voice/hear.ts
-const MAX_AUDIO_BYTES = 768 * 1024;
-const TRANSCRIBE_TIMEOUT_MS = 3e4;
-/** base64 字面量：`Buffer.from` 解码很宽松，先按字母表与补齐规则挡掉脏数据。 */
-const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
-/**
-* 校验请求体；只认 `audio` 与 `language` 两个字段，其余忽略。
-*
-* @param raw - 已解析的请求体。
-* @returns 已解码的音频字节；任何字段不合法时给出可直接回给调用方的说明。
-*/
-function parseHearInput(raw) {
-	const body = raw && typeof raw === "object" ? raw : {};
-	const encoded = typeof body.audio === "string" ? body.audio.trim() : "";
-	if (encoded === "") return {
-		ok: false,
-		message: "audio is required"
-	};
-	if (!BASE64_PATTERN.test(encoded) || encoded.replace(/=+$/, "").length % 4 === 1) return {
-		ok: false,
-		message: "audio must be base64"
-	};
-	const audio = new Uint8Array(Buffer.from(encoded, "base64"));
-	if (audio.byteLength === 0) return {
-		ok: false,
-		message: "audio is empty"
-	};
-	if (audio.byteLength > MAX_AUDIO_BYTES) return {
-		ok: false,
-		message: `audio too large (max ${MAX_AUDIO_BYTES} bytes)`
-	};
-	const language = body.language;
-	if (language !== void 0 && (typeof language !== "string" || language.trim() === "")) return {
-		ok: false,
-		message: "language must be a non-empty string"
-	};
-	return {
-		ok: true,
-		value: {
-			audio,
-			...language === void 0 ? {} : { language: language.trim() }
-		}
-	};
-}
-/**
-* 给一次识别套上超时与调用方中止，把结论收敛成「值或一句说明」。
-*
-* 两个来源（第三方、宿主）都只认一个 signal，所以在这里合并，调用方不必各写一遍。
-*
-* @param signal - 调用方中止信号（连接断开）。
-* @param timeoutMs - 超时上限。
-* @param task - 真正执行识别的函数。
-* @returns 成功给任务的值；超时或抛错给原始错误说明。
-*/
-async function withDeadline(signal, timeoutMs, task) {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	timer.unref();
-	const onAbort = () => controller.abort();
-	signal?.addEventListener("abort", onAbort, { once: true });
-	try {
-		return {
-			ok: true,
-			value: await task(controller.signal)
-		};
-	} catch (error) {
-		return {
-			ok: false,
-			message: error instanceof Error ? error.message : String(error)
-		};
-	} finally {
-		clearTimeout(timer);
-		signal?.removeEventListener("abort", onAbort);
-	}
-}
-function createHearService(options) {
-	const timeoutMs = options.timeoutMs ?? TRANSCRIBE_TIMEOUT_MS;
-	return { async hear(raw, signal) {
-		const parsed = parseHearInput(raw);
-		if (!parsed.ok) return {
-			ok: false,
-			reason: "bad-request",
-			message: parsed.message
-		};
-		const provider = activeSpeechProvider();
-		if (provider !== null) {
-			const run$2 = await withDeadline(signal, timeoutMs, (inner) => provider.transcribe(parsed.value, inner));
-			if (!run$2.ok) return {
-				ok: false,
-				reason: "generate-error",
-				message: run$2.message
-			};
-			if (typeof run$2.value !== "string") return {
-				ok: false,
-				reason: "generate-error",
-				message: "invalid transcript from provider"
-			};
-			return {
-				ok: true,
-				text: run$2.value
-			};
-		}
-		const speech = options.speechToText();
-		if (speech === void 0 || typeof speech.transcribe !== "function") return {
-			ok: false,
-			reason: "unsupported",
-			message: "host has no speech-to-text service"
-		};
-		if (speech.listProviders().length === 0) return {
-			ok: false,
-			reason: "unsupported",
-			message: "host has no speech provider enabled"
-		};
-		const run$1 = await withDeadline(signal, timeoutMs, async (inner) => (await speech.transcribe(speech.resolve(parsed.value), inner)).text);
-		if (!run$1.ok) return {
-			ok: false,
-			reason: "generate-error",
-			message: run$1.message
-		};
-		return {
-			ok: true,
-			text: run$1.value
-		};
-	} };
-}
-
-//#endregion
 //#region src/host/index.ts
 function apply(ctx) {
 	const setup = createHostSetup(ctx);
-	const { userRoot, log, configPaths, thumbUserRoot, memeDirsFor, standaloneAiPolicy, state, playback, workStatus, EXTERNAL_WORK_SESSION, nextExternalWorkSeq } = setup;
+	const { userRoot, log, configPaths, thumbUserRoot, state, playback, workStatus, EXTERNAL_WORK_SESSION, nextExternalWorkSeq } = setup;
+	/** 现读的宠物实例列表（main + 文件宠物，已完成条目级字段拍平）。 */
+	const effectivePetList = () => flattenPetList(readAllConfig(configPaths));
 	const workStatusBridge = createWorkStatusBridge({
 		state,
 		workStatus
@@ -9458,7 +6583,7 @@ function apply(ctx) {
 		state,
 		configPaths
 	});
-	const { lock, sleep, sleepRefusalText } = petLookup;
+	const { lock, sleep } = petLookup;
 	const sessionNotify = createSessionNotify({
 		ctx,
 		publishWorkStatus,
@@ -9466,24 +6591,6 @@ function apply(ctx) {
 		workStatus
 	});
 	const { pushNotifyFrame, turnFlags, terminalTimers, lastTodoText, lastReplyText, toolsInFlight, cancelTerminalCleanup, scheduleTerminalCleanup, notifyActivityTimers, scheduleCompletionNotify } = sessionNotify;
-	const chatMemory = createChatMemory({
-		ctx,
-		configPaths,
-		log,
-		memeDirsFor,
-		playback,
-		state,
-		userRoot
-	});
-	const { lastWhisperAt, publishWhisper, publishSleepTalk, chatWithPet, getActivePetId, setActivePetId } = chatMemory;
-	const balancePoll = createBalancePoll({
-		ctx,
-		configPaths,
-		getActivePetId,
-		log,
-		state
-	});
-	const { effectivePetList, balancePeriodSec, whisperPeriodSec, refreshBalance, resolveActivePetId, petDisplayName } = balancePoll;
 	const todos = new TodoStore({
 		file: join(userRoot, TODO_FILE_NAME),
 		log
@@ -9502,17 +6609,9 @@ function apply(ctx) {
 		...setup,
 		...petLookup,
 		...workStatusBridge,
-		...chatMemory,
-		...balancePoll,
 		...desktopHelper,
-		...sessionNotify,
 		ctx,
-		todos,
-		voice: createVoiceService({
-			userRoot,
-			log
-		}),
-		speech: createHearService({ speechToText: () => setup.optionalService("speechToText") })
+		todos
 	};
 	const httpRoute = createHttpRoute(deps);
 	registerHttpRoute(ctx, httpRoute.handlePetRoute);
@@ -9531,47 +6630,10 @@ function apply(ctx) {
 		turnFlags,
 		workStatus
 	});
-	registerBalanceCommand({
-		ctx,
-		effectivePetList,
-		refreshBalance,
-		sleep,
-		sleepRefusalText
-	});
-	registerLoops({
-		ctx,
-		balancePeriodSec,
-		configPaths,
-		lastWhisperAt,
-		lock,
-		log,
-		publishWhisper,
-		publishSleepTalk,
-		refreshBalance,
-		sleep,
-		standaloneAiPolicy,
-		whisperPeriodSec
-	});
-	registerPetCommand({
-		ctx,
-		effectivePetList,
-		petDisplayName,
-		resolveActivePetId,
-		setActivePetId
-	});
-	registerChatCommand({
-		ctx,
-		chatWithPet,
-		log,
-		publishWhisper,
-		resolveActivePetId,
-		sleep,
-		sleepRefusalText
-	});
 	registerTodoReminders({
 		ctx,
 		effectivePetList,
-		isVoiceTodoEnabled: () => readAllConfig(configPaths).main?.voiceTodoEnabled === true,
+		isVoiceTodoEnabled: () => false,
 		lock,
 		log,
 		sleep,
@@ -10724,11 +7786,11 @@ function describeFailure(error, controller) {
 	if (raw.includes("ECONNREFUSED") || raw.includes("fetch failed")) return "无法连接到目标服务器：请检查地址与端口是否正确、服务器是否正在运行";
 	return `连接失败：${raw}`;
 }
-async function testAiConnection(fetcher, current$2, input) {
-	const protocol = input.protocol === "anthropic" ? "anthropic" : input.protocol ?? current$2.protocol;
-	const baseUrl = (input.baseUrl !== void 0 ? input.baseUrl : current$2.baseUrl).trim();
-	const model = (input.model !== void 0 ? input.model : current$2.model).trim();
-	const apiKey = (input.apiKey !== void 0 && input.apiKey !== "" ? input.apiKey : current$2.apiKey).trim();
+async function testAiConnection(fetcher, current, input) {
+	const protocol = input.protocol === "anthropic" ? "anthropic" : input.protocol ?? current.protocol;
+	const baseUrl = (input.baseUrl !== void 0 ? input.baseUrl : current.baseUrl).trim();
+	const model = (input.model !== void 0 ? input.model : current.model).trim();
+	const apiKey = (input.apiKey !== void 0 && input.apiKey !== "" ? input.apiKey : current.apiKey).trim();
 	const missing = missingField(baseUrl, model, apiKey);
 	if (missing !== null) return {
 		ok: false,
@@ -10883,8 +7945,8 @@ function writeStandaloneRuntime(home, details) {
 		if (released) return;
 		released = true;
 		try {
-			const current$2 = JSON.parse(readFileSync(file, "utf8"));
-			if (current$2.pid === process.pid && current$2.token === details.token) unlinkSync(file);
+			const current = JSON.parse(readFileSync(file, "utf8"));
+			if (current.pid === process.pid && current.token === details.token) unlinkSync(file);
 		} catch (error) {
 			if (error.code === "ENOENT") return;
 			throw new Error("清理桌宠运行状态失败；请检查数据目录，未删除其他进程的状态。", { cause: error });

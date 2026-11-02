@@ -8,9 +8,6 @@
  */
 import type { RouteResult } from '../http.ts';
 import { handleAssetsRoutes } from './assets.ts';
-import { handleAttachmentRoutes } from './attachment.ts';
-import { handleBalanceRoutes } from './balance.ts';
-import { handleChatRoutes } from './chat.ts';
 import { handleConfigRoutes } from './config/index.ts';
 import { handleDesktopRoutes } from './desktop.ts';
 import { handleInteractionRoutes } from './interaction.ts';
@@ -20,7 +17,6 @@ import { handlePlaybackRoutes } from './playback.ts';
 import { handleStateRoutes } from './state.ts';
 import { handleSleepRoutes } from './sleep.ts';
 import { handleTodoRoutes } from './todos.ts';
-import { handleVoiceRoutes } from './voice.ts';
 import type { PetRouteDeps, RouteHandler } from './types.ts';
 
 /** 处理器顺序：越靠前越先匹配；素材兜底必须在末尾。 */
@@ -29,15 +25,11 @@ const HANDLERS: readonly RouteHandler[] = [
   handleDesktopRoutes,
   handleMenuRoutes,
   handleStateRoutes,
-  handleBalanceRoutes,
   handleInteractionRoutes,
   handleMotionRoutes,
   handlePlaybackRoutes,
   handleSleepRoutes,
-  handleChatRoutes,
-  handleAttachmentRoutes,
   handleTodoRoutes,
-  handleVoiceRoutes,
   handleAssetsRoutes,
 ];
 
@@ -49,17 +41,8 @@ const HANDLERS: readonly RouteHandler[] = [
  * 不会造成「宠物叫不醒」。
  */
 function sleepGated(rest: string, method: string): boolean {
-  if (rest === 'chat') return method === 'POST';
   if (rest === 'todos') return method === 'POST' || method === 'DELETE';
-  return (
-    rest === 'anim' ||
-    rest === 'whisper' ||
-    rest === 'balance' ||
-    rest === 'broadcast' ||
-    rest === 'bubble/clear' ||
-    rest === 'menu/click' ||
-    rest === 'voice'
-  );
+  return rest === 'anim' || rest === 'broadcast' || rest === 'bubble/clear' || rest === 'menu/click';
 }
 
 /**

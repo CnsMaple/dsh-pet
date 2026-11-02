@@ -20,8 +20,7 @@ import { failResult, invalidJson, methodNotAllowed, okResult } from './result.ts
 
 /** 会话交互领域：未命中返回 undefined，命中返回应答。 */
 export async function handleInteractionRoutes(deps: PetRouteDeps, input: RouteInput): Promise<RouteResult | undefined> {
-  const { configPaths, lock, lockBlocked, memeDirsFor, publishWhisper, requirePet, sleep, state, surfaceBlocked } =
-    deps;
+  const { configPaths, lock, lockBlocked, memeDirsFor, requirePet, sleep, state, surfaceBlocked } = deps;
   const { body, method, rest, url } = input;
 
   // 占用锁：POST /lock?pet= 取锁 / 续期二合一（lockId 给了 = 续期，续期即心跳，丢了回 lock-lost），
@@ -66,35 +65,6 @@ export async function handleInteractionRoutes(deps: PetRouteDeps, input: RouteIn
       return okResult({ ok: true, lockId: d.lockId, petId: d.petId, expiresAt: d.expiresAt });
     } catch (e) {
       // 配置读取失败等（安装损坏）→ 显式失败，不静默（与其他动作端点同一口径）
-      return failResult('generate-error', e instanceof Error ? e.message : String(e));
-    }
-  }
-
-  // 碎碎念：POST /whisper?pet= 立即让桌宠新说一句，返回 {ok,text,image?}。文本照旧写进 S 的
-  // pets.<id>.say（与命令气泡、对话回复同一个叶子），同时随响应带回。
-  // 手动语义不受 whisperEnabled 门控：那个字段只关自动周期。
-  // ?image= 指定这一次用哪张图（右键「配图」菜单点了具体某张）：不在池内 → unknown-image，
-  // 由 publishWhisper 判定，这里只搬运。
-  if (rest === 'whisper') {
-    if (method !== 'POST') return methodNotAllowed();
-    try {
-      // pet 必填且必须真实存在：空串会让人设/配图按 main 条目取、生成结果写进没人消费的
-      // `pets[""].say`，还回 ok:true（钱花了、话丢了、调用方以为成功）。
-      const who = requirePet(url.searchParams, () => readAllConfig(configPaths), { surface: true });
-      if (!who.ok) return who.res;
-      // 谁点的谁念：请求面在 requirePet 里已被 displayCovers 校验过，具体到一端就用它；
-      // both / any 不足以指定一端，留空交给生成函数按 display 推导。
-      const want = normalizeSurface(url.searchParams.get('surface'));
-      const r = await publishWhisper(
-        who.petId,
-        url.searchParams.get('image') ?? undefined,
-        want === null ? undefined : voiceTargetOfSurface(want),
-      );
-      if (r.ok) return okResult({ ok: true, text: r.text, ...(r.image ? { image: r.image } : {}) });
-      // 真实 reason 原样透出（独立模式是 `provider-missing`，见 ./whisper 的联合体）——
-      // 不再把一切失败糊成 generate-error，调用方据此能分清「没配模型」与「生成炸了」。
-      return failResult(r.reason, r.message ?? '生成失败');
-    } catch (e) {
       return failResult('generate-error', e instanceof Error ? e.message : String(e));
     }
   }

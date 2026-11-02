@@ -4,7 +4,6 @@ import { MenuRegistry } from '../menu.ts';
 import { PlaybackStore } from '../playback.ts';
 import { PollStateStore } from '../state.ts';
 import { WorkStatusStore } from '../work-status.ts';
-import type { StandaloneWhisperPolicy } from '../whisper-policy.ts';
 /** 装配期需要的宿主上下文：只有 logger / effect / provide 三处能力。 */
 export interface HostSetupContext {
     /** 宿主日志（可能已被 standalone 换成文件 logger）。 */
@@ -34,8 +33,6 @@ export interface HostSetup {
     readonly memeDirsFor: (assetRoot: string) => string[];
     /** 软取宿主可选服务 */
     readonly optionalService: (name: string) => unknown;
-    /** 独立模式的碎碎念授权策略 */
-    readonly standaloneAiPolicy: () => StandaloneWhisperPolicy | undefined;
     /** 轮询快照 */
     readonly state: PollStateStore;
     /** 第三方菜单注册表 */

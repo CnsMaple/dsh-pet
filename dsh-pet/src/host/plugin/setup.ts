@@ -9,9 +9,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths';
-import { listBalanceProviders, registerBalanceProvider } from '../balance/index.ts';
-import { listVoiceProviders, registerVoiceProvider } from '../voice/registry.ts';
-import { listSpeechProviders, registerSpeechProvider } from '../voice/speech-registry.ts';
 import { migrateUserConfig, type ConfigPaths } from '../config.ts';
 import { createFileLogger, isFileLogger, setDefaultLogger, type FileLogger, type LoggerLike } from '../log-file.ts';
 import { MenuRegistry } from '../menu.ts';
@@ -20,7 +17,6 @@ import { PlaybackStore } from '../playback.ts';
 import { resolveAsset } from '../http.ts';
 import { PollStateStore } from '../state.ts';
 import { WorkStatusStore } from '../work-status.ts';
-import type { StandaloneWhisperPolicy } from '../whisper-policy.ts';
 
 /** 装配期需要的宿主上下文：只有 logger / effect / provide 三处能力。 */
 export interface HostSetupContext {
@@ -52,8 +48,6 @@ export interface HostSetup {
   readonly memeDirsFor: (assetRoot: string) => string[];
   /** 软取宿主可选服务 */
   readonly optionalService: (name: string) => unknown;
-  /** 独立模式的碎碎念授权策略 */
-  readonly standaloneAiPolicy: () => StandaloneWhisperPolicy | undefined;
   /** 轮询快照 */
   readonly state: PollStateStore;
   /** 第三方菜单注册表 */
@@ -120,10 +114,6 @@ export function createHostSetup(ctx: HostSetupContext): HostSetup {
     return (ctx as unknown as Record<string, unknown>)[name];
   };
 
-  /** 独立模式的碎碎念授权策略（可选能力）：DSH 宿主里是 undefined → 回落到只看 pet.whisperEnabled。 */
-  const standaloneAiPolicy = (): StandaloneWhisperPolicy | undefined =>
-    optionalService('standaloneAi') as StandaloneWhisperPolicy | undefined;
-
   // 用户主配置（可编辑层）与文件宠物目录；配置读取/合并统一走 readAllConfig（./config）。
   // 主配置是 JSONC（main-config.jsonc）——与包内默认 config.jsonc 同名同格式：
   // 「同步」写进去的就是带注释的原文，扩展名如实反映内容（main-config.json 只读回落 + 启动迁移）
@@ -171,27 +161,6 @@ export function createHostSetup(ctx: HostSetupContext): HostSetup {
   // 注册表写进 S 的 sections.menu；点击事件不进 S——它是触发不是状态，走 /menu/events 读取即消费。
   const menuRegistry = new MenuRegistry();
 
-  // 对外 Cordis 服务（宿主半侧）：与页面侧的 petApi7340 同名，但分属两个容器，互不可见也互不覆盖。
-  // 只暴露 register（返回注销函数，配合 ctx.effect 在卸载时自动清理）与 list（排障用）；
-  // 不暴露 unregister：注销走返回值，避免任何插件都能注销别人的 provider。
-  ctx.provide('petApi7340', {
-    balance: {
-      register: registerBalanceProvider,
-      list: listBalanceProviders,
-    },
-    // 语音：第三方注册自己的合成实现，非空时合成走它、空则走内置 edge。
-    // 同样只给 register（返回 disposer）与 list，不给 unregister。
-    voice: {
-      register: registerVoiceProvider,
-      list: listVoiceProviders,
-    },
-    // 识别：与合成对称的一槽；注册后 /voice/hear 只走它，不再看宿主自带的 speechToText。
-    speech: {
-      register: registerSpeechProvider,
-      list: listSpeechProviders,
-    },
-  });
-
   // 播放记录表（issue #122 第 3 项）：由渲染端上报驱动的状态机 + 等待者。
   // 与 S 无关：播放记录是 per-caller 资源（只有发起那次点播的调用方关心、有生命周期），
   // 塞进 1s 全局广播会让每个窗口为每个功能付流量。
@@ -221,7 +190,6 @@ export function createHostSetup(ctx: HostSetupContext): HostSetup {
     memesUserRoot,
     memeDirsFor,
     optionalService,
-    standaloneAiPolicy,
     state,
     menuRegistry,
     playback,

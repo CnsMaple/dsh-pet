@@ -6,7 +6,6 @@
  * @module dsh-pet/src/host/config/validate
  */
 import { FONT_SIZE_MAX, FONT_SIZE_MIN } from '../../shared/fonts.ts';
-import { isKnownVoice } from '../voice/voices.ts';
 
 /** animations 段完整性校验（与旧 assertAnimationsHost 同一套规则；不 throw，非法返回 false） */
 function animationsValid(a: unknown): boolean {
@@ -172,8 +171,7 @@ export function topFieldValid(key: string, value: unknown): boolean {
       // 语音播报开关（全局布尔）：只决定念不念，不影响气泡与记忆
       return typeof value === 'boolean';
     case 'voiceName':
-      // 音色必须是白名单内的 id；写错即非法，读取侧回落到默认音色并告警
-      return typeof value === 'string' && isKnownVoice(value);
+      return typeof value === 'string';
     case 'voiceVolume':
       // 播放音量系数：0–1 的有限数，与 Audio.volume 同量纲；越界即非法（不夹取，读取侧回落默认）
       return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;

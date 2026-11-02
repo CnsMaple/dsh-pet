@@ -23,7 +23,6 @@ import { makePetCard } from './settings/pet-card.ts';
 import { createWriteFlow } from './settings/config/index.ts';
 import { makeShortcutsCard } from './settings/shortcuts-card.ts';
 import { attachTipLayer } from './settings/tip-layer.ts';
-import type { ShortcutHost } from './app-shortcut.ts';
 import type { SettingsRuntime } from './settings/runtime.ts';
 import { useConfigLoad } from './settings/config/index.ts';
 import { usePetList } from './settings/use-pet-list.ts';
@@ -37,13 +36,9 @@ export { petBridge };
 /**
  * 制造「桌宠配置」设置页组件。
  * @param rt - 运行时注入的依赖：`h`、hooks 与翻译函数 `t`。
- * @param ctx - 客户端上下文：只用于读用户改绑后的快捷键键位。
  * @returns 设置页组件。
  */
-export function makePetConfigSection(
-  rt: SettingsRuntime,
-  ctx: ShortcutHost,
-): FunctionComponent<{ close?: () => void }> {
+export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ close?: () => void }> {
   const { h, useState, useEffect, useRef, useCallback, t } = rt;
 
   injectSettingsCss();
@@ -52,7 +47,7 @@ export function makePetConfigSection(
   const PetCard = makePetCard(rt);
   const GlobalCard = makeGlobalCard(rt);
   const FontCard = makeFontCard(rt);
-  const ShortcutsCard = makeShortcutsCard(rt, ctx);
+  const ShortcutsCard = makeShortcutsCard(rt);
   const Actions = makeActions(rt);
   const { ConfigMetaCard, StorageCard } = makePathsCards(rt);
   const SettingsDialog = makeDialog(rt);

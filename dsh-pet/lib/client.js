@@ -185,67 +185,6 @@ function isNoMirrorAnimation(categories, anim) {
 }
 
 //#endregion
-//#region src/shared/menu/memes.ts
-/**
-* 可用图的名称清单：描述为空的不算。
-*
-* 与宿主的池判定同口径（`host/memes` 的 readMemePool 要求描述非空）：模型靠描述才认得出这张图，
-* 没描述的条目即使文件存在也进不了对话与碎碎念。顺序保留配置里的书写顺序。
-*/
-function usableNames(memes) {
-	if (!memes || typeof memes !== "object" || Array.isArray(memes)) return [];
-	const out = [];
-	for (const [name, desc] of Object.entries(memes)) {
-		if (!name.trim()) continue;
-		if (typeof desc !== "string" || desc.trim() === "") continue;
-		out.push(name);
-	}
-	return out;
-}
-function groupMemes(source) {
-	const names = usableNames(source.memes);
-	const limit = Math.floor(Number(source.chatImageLimit));
-	const unlimited = !Number.isFinite(limit) || limit <= 0;
-	const take = source.chatImageEnabled !== true ? 0 : unlimited ? names.length : Math.min(limit, names.length);
-	return {
-		chat: names.slice(0, take),
-		other: names.slice(take)
-	};
-}
-/** 单张图 → 菜单叶子：点它就是「用这张图说一句」；给了缩略图地址就带上，菜单据此画小图。 */
-function memeLeaf(name, thumbOf) {
-	const leaf$1 = {
-		label: name,
-		action: "whisper",
-		image: name
-	};
-	if (thumbOf) leaf$1.thumb = thumbOf(name);
-	return leaf$1;
-}
-function memeThumbUrl(baseUrl, assetRoot, name) {
-	const root = assetRoot && assetRoot.trim() !== "" ? assetRoot : "main";
-	return baseUrl + "/pic/memes/" + encodeURIComponent(root) + "/" + encodeURIComponent(name) + ".png";
-}
-function buildMemeBranch(source, thumbOf) {
-	const { chat, other } = groupMemes(source);
-	const leaf$1 = (name) => memeLeaf(name, thumbOf);
-	const groups = [];
-	if (chat.length > 0) groups.push({
-		label: "纳入对话的配图",
-		children: chat.map(leaf$1)
-	});
-	if (other.length > 0) groups.push({
-		label: "其他",
-		children: other.map(leaf$1)
-	});
-	if (groups.length === 0) return null;
-	return {
-		label: "配图",
-		children: groups
-	};
-}
-
-//#endregion
 //#region src/shared/menu/css.ts
 const MENU_CSS = [
 	".dsh-pet-menu{position:fixed;left:0;top:0;z-index:2147483000;color:#2b2b2b;font-size:13px;line-height:1.5;",
@@ -398,7 +337,7 @@ function mountContextMenu(opts) {
 	};
 	/** 构建一层面板；分支项的子面板平级挂到 root 下、不嵌套。
 	*  面板先入 DOM、子面板后入，层级越深绘制越靠上（子菜单盖在父菜单上层）。 */
-	const buildPanel$1 = (nodes) => {
+	const buildPanel = (nodes) => {
 		const panel = document.createElement("div");
 		panel.className = "dsh-pet-menu-column";
 		panel.style.display = "none";
@@ -417,7 +356,7 @@ function mountContextMenu(opts) {
 				arrow.textContent = "▸";
 				item.appendChild(label);
 				item.appendChild(arrow);
-				const childPanel = buildPanel$1(node.children);
+				const childPanel = buildPanel(node.children);
 				item.addEventListener("mouseenter", () => {
 					const prev = openChild.get(panel);
 					if (prev && prev !== childPanel) hideChain(prev);
@@ -457,7 +396,7 @@ function mountContextMenu(opts) {
 		}
 		return panel;
 	};
-	const rootPanel = buildPanel$1(tree);
+	const rootPanel = buildPanel(tree);
 	rootPanel.style.display = "block";
 	document.body.appendChild(root);
 	rootPanel.style.left = "";
@@ -847,17 +786,17 @@ const estimateReleaseVelocity = (trail, now, physics = DEFAULT_PHYSICS) => {
 	const baseSpeed = Math.hypot(baseVx, baseVy);
 	if (baseSpeed < 1e-6) return null;
 	const segSpeeds = [];
-	let px$1 = x0;
+	let px = x0;
 	let py = y0;
 	let pt$1 = t0;
 	for (const s of win.slice(1)) {
 		const dt = s.t - pt$1;
 		if (dt >= SEG_MIN_DT_MS) {
 			segSpeeds.push({
-				speed: Math.hypot(s.x - px$1, s.y - py) / dt * 1e3,
+				speed: Math.hypot(s.x - px, s.y - py) / dt * 1e3,
 				tEnd: s.t
 			});
-			px$1 = s.x;
+			px = s.x;
 			py = s.y;
 			pt$1 = s.t;
 		}
@@ -2495,7 +2434,7 @@ async function removeTodo(id, baseUrl = TODOS_PATH) {
 //#region src/shared/todo/format.ts
 const MINUTE_MS = 60 * 1e3;
 const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS$1 = 24 * HOUR_MS;
+const DAY_MS = 24 * HOUR_MS;
 /** 星期名，索引与 Date.getDay() 对齐。 */
 const WEEKDAYS = [
 	"周日",
@@ -2511,12 +2450,12 @@ function pad2$1(value) {
 	return String(value).padStart(2, "0");
 }
 /** 当天零点的时间戳：跨日比较用它，避开夏令时造成的 23/25 小时日。 */
-function startOfDay$1(date) {
+function startOfDay(date) {
 	return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 /** 两个时刻相差几个自然日（按本地日历，向前为负）。 */
 function dayDiff(target, base) {
-	return Math.round((startOfDay$1(target) - startOfDay$1(base)) / DAY_MS$1);
+	return Math.round((startOfDay(target) - startOfDay(base)) / DAY_MS);
 }
 function spanText(ms) {
 	const minutes = Math.max(1, Math.round(Math.abs(ms) / MINUTE_MS));
@@ -2546,7 +2485,7 @@ function todoUrgency(dueAt, now) {
 	const remaining = dueAt - now;
 	if (remaining <= 0) return "overdue";
 	if (remaining <= 6 * HOUR_MS) return "soon";
-	if (remaining <= DAY_MS$1) return "today";
+	if (remaining <= DAY_MS) return "today";
 	return "later";
 }
 function metaLabel(todo, now) {
@@ -2932,8 +2871,8 @@ function capListHeight(list) {
 	}
 	const rowHeight = first.getBoundingClientRect().height;
 	if (rowHeight <= 0) return;
-	const pad$1 = parseFloat(getComputedStyle(list).paddingTop) || 0;
-	list.style.maxHeight = rowHeight * LIST_ROWS + pad$1 * 2 + "px";
+	const pad = parseFloat(getComputedStyle(list).paddingTop) || 0;
+	list.style.maxHeight = rowHeight * LIST_ROWS + pad * 2 + "px";
 }
 function renderTodoList(parts, todos, handlers, now) {
 	parts.list.textContent = "";
@@ -4822,50 +4761,6 @@ function makePetCard(rt) {
 }
 
 //#endregion
-//#region src/shared/chat/hear-hold.ts
-/** 目标键的小写形式：判定与状态机共用这一份，避免两处各写一个字面量。 */
-const HEAR_KEY = "m";
-const HEAR_HOTKEY_HINT = "M 键";
-function isHearHotkey(e) {
-	if (e.ctrlKey || e.metaKey || e.altKey) return false;
-	return String(e.key).toLowerCase() === HEAR_KEY;
-}
-function createHearHold(hooks) {
-	let holding = false;
-	/** 只比键名：按住期间焦点已交给输入框，不能再套「不在可编辑元素里」那道判据。 */
-	const sameKey = (key) => String(key).toLowerCase() === HEAR_KEY;
-	const release = () => {
-		if (!holding) return;
-		holding = false;
-		hooks.onRelease();
-	};
-	return {
-		onKeyDown(e) {
-			if (holding) return sameKey(e.key);
-			if (e.repeat === true || !isHearHotkey(e) || !hooks.isArmed()) return false;
-			holding = true;
-			hooks.onPress();
-			return true;
-		},
-		onKeyUp(e) {
-			if (sameKey(e.key)) release();
-		},
-		release
-	};
-}
-
-//#endregion
-//#region src/shared/chat/hotkey.ts
-const CHAT_HOTKEY_HINT = "L 键";
-const CAPTURE_HOTKEY_HINT = "S 键";
-function isChatHotkey(e) {
-	return isBareKey(e, "l");
-}
-function isCaptureHotkey(e) {
-	return isBareKey(e, "s");
-}
-
-//#endregion
 //#region src/shared/sleep-hotkey.ts
 const SLEEP_HOTKEY_HINT = "Z 键";
 function isSleepHotkey(e) {
@@ -4880,216 +4775,17 @@ function isTodoHotkey(e) {
 }
 
 //#endregion
-//#region src/client/app-shortcut.ts
-/** 修饰键的显示名：`primary` 按平台展开。 */
-const MODIFIER_LABELS = {
-	alt: "Alt",
-	control: "Ctrl",
-	meta: "Cmd",
-	shift: "Shift"
-};
-function keycapOf(binding) {
-	const isMac = /Mac/i.test(navigator.platform || navigator.userAgent);
-	const modifiers = binding.modifiers.map((modifier) => modifier === "primary" ? isMac ? "Cmd" : "Ctrl" : MODIFIER_LABELS[modifier] ?? modifier);
-	return [...modifiers, binding.code.replace(/^Key/, "")].join("+");
-}
-const SHORTCUT_PROFILES = [
-	"desktop:macos",
-	"desktop:windows",
-	"desktop:linux",
-	"web:macos",
-	"web:windows"
-];
-function registerAppShortcut(ctx, shortcut) {
-	const shortcuts = ctx.get?.("shortcuts");
-	if (shortcuts === void 0 || typeof shortcuts.register !== "function") {
-		console.warn("[dsh-pet] 快捷键服务不可用，「" + shortcut.id + "」未注册");
-		return {
-			registered: false,
-			dispose: () => {}
-		};
-	}
-	try {
-		const defaults = Object.fromEntries(SHORTCUT_PROFILES.map((profile) => [profile, shortcut.binding]));
-		const dispose = shortcuts.register({
-			id: shortcut.id,
-			label: shortcut.label,
-			aliases: [],
-			defaults,
-			regions: ["page", "editable"],
-			modals: [],
-			resolve: () => ({
-				status: "handled",
-				run: shortcut.run
-			})
-		});
-		return {
-			registered: true,
-			dispose: () => dispose()
-		};
-	} catch (error) {
-		console.warn("[dsh-pet] 快捷键注册失败：" + (error instanceof Error ? error.message : String(error)));
-		return {
-			registered: false,
-			dispose: () => {}
-		};
-	}
-}
-function readShortcutKeycap(ctx, id) {
-	const catalog = (ctx.get?.("shortcuts"))?.catalog;
-	if (catalog === void 0) return void 0;
-	const row = catalog.getSnapshot().find((item) => item.id === id);
-	return row === void 0 || row.keys.length === 0 ? void 0 : row.keys.join("");
-}
-function subscribeShortcutKeycaps(ctx, listener) {
-	const catalog = (ctx.get?.("shortcuts"))?.catalog;
-	if (catalog === void 0) return () => {};
-	return catalog.subscribe(listener);
-}
-
-//#endregion
-//#region src/client/chat/shortcut.ts
-const PET_CHAT_COMMAND_ID = "pet-chat.open";
-/** 主修饰键 + Shift + P；Web 白名单允许「主键 + Shift/Alt + 字母」，所以两端同一个键。 */
-const BINDING = {
-	code: "KeyP",
-	modifiers: ["primary", "shift"]
-};
-function petChatShortcutKeycap(ctx) {
-	return readShortcutKeycap(ctx, PET_CHAT_COMMAND_ID) ?? keycapOf(BINDING);
-}
-function registerPetChatShortcut(ctx, label, open) {
-	return registerAppShortcut(ctx, {
-		id: PET_CHAT_COMMAND_ID,
-		label,
-		binding: BINDING,
-		run: open
-	});
-}
-
-//#endregion
-//#region src/client/pet/card/registry.ts
-/** 按宠物 id 登记；Map 的插入序就是渲染序，「第一只」的兜底直接靠它。 */
-const handles = new Map();
-function registerPetChatHandle(id, handle) {
-	handles.set(id, handle);
-	return () => {
-		if (handles.get(id) === handle) handles.delete(id);
-	};
-}
-function pickPetChatHandle() {
-	const mainId = petBridge.template?.id;
-	if (typeof mainId === "string") {
-		const main = handles.get(mainId);
-		if (main !== void 0) return main;
-	}
-	return handles.values().next().value;
-}
-function togglePetChatHear(handle) {
-	if (handle === void 0) return;
-	if (handle.isHearing()) handle.stopHear();
-	else handle.startHear();
-}
-function togglePetChat(handle) {
-	if (handle === void 0) return;
-	if (handle.isOpen()) handle.close();
-	else handle.open();
-}
-
-//#endregion
-//#region src/client/pet/card/shortcut.ts
-const PET_FLOAT_COMMAND_ID = "pet-chat.float";
-const PET_HEAR_COMMAND_ID = "pet-chat.hear";
-const PET_CAPTURE_COMMAND_ID = "pet-chat.capture";
-/** 弹窗键位：主修饰键 + Shift + L。T 在浏览器里被「恢复标签页」占用，L 两端都空着。 */
-const FLOAT_BINDING = {
-	code: "KeyL",
-	modifiers: ["primary", "shift"]
-};
-/** 录音键位：主修饰键 + Shift + M（M = mic）。V 在输入框里会被浏览器当成「粘贴为纯文本」，避开。 */
-const HEAR_BINDING = {
-	code: "KeyM",
-	modifiers: ["primary", "shift"]
-};
-/** 截图键位：主修饰键 + Shift + S。Edge 与 Firefox 把它给了自己的截图，Chrome 空着。 */
-const CAPTURE_BINDING = {
-	code: "KeyS",
-	modifiers: ["primary", "shift"]
-};
-/** 命令 id 与默认键位：注册与展示都从这里取，不写第二份。 */
-const COMMANDS = {
-	chat: {
-		id: PET_FLOAT_COMMAND_ID,
-		binding: FLOAT_BINDING
-	},
-	hear: {
-		id: PET_HEAR_COMMAND_ID,
-		binding: HEAR_BINDING
-	},
-	capture: {
-		id: PET_CAPTURE_COMMAND_ID,
-		binding: CAPTURE_BINDING
-	}
-};
-function petShortcutKeycap(ctx, key) {
-	const command = COMMANDS[key];
-	return readShortcutKeycap(ctx, command.id) ?? keycapOf(command.binding);
-}
-function registerPetCardShortcuts(ctx, label) {
-	const float = registerAppShortcut(ctx, {
-		id: COMMANDS.chat.id,
-		label: () => label("shortcut.chat"),
-		binding: COMMANDS.chat.binding,
-		run: () => togglePetChat(pickPetChatHandle())
-	});
-	const hear = registerAppShortcut(ctx, {
-		id: COMMANDS.hear.id,
-		label: () => label("shortcut.hear"),
-		binding: COMMANDS.hear.binding,
-		run: () => togglePetChatHear(pickPetChatHandle())
-	});
-	const capture = registerAppShortcut(ctx, {
-		id: COMMANDS.capture.id,
-		label: () => label("shortcut.capture"),
-		binding: COMMANDS.capture.binding,
-		run: () => pickPetChatHandle()?.screenshot()
-	});
-	return { dispose: () => {
-		float.dispose();
-		hear.dispose();
-		capture.dispose();
-	} };
-}
-
-//#endregion
 //#region src/client/settings/shortcuts-card.ts
-/** 折叠正文的 id：与标题按钮的 `aria-controls` 成对。 */
+/** 折叠正文的 id。 */
 const BODY_ID = "pet-cfg-shortcuts";
-/** 粘贴不是我们注册的命令，键帽按平台推导（macOS 是 ⌘V），不写死字符串。 */
-const PASTE_KEYCAP = keycapOf({
-	code: "KeyV",
-	modifiers: ["primary"]
-});
-/** 现读一遍三条全局命令的键帽。 */
-function readKeycaps(ctx) {
-	return {
-		open: petShortcutKeycap(ctx, "chat"),
-		hear: petShortcutKeycap(ctx, "hear"),
-		capture: petShortcutKeycap(ctx, "capture"),
-		sidebar: petChatShortcutKeycap(ctx)
-	};
-}
-function makeShortcutsCard(rt, ctx) {
-	const { h, t, useState, useEffect } = rt;
+function makeShortcutsCard(rt) {
+	const { h, t, useState } = rt;
 	const { foldCard } = makeUiKit({
 		h,
 		t
 	});
 	return function ShortcutsCard() {
 		const [open, setOpen] = useState(false);
-		const [keycaps, setKeycaps] = useState(readKeycaps(ctx));
-		useEffect(() => subscribeShortcutKeycaps(ctx, () => setKeycaps(readKeycaps(ctx))), []);
-		/** 一行：左边动作名，右边键帽。 */
 		const row = (label, keys) => h("div", {
 			className: "dsh-pet-cfg__field",
 			children: [h("span", {
@@ -5106,51 +4802,19 @@ function makeShortcutsCard(rt, ctx) {
 			id: BODY_ID,
 			title: t("shortcutCardTitle"),
 			hint: t("shortcutCardHint"),
-			body: [
-				h("p", {
-					key: "petTitle",
-					className: "dsh-pet-cfg__cardTitle",
-					children: t("shortcutGroupPet")
-				}),
-				h("p", {
-					key: "petHint",
-					className: "dsh-pet-cfg__note",
-					children: t("shortcutGroupPetHint")
-				}),
-				h("div", {
-					key: "petRows",
-					className: "dsh-pet-cfg__grid2",
-					children: [
-						row("shortcutRowChat", CHAT_HOTKEY_HINT),
-						row("shortcutRowHold", HEAR_HOTKEY_HINT),
-						row("shortcutRowCapture", CAPTURE_HOTKEY_HINT),
-						row("shortcutRowPaste", PASTE_KEYCAP),
-						row("shortcutRowTodo", TODO_HOTKEY_HINT),
-						row("shortcutRowSleep", SLEEP_HOTKEY_HINT),
-						row("shortcutRowDisplay", DISPLAY_HOTKEY_HINTS.join(" · "))
-					]
-				}),
-				h("p", {
-					key: "globalTitle",
-					className: "dsh-pet-cfg__cardTitle",
-					children: t("shortcutGroupGlobal")
-				}),
-				h("p", {
-					key: "globalHint",
-					className: "dsh-pet-cfg__note",
-					children: t("shortcutGroupGlobalHint")
-				}),
-				h("div", {
-					key: "globalRows",
-					className: "dsh-pet-cfg__grid2",
-					children: [
-						row("shortcutRowChat", keycaps.open),
-						row("shortcutRowHear", keycaps.hear),
-						row("shortcutRowCapture", keycaps.capture),
-						row("shortcutRowSidebar", keycaps.sidebar)
-					]
-				})
-			],
+			body: [h("p", {
+				key: "petHint",
+				className: "dsh-pet-cfg__note",
+				children: t("shortcutGroupPetHint")
+			}), h("div", {
+				key: "petRows",
+				className: "dsh-pet-cfg__grid2",
+				children: [
+					row("shortcutRowTodo", TODO_HOTKEY_HINT),
+					row("shortcutRowSleep", SLEEP_HOTKEY_HINT),
+					row("shortcutRowDisplay", DISPLAY_HOTKEY_HINTS.join(" · "))
+				]
+			})],
 			open,
 			onToggle: () => setOpen(!open)
 		});
@@ -5160,11 +4824,11 @@ function makeShortcutsCard(rt, ctx) {
 //#endregion
 //#region src/client/settings/tip-layer.ts
 /** 气泡 class，外观在 ./css。 */
-const TIP_CLASS$1 = "pet-cfg-tip";
+const TIP_CLASS = "pet-cfg-tip";
 /** 触发元素的属性名：选择器与取值都从它派生，改名只改一处。 */
 const TIP_ATTR = "data-tip";
 /** 光标与气泡的间隙（px）。 */
-const TIP_GAP_PX$1 = 10;
+const TIP_GAP_PX = 10;
 /** 唯一的那个气泡；悬停很频繁，反复建删会让气泡闪。 */
 let bubble;
 /** 当前挂着气泡的触发元素，用于跳过「在同一元素内移动」的重复派发。 */
@@ -5172,15 +4836,15 @@ let current;
 /** 这一层的解除函数；`undefined` 表示没装。 */
 let detach;
 /** 收起气泡：元素留着复用，只摘显隐。 */
-function hideTip$1() {
+function hideTip() {
 	bubble?.classList.remove("is-on");
 	current = void 0;
 }
 /** 取气泡元素，没有就建一个挂到 body——挂在设置页里会被滚动容器裁掉。 */
-function ensureTip$1() {
+function ensureTip() {
 	if (bubble !== void 0 && bubble.parentNode === document.body) return bubble;
 	const el = document.createElement("div");
-	el.setAttribute("class", TIP_CLASS$1);
+	el.setAttribute("class", TIP_CLASS);
 	el.setAttribute("role", "tooltip");
 	document.body.appendChild(el);
 	bubble = el;
@@ -5198,8 +4862,8 @@ function triggerOf(node) {
 * @param text - 气泡正文。
 * @param cursor - 光标位置（视口坐标）。
 */
-function showTip$1(text, cursor) {
-	const el = ensureTip$1();
+function showTip(text, cursor) {
+	const el = ensureTip();
 	el.textContent = text;
 	el.style.left = "0px";
 	el.style.top = "0px";
@@ -5211,7 +4875,7 @@ function showTip$1(text, cursor) {
 		y: 0,
 		w: window.innerWidth,
 		h: window.innerHeight
-	}, TIP_GAP_PX$1);
+	}, TIP_GAP_PX);
 	el.style.left = placed.x + "px";
 	el.style.top = placed.y + "px";
 	el.classList.add("is-on");
@@ -5222,7 +4886,7 @@ function onOver(event) {
 	if (trigger === void 0 || trigger === current) return;
 	const text = trigger.getAttribute(TIP_ATTR);
 	if (text === null || text === "") return;
-	showTip$1(text, {
+	showTip(text, {
 		x: event.clientX,
 		y: event.clientY
 	});
@@ -5233,20 +4897,20 @@ function onOut(event) {
 	const from = triggerOf(event.target);
 	if (from === void 0) return;
 	if (triggerOf(event.relatedTarget ?? null) === from) return;
-	hideTip$1();
+	hideTip();
 }
 function attachTipLayer() {
 	if (detach !== void 0) return detach;
 	const root = document;
 	root.addEventListener("pointerover", onOver);
 	root.addEventListener("pointerout", onOut);
-	root.addEventListener("pointerdown", hideTip$1);
-	root.addEventListener("scroll", hideTip$1, true);
+	root.addEventListener("pointerdown", hideTip);
+	root.addEventListener("scroll", hideTip, true);
 	detach = () => {
 		root.removeEventListener("pointerover", onOver);
 		root.removeEventListener("pointerout", onOut);
-		root.removeEventListener("pointerdown", hideTip$1);
-		root.removeEventListener("scroll", hideTip$1, true);
+		root.removeEventListener("pointerdown", hideTip);
+		root.removeEventListener("scroll", hideTip, true);
 		bubble?.remove();
 		bubble = void 0;
 		current = void 0;
@@ -7130,7 +6794,7 @@ const dicts = {
 
 //#endregion
 //#region src/client/settings.ts
-function makePetConfigSection(rt, ctx) {
+function makePetConfigSection(rt) {
 	const { h, useState, useEffect, useRef, useCallback, t } = rt;
 	injectSettingsCss();
 	const { q } = makeUiKit({
@@ -7140,7 +6804,7 @@ function makePetConfigSection(rt, ctx) {
 	const PetCard = makePetCard(rt);
 	const GlobalCard = makeGlobalCard(rt);
 	const FontCard = makeFontCard(rt);
-	const ShortcutsCard = makeShortcutsCard(rt, ctx);
+	const ShortcutsCard = makeShortcutsCard(rt);
 	const Actions = makeActions(rt);
 	const { ConfigMetaCard, StorageCard } = makePathsCards(rt);
 	const SettingsDialog = makeDialog(rt);
@@ -7470,21 +7134,6 @@ function createMenuActions(deps) {
 			const route = leaf$1.action === "sleep" ? "/sleep" : "/wake";
 			console.info("[dsh-pet] 菜单" + (leaf$1.action === "sleep" ? "睡觉" : "起来") + " pet=" + petId);
 			fireAction(ROUTE_PATH + route + "?pet=" + encodeURIComponent(petId), leaf$1.action === "sleep" ? "睡觉" : "起来");
-			return;
-		}
-		if (leaf$1.action === "show-balance") {
-			console.info("[dsh-pet] 菜单查看余额 pet=" + petId);
-			fireAction(ROUTE_PATH + "/balance", "余额刷新动作");
-			return;
-		}
-		if (leaf$1.action === "whisper") {
-			console.info("[dsh-pet] 菜单触发碎碎念 pet=" + petId + (leaf$1.image ? " image=" + leaf$1.image : ""));
-			const pic = leaf$1.image ? "&image=" + encodeURIComponent(leaf$1.image) : "";
-			fireAction(ROUTE_PATH + "/whisper?pet=" + encodeURIComponent(petId) + "&surface=web" + pic, "碎碎念手动触发");
-			return;
-		}
-		if (leaf$1.action === "chat") {
-			deps.openChat();
 			return;
 		}
 		if (leaf$1.action === "todo") {
@@ -7956,58 +7605,6 @@ async function speak(text) {
 		await audio.play();
 	} catch {
 		setVoiceState("failed");
-	}
-}
-/** 手动点播时正在响的那个音频；新的一句先掐掉旧的，避免两句话叠在一起。 */
-let manualAudio = null;
-/** 手动点播的世代号：新的点播会作废旧请求的阶段回调，避免旧回调清掉新状态。 */
-let manualSeq = 0;
-function speakText(text, onPhase) {
-	if (!text) return;
-	playManual(text, onPhase);
-}
-/** 请求合成并播放手动点播；失败静默，不打断面板交互。 */
-async function playManual(text, onPhase) {
-	const token = ++manualSeq;
-	await loadConfigOnce();
-	if (manualAudio) {
-		manualAudio.pause();
-		manualAudio = null;
-	}
-	if (token !== manualSeq) return;
-	onPhase?.("loading");
-	try {
-		const response = await fetch(voiceBase + "/voice/speak", {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({
-				text,
-				...voiceName ? { voice: voiceName } : {}
-			}),
-			signal: speakSignal()
-		});
-		if (token !== manualSeq) return;
-		if (!response.ok || !(response.headers.get("content-type") ?? "").includes("audio")) {
-			onPhase?.("failed");
-			return;
-		}
-		const objectUrl = URL.createObjectURL(await response.blob());
-		if (token !== manualSeq) return;
-		const audio = new Audio(objectUrl);
-		audio.volume = voiceVolume;
-		audio.onended = () => {
-			URL.revokeObjectURL(objectUrl);
-			if (manualAudio === audio) {
-				manualAudio = null;
-				onPhase?.("idle");
-			}
-		};
-		audio.onerror = () => URL.revokeObjectURL(objectUrl);
-		manualAudio = audio;
-		onPhase?.("playing");
-		await audio.play();
-	} catch {
-		if (token === manualSeq) onPhase?.("failed");
 	}
 }
 
@@ -9278,1166 +8875,39 @@ function createCardDrag(rt) {
 }
 
 //#endregion
-//#region src/shared/chat/image-pick.ts
-const IMAGE_TYPES = [
-	"image/png",
-	"image/jpeg",
-	"image/webp",
-	"image/gif"
-];
-const IMAGE_ACCEPT = IMAGE_TYPES.join(",");
-/** 扩展名兜底：拖拽或部分系统来源不给 `file.type`。 */
-const IMAGE_EXT = {
-	png: "image/png",
-	jpg: "image/jpeg",
-	jpeg: "image/jpeg",
-	webp: "image/webp",
-	gif: "image/gif"
-};
-function imageMediaTypeOf(file) {
-	const declared = String(file.type || "").toLowerCase();
-	if (IMAGE_TYPES.includes(declared)) return declared;
-	const ext = String(file.name || "").split(".").pop()?.toLowerCase();
-	return ext === void 0 ? void 0 : IMAGE_EXT[ext];
-}
-function isImageFile(file) {
-	return imageMediaTypeOf(file) !== void 0;
-}
-function dragHasFiles(e) {
-	const types = e.dataTransfer?.types;
-	if (!types) return false;
-	return Array.from(types).includes("Files");
-}
-function firstImageFile(dataTransfer) {
-	const files = dataTransfer?.files;
-	if (!files) return void 0;
-	for (const file of Array.from(files)) if (isImageFile(file)) return file;
-	return void 0;
-}
-function firstImageFromClipboard(data) {
-	if (!data) return void 0;
-	const files = data.files;
-	if (files) {
-		for (const file of Array.from(files)) if (isImageFile(file)) return file;
-	}
-	const items = data.items;
-	if (!items) return void 0;
-	for (const item of Array.from(items)) {
-		if (item.kind !== "file") continue;
-		const file = item.getAsFile();
-		if (file && isImageFile(file)) return file;
-	}
-	return void 0;
-}
-
-//#endregion
-//#region src/shared/chat/encode.ts
-const IMAGE_MAX_BYTES = 640 * 1024;
-const IMAGE_MAX_SIDE = 2048;
-const IMAGE_QUALITIES = [
-	.85,
-	.75,
-	.65,
-	.55
-];
-/** 预览缩略图的长边（像素）：只用于弹窗里那枚 24×24。 */
-const PREVIEW_SIDE = 96;
-function attachmentBytes(base64) {
-	const pad$1 = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
-	return Math.floor(base64.length * 3 / 4) - pad$1;
-}
-function targetSize(width, height, maxSide = IMAGE_MAX_SIDE) {
-	const scale = Math.min(1, maxSide / Math.max(width, height));
-	return {
-		width: Math.max(1, Math.round(width * scale)),
-		height: Math.max(1, Math.round(height * scale))
-	};
-}
-/**
-* 把文件解码成 `<img>`。
-*
-* 用 `FileReader` 的 data URL 而不是 `URL.createObjectURL`：桌面 helper 的 CSP 是
-* `img-src 'self' http: https: data:`，不含 `blob:`，objectURL 在那边会被拦成 onerror
-* （表现为"这个文件解不出图片"，而浏览器端正常）。
-*/
-function loadImage(file) {
-	return new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onerror = () => reject(new Error("这个文件读不出来"));
-		reader.onload = () => {
-			const url = typeof reader.result === "string" ? reader.result : "";
-			if (!url) {
-				reject(new Error("这个文件读不出来"));
-				return;
-			}
-			const img = new Image();
-			img.onload = () => resolve(img);
-			img.onerror = () => reject(new Error("这个文件解不出图片"));
-			img.src = url;
-		};
-		reader.readAsDataURL(file);
-	});
-}
-/** 字节 → 规范 base64（分块，避免 String.fromCharCode 参数过多爆栈）。 */
-function bytesToBase64(bytes) {
-	let bin = "";
-	const CHUNK = 32768;
-	for (let i = 0; i < bytes.length; i += CHUNK) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
-	return btoa(bin);
-}
-/** 把源按目标尺寸画进一张新画布。 */
-function drawToCanvas(source, size) {
-	const canvas = document.createElement("canvas");
-	canvas.width = size.width;
-	canvas.height = size.height;
-	canvas.getContext("2d")?.drawImage(source, 0, 0, size.width, size.height);
-	return canvas;
-}
-/** 缩略图：96px、JPEG 0.72，几 KB 就够 24×24 显示。 */
-function previewOf(source, width, height) {
-	return drawToCanvas(source, targetSize(width, height, PREVIEW_SIDE)).toDataURL("image/jpeg", .72);
-}
-function encodeCanvas(canvas) {
-	const { width, height } = canvas;
-	const previewUrl = previewOf(canvas, width, height);
-	const floor = IMAGE_QUALITIES[IMAGE_QUALITIES.length - 1];
-	for (const quality of IMAGE_QUALITIES) {
-		const dataUrl = canvas.toDataURL("image/jpeg", quality);
-		const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-		const bytes = attachmentBytes(base64);
-		if (bytes <= IMAGE_MAX_BYTES || quality === floor) return {
-			base64,
-			mediaType: "image/jpeg",
-			bytes,
-			width,
-			height,
-			resized: true,
-			previewUrl
-		};
-	}
-	throw new Error("无法压到预算内");
-}
-async function encodeImageFile(file) {
-	const mediaType = imageMediaTypeOf(file);
-	if (!mediaType) throw new Error("不是可发送的图片");
-	const img = await loadImage(file);
-	const width = img.naturalWidth || img.width;
-	const height = img.naturalHeight || img.height;
-	const raw = new Uint8Array(await file.arrayBuffer());
-	if (raw.length <= IMAGE_MAX_BYTES && Math.max(width, height) <= IMAGE_MAX_SIDE) return {
-		base64: bytesToBase64(raw),
-		mediaType,
-		bytes: raw.length,
-		width,
-		height,
-		resized: false,
-		previewUrl: previewOf(img, width, height)
-	};
-	const target = targetSize(width, height);
-	return encodeCanvas(drawToCanvas(img, target));
-}
-
-//#endregion
-//#region src/shared/hear.ts
-const HEAR_SAMPLE_RATE = 16e3;
-const MAX_RECORD_MS = 24e3;
-const SILENCE_PEAK = .002;
-const MIN_RECORD_MS = 300;
-/** 等识别结果的上限（ms）：宿主自己 30s 超时，这里留点余量先等它回结构化失败。 */
-const HEAR_TIMEOUT_MS = 4e4;
-/** 每块采集的样本数：1024 样本 @16kHz = 64ms，松手后等待补齐尾音的时长也按它算。 */
-const BLOCK_SAMPLES = 1024;
-/** 松手后等最后一块音频落袋（ms）：比一块略长，避免把最后半句话砍掉。 */
-const TAIL_SETTLE_MS = 80;
-function canRecord() {
-	return typeof navigator !== "undefined" && typeof navigator.mediaDevices?.getUserMedia === "function";
-}
-function floatToPcm16(samples) {
-	const out = new Int16Array(samples.length);
-	for (let i = 0; i < samples.length; i++) {
-		const v = samples[i] < -1 ? -1 : samples[i] > 1 ? 1 : samples[i];
-		out[i] = v < 0 ? v * 32768 : v * 32767;
-	}
-	return out;
-}
-function peakOf(pcm) {
-	let peak = 0;
-	for (let i = 0; i < pcm.length; i++) {
-		const v = pcm[i] < 0 ? -pcm[i] : pcm[i];
-		if (v > peak) peak = v;
-	}
-	return peak / 32768;
-}
-function encodeWave(pcm, sampleRate = HEAR_SAMPLE_RATE) {
-	const dataBytes = pcm.length * 2;
-	const bytes = new Uint8Array(44 + dataBytes);
-	const view = new DataView(bytes.buffer);
-	/** 写 4 字节 ASCII 标记（RIFF/WAVE/fmt /data），全是大写或小写字母，不用考虑编码。 */
-	const ascii = (offset, text) => {
-		for (let i = 0; i < text.length; i++) bytes[offset + i] = text.charCodeAt(i);
-	};
-	ascii(0, "RIFF");
-	view.setUint32(4, 36 + dataBytes, true);
-	ascii(8, "WAVE");
-	ascii(12, "fmt ");
-	view.setUint32(16, 16, true);
-	view.setUint16(20, 1, true);
-	view.setUint16(22, 1, true);
-	view.setUint32(24, sampleRate, true);
-	view.setUint32(28, sampleRate * 2, true);
-	view.setUint16(32, 2, true);
-	view.setUint16(34, 16, true);
-	ascii(36, "data");
-	view.setUint32(40, dataBytes, true);
-	for (let i = 0; i < pcm.length; i++) view.setInt16(44 + i * 2, pcm[i], true);
-	return bytes;
-}
-function toBase64(bytes) {
-	const BASE64_CHUNK_BYTES = 8192;
-	let binary = "";
-	for (let offset = 0; offset < bytes.length; offset += BASE64_CHUNK_BYTES) {
-		const end = Math.min(offset + BASE64_CHUNK_BYTES, bytes.length);
-		for (let i = offset; i < end; i++) binary += String.fromCharCode(bytes[i]);
-	}
-	return btoa(binary);
-}
-/** 把宿主的失败原因收敛到自己认识的几种；其余一律按生成失败处理。 */
-function reasonOf(raw) {
-	return raw === "unsupported" || raw === "bad-request" ? raw : "generate-error";
-}
-async function hearAudio(url, audio, signal) {
-	const timeout = AbortSignal.timeout(HEAR_TIMEOUT_MS);
-	try {
-		const res = await fetch(url, {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ audio }),
-			signal: signal === void 0 ? timeout : AbortSignal.any([signal, timeout])
-		});
-		const raw = await res.json().catch(() => null);
-		if (!raw || typeof raw !== "object") return {
-			ok: false,
-			reason: "network",
-			message: "识别响应不是 JSON"
-		};
-		const body = raw;
-		if (body.ok === true && typeof body.text === "string") return {
-			ok: true,
-			text: body.text
-		};
-		return {
-			ok: false,
-			reason: reasonOf(body.reason),
-			message: typeof body.message === "string" ? body.message : ""
-		};
-	} catch (e) {
-		return {
-			ok: false,
-			reason: "network",
-			message: e instanceof Error ? e.message : String(e)
-		};
-	}
-}
-async function startRecording() {
-	const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
-	const ctx = new AudioContext({ sampleRate: HEAR_SAMPLE_RATE });
-	const source = ctx.createMediaStreamSource(stream);
-	const processor = ctx.createScriptProcessor(BLOCK_SAMPLES, 1, 1);
-	const chunks = [];
-	const maxSamples = Math.floor(MAX_RECORD_MS / 1e3 * HEAR_SAMPLE_RATE);
-	let frames = 0;
-	let closed = false;
-	processor.onaudioprocess = (event) => {
-		if (frames >= maxSamples) return;
-		const samples = event.inputBuffer.getChannelData(0);
-		const room = maxSamples - frames;
-		const take = samples.length > room ? samples.subarray(0, room) : samples;
-		chunks.push(new Float32Array(take));
-		frames += take.length;
-	};
-	source.connect(processor);
-	processor.connect(ctx.destination);
-	await ctx.resume();
-	const teardown = () => {
-		if (closed) return;
-		closed = true;
-		processor.onaudioprocess = null;
-		try {
-			source.disconnect();
-			processor.disconnect();
-		} catch {}
-		for (const track of stream.getTracks()) track.stop();
-		ctx.close();
-	};
-	return {
-		elapsedMs: () => frames / HEAR_SAMPLE_RATE * 1e3,
-		async stop() {
-			await new Promise((resolve) => setTimeout(resolve, TAIL_SETTLE_MS));
-			teardown();
-			if (frames === 0) return null;
-			const all = new Float32Array(frames);
-			let offset = 0;
-			for (const chunk of chunks) {
-				all.set(chunk, offset);
-				offset += chunk.length;
-			}
-			const pcm = floatToPcm16(all);
-			return {
-				wave: encodeWave(pcm),
-				peak: peakOf(pcm)
-			};
-		},
-		cancel: teardown
-	};
-}
-
-//#endregion
-//#region src/shared/chat/hear-control.ts
-function createHearControl(opts) {
-	const { micBtn, input, hint, resizeInput, hearUrl } = opts;
-	let hearState = "idle";
-	let recorder = null;
-	let hearTimer = 0;
-	/** 还没拿到麦克风就松手了：等 startRecording 一返回立刻收尾，避免麦克风一直开着。 */
-	let wasReleasedEarly = false;
-	/** 按钮外观：录音阶段画红，识别阶段禁用（避免连点开两次）。 */
-	const paint = () => {
-		if (hearState === "starting" || hearState === "recording") micBtn.dataset.hear = "recording";
-		else delete micBtn.dataset.hear;
-		micBtn.disabled = hearState === "transcribing";
-	};
-	/** 现在录不了的原因；能录时给空串。 */
-	const blockedReason = () => {
-		if (!canRecord()) return "当前地址不支持录音：用 https 或 localhost 打开才有麦克风";
-		if (hearUrl === "") return "这个入口没有接上识别地址";
-		return "";
-	};
-	/** 把识别结果接在光标处（替换当前选区），并把焦点交回输入框。 */
-	const insertText = (text) => {
-		const from = input.selectionStart ?? input.value.length;
-		const to = input.selectionEnd ?? from;
-		input.value = input.value.slice(0, from) + text + input.value.slice(to);
-		const caret = from + text.length;
-		input.setSelectionRange(caret, caret);
-		resizeInput();
-		input.focus();
-	};
-	/** 失败原因翻成人话；宿主给的 message 有就附上，方便对着日志排查。 */
-	const describeFailure = (outcome) => {
-		if (outcome.reason === "unsupported") return "这个宿主没开语音识别";
-		if (outcome.reason === "bad-request") return "音频没通过宿主校验";
-		if (outcome.reason === "network") return "识别请求失败：" + outcome.message;
-		return "识别失败：" + (outcome.message || "未知原因");
-	};
-	/** 收尾：停采集 → 判误触 → 判静音 → 送宿主 → 文字落进输入框。失败只提示，不动已输入的文字。 */
-	const stop = async () => {
-		const current$1 = recorder;
-		if (!current$1) return;
-		recorder = null;
-		window.clearInterval(hearTimer);
-		if (current$1.elapsedMs() < MIN_RECORD_MS) {
-			current$1.cancel();
-			hearState = "idle";
-			paint();
-			hint.hide();
-			return;
-		}
-		hearState = "transcribing";
-		paint();
-		hint.show("识别中…");
-		try {
-			const clip = await current$1.stop();
-			if (clip === null) {
-				hint.flash("没录到声音");
-				return;
-			}
-			if (clip.peak < SILENCE_PEAK) {
-				hint.flash("没听到声音，检查一下麦克风");
-				return;
-			}
-			if (!input.isConnected) return;
-			const outcome = await hearAudio(hearUrl, toBase64(clip.wave));
-			if (!input.isConnected) return;
-			if (!outcome.ok) {
-				hint.flash(describeFailure(outcome));
-				return;
-			}
-			const text = outcome.text.trim();
-			if (text === "") {
-				hint.flash("没听清，再说一次");
-				return;
-			}
-			hint.hide();
-			insertText(text);
-		} catch (e) {
-			hint.flash("录音出错：" + (e instanceof Error ? e.message : String(e)));
-		} finally {
-			hearState = "idle";
-			paint();
-		}
-	};
-	/** 开录：先要麦克风，拿到了才开始计时。 */
-	const start = async () => {
-		const blocked = blockedReason();
-		if (blocked !== "") {
-			hint.flash(blocked);
-			return;
-		}
-		if (hearState !== "idle") return;
-		if (document.activeElement === input) input.blur();
-		hearState = "starting";
-		wasReleasedEarly = false;
-		paint();
-		hint.show("正在打开麦克风…");
-		try {
-			recorder = await startRecording();
-		} catch (e) {
-			hearState = "idle";
-			paint();
-			hint.flash("打不开麦克风：" + (e instanceof Error ? e.message : String(e)));
-			return;
-		}
-		if (wasReleasedEarly) {
-			stop();
-			return;
-		}
-		hearState = "recording";
-		paint();
-		hearTimer = window.setInterval(() => {
-			const rec = recorder;
-			if (!rec) return;
-			if (rec.elapsedMs() >= MAX_RECORD_MS) {
-				stop();
-				return;
-			}
-			const total = Math.floor(rec.elapsedMs() / 1e3);
-			hint.show("录音中 " + Math.floor(total / 60) + ":" + String(total % 60).padStart(2, "0") + " · 松开结束");
-		}, 200);
-	};
-	micBtn.addEventListener("pointerdown", (e) => {
-		if (e.button !== 0) return;
-		e.preventDefault();
-		try {
-			micBtn.setPointerCapture(e.pointerId);
-		} catch {}
-		start();
-	});
-	/** 松手或指针被系统抢走（切窗口）都算说完；还在等麦克风时先记下，等它回来立刻收尾。 */
-	const onRelease = () => {
-		if (hearState === "starting") {
-			wasReleasedEarly = true;
-			return;
-		}
-		if (hearState === "recording") stop();
-	};
-	micBtn.addEventListener("pointerup", onRelease);
-	micBtn.addEventListener("pointercancel", onRelease);
-	return {
-		start: () => void start(),
-		stop: () => void stop(),
-		isHearing: () => hearState === "recording",
-		dispose: () => {
-			window.clearInterval(hearTimer);
-			if (recorder) {
-				recorder.cancel();
-				recorder = null;
-			}
-			hearState = "idle";
-		}
-	};
-}
-
-//#endregion
-//#region src/shared/chat/icons.ts
-/**
-* 对话弹窗里的三枚内联 SVG 图标。
-* 不用 emoji：同一个符号在不同字体回退链下会被渲染成异体字形（上传用的 🖼 在 Windows 上就是如此）。
-* @module dsh-pet/src/shared/chat/icons
-*/
-/** SVG 图标共用的描边属性：一条线宽、随文字颜色。 */
-const ICON_ATTRS = {
-	fill: "none",
-	stroke: "currentColor",
-	"stroke-width": "1.8",
-	"stroke-linecap": "round",
-	"stroke-linejoin": "round",
-	"aria-hidden": "true"
-};
-/** 造一个 SVG 子元素（属性原样写入，命名空间固定 SVG）。 */
-function svgNode(tag, attrs) {
-	const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
-	for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
-	return node;
-}
-function pictureIcon(size = 16) {
-	const svg = svgNode("svg", {
-		viewBox: "0 0 24 24",
-		width: String(size),
-		height: String(size),
-		...ICON_ATTRS
-	});
-	svg.append(svgNode("rect", {
-		x: "3",
-		y: "3",
-		width: "18",
-		height: "18",
-		rx: "2"
-	}), svgNode("circle", {
-		cx: "8.5",
-		cy: "8.5",
-		r: "1.5"
-	}), svgNode("path", { d: "M21 15l-5-5L5 21" }));
-	return svg;
-}
-function micIcon(size = 16) {
-	const svg = svgNode("svg", {
-		viewBox: "0 0 24 24",
-		width: String(size),
-		height: String(size),
-		...ICON_ATTRS
-	});
-	svg.append(svgNode("rect", {
-		x: "9",
-		y: "2",
-		width: "6",
-		height: "11",
-		rx: "3"
-	}), svgNode("path", { d: "M5.5 11a6.5 6.5 0 0 0 13 0" }), svgNode("path", { d: "M12 17.5V21" }), svgNode("path", { d: "M8.5 21h7" }));
-	return svg;
-}
-function cameraIcon(size = 16) {
-	const svg = svgNode("svg", {
-		viewBox: "0 0 24 24",
-		width: String(size),
-		height: String(size),
-		...ICON_ATTRS
-	});
-	svg.append(svgNode("path", { d: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" }), svgNode("circle", {
-		cx: "12",
-		cy: "13",
-		r: "4"
-	}));
-	return svg;
-}
-
-//#endregion
-//#region src/shared/chat/styles.ts
-const CHAT_CSS = [
-	".dsh-pet-chat{position:fixed;z-index:2147483001;width:160px;max-width:80vw;",
-	"background:rgba(255,255,255,.98);border:1px solid rgba(0,0,0,.12);border-radius:10px;",
-	"box-shadow:0 10px 32px rgba(0,0,0,.22);color:#2b2b2b;font-size:14px;line-height:1.5;",
-	"font-family:var(--dsh-pet-font-family,'ShangshouSoftCandy','Yuanti SC','YouYuan','幼圆','Comic Sans MS','PingFang SC','Microsoft YaHei',sans-serif);",
-	"user-select:none}",
-	".dsh-pet-chat *{box-sizing:border-box}",
-	".dsh-pet-chat-input{display:block;width:100%;border:none;outline:none;background:transparent;",
-	"padding:8px 11px 9px;font-size:14px;line-height:1.45;color:#2b2b2b;font-family:inherit;",
-	"resize:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere}",
-	".dsh-pet-chat-input::placeholder{color:rgba(43,43,43,.45)}",
-	".dsh-pet-chat-input:disabled{opacity:.55}",
-	".dsh-pet-chat-actions{display:flex;align-items:center;gap:6px;padding:0 8px 7px}",
-	".dsh-pet-chat-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;",
-	"border:none;border-radius:6px;background:transparent;color:rgba(43,43,43,.62);font-size:14px;line-height:1;",
-	"cursor:pointer;transition:background .15s,color .15s}",
-	".dsh-pet-chat-btn:hover{background:rgba(0,0,0,.06);color:rgba(43,43,43,.9)}",
-	".dsh-pet-chat-btn:disabled{opacity:.45;cursor:default}",
-	".dsh-pet-chat-btn svg{display:block}",
-	".dsh-pet-chat-btn[data-hear=\"recording\"]{color:#e5484d;background:rgba(229,72,77,.14)}",
-	".dsh-pet-chat-btn[data-hear=\"recording\"]:hover{background:rgba(229,72,77,.2);color:#e5484d}",
-	".dsh-pet-chat-btn[data-hear=\"recording\"] svg{animation:dsh-pet-hear-pulse 1s ease-in-out infinite}",
-	"@keyframes dsh-pet-hear-pulse{0%,100%{opacity:1}50%{opacity:.4}}",
-	".dsh-pet-chat-attach{display:none;align-items:center;gap:4px;margin-left:2px}",
-	".dsh-pet-chat-attach[data-on=\"1\"]{display:inline-flex}",
-	".dsh-pet-chat-thumb{width:24px;height:24px;object-fit:cover;border-radius:4px;",
-	"border:1px solid rgba(0,0,0,.1);flex:0 0 auto;background:rgba(0,0,0,.06)}",
-	".dsh-pet-chat-attach-x{border:none;background:transparent;color:rgba(43,43,43,.45);cursor:pointer;",
-	"font-size:12px;line-height:1;padding:2px 3px;border-radius:4px}",
-	".dsh-pet-chat-attach-x:hover{background:rgba(0,0,0,.08);color:rgba(43,43,43,.85)}",
-	".dsh-pet-chat-hint{display:none;color:rgba(43,43,43,.55);font-size:12px;padding:0 12px 8px}",
-	".dsh-pet-chat-err{color:#d94f3d;font-size:12px;padding:0 12px 8px;white-space:pre-wrap;overflow-wrap:anywhere}"
-].join("");
-const CHAT_MIN_W = 160;
-const CHAT_MAX_W = 340;
-const CHAT_H_PAD = 22;
-let chatCssInjected = false;
-function injectChatCss() {
-	if (chatCssInjected || typeof document === "undefined") return;
-	chatCssInjected = true;
-	const tag = document.createElement("style");
-	tag.dataset.plugin = "dsh-pet";
-	tag.dataset.pluginCss = "dsh-pet/chat";
-	tag.textContent = CHAT_CSS;
-	document.head.appendChild(tag);
-}
-
-//#endregion
-//#region src/shared/chat/dom.ts
-/** 提示自动收起的时间（ms）。 */
-const HINT_MS = 2200;
-/** 造一枚图标按钮（图标 + 无障碍标签）。 */
-function iconButton(title, icon) {
-	const btn = document.createElement("button");
-	btn.type = "button";
-	btn.className = "dsh-pet-chat-btn";
-	btn.title = title;
-	btn.setAttribute("aria-label", title);
-	btn.appendChild(icon);
-	return btn;
-}
-/** 输入框宽度随文本自适应：宽度按测量值，封顶后由高度接住折行。 */
-function enableAutoResize(input, root) {
-	let measureCtx = null;
-	const resize = () => {
-		const ctx = measureCtx ?? (measureCtx = document.createElement("canvas").getContext("2d"));
-		ctx.font = getComputedStyle(input).font;
-		const textW = ctx.measureText(input.value || " ").width;
-		const w = Math.max(CHAT_MIN_W, Math.min(Math.ceil(textW + CHAT_H_PAD), CHAT_MAX_W));
-		root.style.width = w + "px";
-		input.style.height = "auto";
-		input.style.height = Math.max(input.scrollHeight, 22) + "px";
-	};
-	input.addEventListener("input", resize);
-	return resize;
-}
-function createChatDom(opts = {}) {
-	const root = document.createElement("div");
-	root.className = "dsh-pet-chat";
-	const input = document.createElement("textarea");
-	input.className = "dsh-pet-chat-input";
-	input.placeholder = "说点什么…";
-	input.maxLength = 2e3;
-	input.rows = 1;
-	const err = document.createElement("div");
-	err.className = "dsh-pet-chat-err";
-	err.style.display = "none";
-	const hint = document.createElement("div");
-	hint.className = "dsh-pet-chat-hint";
-	let hintTimer = 0;
-	/** 常驻提示：录音与识别期间一直显示，由调用点自己收。 */
-	const showHint = (text) => {
-		window.clearTimeout(hintTimer);
-		hint.textContent = text;
-		hint.style.display = "block";
-	};
-	const hideHint = () => {
-		window.clearTimeout(hintTimer);
-		hint.style.display = "none";
-	};
-	const flash = (text) => {
-		showHint(text);
-		hintTimer = window.setTimeout(hideHint, HINT_MS);
-	};
-	const pickBtn = iconButton("上传图片", pictureIcon());
-	const shotBtn = iconButton("截取当前屏幕", cameraIcon());
-	const hearUrl = typeof opts.hearUrl === "string" ? opts.hearUrl : "";
-	const micBtn = iconButton("按住说话", micIcon());
-	const fileInput = document.createElement("input");
-	fileInput.type = "file";
-	fileInput.accept = IMAGE_ACCEPT;
-	fileInput.style.display = "none";
-	const attach = document.createElement("div");
-	attach.className = "dsh-pet-chat-attach";
-	const thumb = document.createElement("img");
-	thumb.className = "dsh-pet-chat-thumb";
-	thumb.alt = "已选图片";
-	const attachX = document.createElement("button");
-	attachX.type = "button";
-	attachX.className = "dsh-pet-chat-attach-x";
-	attachX.textContent = "✕";
-	attachX.title = "移除图片";
-	attachX.setAttribute("aria-label", "移除图片");
-	attach.append(thumb, attachX);
-	const actions = document.createElement("div");
-	actions.className = "dsh-pet-chat-actions";
-	actions.append(pickBtn, shotBtn, micBtn, fileInput, attach);
-	root.append(input, actions, hint, err);
-	document.body.appendChild(root);
-	const resizeInput = enableAutoResize(input, root);
-	let attachment;
-	let encoding = false;
-	let capturing = false;
-	const clearAttach = () => {
-		attachment = void 0;
-		attach.dataset.on = "0";
-		thumb.removeAttribute("src");
-		fileInput.value = "";
-	};
-	/** 把编码结果挂上去：上传与截屏两条路共用这一处落点。 */
-	const applyEncoded = (encoded) => {
-		if (!root.isConnected) return false;
-		attachment = {
-			mediaType: encoded.mediaType,
-			data: encoded.base64
-		};
-		thumb.src = encoded.previewUrl;
-		attach.dataset.on = "1";
-		return true;
-	};
-	const setImageFile = async (file) => {
-		if (!isImageFile(file)) {
-			flash("只支持 PNG / JPEG / WebP / GIF");
-			return false;
-		}
-		encoding = true;
-		pickBtn.disabled = true;
-		try {
-			return applyEncoded(await encodeImageFile(file));
-		} catch (e) {
-			flash("读图失败：" + (e instanceof Error ? e.message : String(e)));
-			return false;
-		} finally {
-			encoding = false;
-			pickBtn.disabled = false;
-		}
-	};
-	pickBtn.addEventListener("click", () => fileInput.click());
-	fileInput.addEventListener("change", () => {
-		const file = fileInput.files && fileInput.files[0];
-		if (file) setImageFile(file);
-	});
-	attachX.addEventListener("click", clearAttach);
-	root.addEventListener("paste", (e) => {
-		const file = firstImageFromClipboard(e.clipboardData);
-		if (!file) return;
-		e.preventDefault();
-		setImageFile(file);
-	});
-	if (opts.capture) {
-		const capture = opts.capture;
-		shotBtn.addEventListener("click", () => {
-			if (capturing) return;
-			capturing = true;
-			shotBtn.disabled = true;
-			capture().then((encoded) => applyEncoded(encoded)).catch((e) => flash("截屏失败：" + (e instanceof Error ? e.message : String(e)))).finally(() => {
-				capturing = false;
-				shotBtn.disabled = false;
-			});
-		});
-	} else shotBtn.addEventListener("click", () => flash("当前环境不支持截屏，先用上传试试"));
-	const hear = createHearControl({
-		micBtn,
-		input,
-		hint: {
-			show: showHint,
-			hide: hideHint,
-			flash
-		},
-		resizeInput,
-		hearUrl
-	});
-	resizeInput();
-	return {
-		root,
-		input,
-		err,
-		shotBtn,
-		resizeInput,
-		clearAttach,
-		setImageFile,
-		setEncoded: applyEncoded,
-		getAttachment: () => attachment,
-		isEncoding: () => encoding || capturing,
-		flash,
-		startHear: hear.start,
-		stopHear: hear.stop,
-		isHearing: hear.isHearing,
-		dispose: () => {
-			window.clearTimeout(hintTimer);
-			hear.dispose();
-		}
-	};
-}
-
-//#endregion
-//#region src/shared/chat/send.ts
-/** 对话要等 LLM 生成回复，比碎碎念（30s）放宽一倍 */
-const SEND_TIMEOUT_MS = 6e4;
-async function sendChat(baseUrl, text, attachment) {
-	const res = await fetch(baseUrl, {
-		method: "POST",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify(attachment ? {
-			text,
-			attachment
-		} : { text }),
-		signal: AbortSignal.timeout(SEND_TIMEOUT_MS)
-	});
-	const raw = await res.json().catch(() => null);
-	if (!raw || typeof raw !== "object") throw new Error("dsh-pet: 对话响应非法");
-	const o = raw;
-	if (o.ok !== true) return {
-		ok: false,
-		reason: o.reason === "provider-missing" || o.reason === "generate-error" || o.reason === "config-error" ? o.reason : "bad-request",
-		message: typeof o.message === "string" ? o.message : void 0
-	};
-	return { ok: true };
-}
-
-//#endregion
-//#region src/shared/chat/dialog.ts
-/** 点弹窗外或按 Esc 关闭；返回解绑函数。 */
-function bindDismiss(root, isClosed, onDismiss) {
-	const onPointerDown = (e) => {
-		if (isClosed() || root.contains(e.target)) return;
-		onDismiss();
-	};
-	const onKeyDown = (e) => {
-		if (e.key === "Escape") onDismiss();
-	};
-	document.addEventListener("mousedown", onPointerDown, true);
-	document.addEventListener("keydown", onKeyDown, true);
-	return () => {
-		document.removeEventListener("mousedown", onPointerDown, true);
-		document.removeEventListener("keydown", onKeyDown, true);
-	};
-}
-/** 回车发送：成功后回调、失败把原因写进 err 行，不伪造回复。 */
-function bindSend(binding) {
-	let sending = false;
-	const doSend = () => {
-		if (binding.isClosed() || sending) return;
-		if (binding.isEncoding()) {
-			binding.notify("图片还在处理，稍等一下");
-			return;
-		}
-		const text = binding.input.value.trim();
-		if (!text) return;
-		sending = true;
-		binding.input.disabled = true;
-		sendChat(binding.url, text, binding.attachment()).then((state) => {
-			if (state.ok) binding.onOk();
-			else {
-				binding.err.textContent = "对话失败：" + (state.message ?? state.reason);
-				binding.err.style.display = "block";
-			}
-		}).catch((e) => {
-			binding.err.textContent = "对话异常：" + String(e && e.message ? e.message : e);
-			binding.err.style.display = "block";
-		}).finally(() => {
-			sending = false;
-			binding.input.disabled = false;
-			if (!binding.isClosed()) binding.input.focus();
-		});
-	};
-	binding.input.addEventListener("keydown", (e) => {
-		if (e.key === "Enter") {
-			e.preventDefault();
-			doSend();
-		}
-	});
-}
-/**
-* 由对话地址推导识别地址：两端传进来的都是 `.../chat`，去掉尾段换成 `/voice/hear`。
-*
-* @param baseUrl - 已含挂载前缀的对话地址。
-* @returns 同前缀下的识别地址。
-*/
-function hearUrlOf(baseUrl) {
-	return baseUrl.replace(/\/chat$/, "") + "/voice/hear";
-}
-function mountChatDialog(opts) {
-	injectChatCss();
-	const { petId, surface: surface$1, x, y, onSent, onClose, clamp } = opts;
-	const baseUrl = opts.baseUrl ?? ROUTE_PATH + "/chat";
-	const withPet = baseUrl + "?pet=" + encodeURIComponent(petId) + "&surface=" + surface$1;
-	const c = clamp && Number.isFinite(clamp.x + clamp.y + clamp.w + clamp.h) ? clamp : {
-		x: 0,
-		y: 0,
-		w: window.innerWidth,
-		h: window.innerHeight
-	};
-	const dom = createChatDom({
-		capture: opts.capture,
-		hearUrl: opts.hearUrl ?? hearUrlOf(baseUrl)
-	});
-	const { root, input, err } = dom;
-	/** 以 (x,y) 落点，超出 clamp 矩形夹回。 */
-	const place = () => {
-		const r = root.getBoundingClientRect();
-		root.style.left = Math.max(c.x + 4, Math.min(x, c.x + c.w - r.width - 4)) + "px";
-		root.style.top = Math.max(c.y + 4, Math.min(y, c.y + c.h - r.height - 4)) + "px";
-	};
-	let closed = false;
-	let unbindDismiss = () => {};
-	const close = () => {
-		if (closed) return;
-		closed = true;
-		unbindDismiss();
-		dom.dispose();
-		dom.clearAttach();
-		root.remove();
-		if (onClose) onClose();
-	};
-	unbindDismiss = bindDismiss(root, () => closed, close);
-	bindSend({
-		input,
-		err,
-		url: withPet,
-		isClosed: () => closed,
-		onOk: () => {
-			close();
-			if (onSent) onSent();
-		},
-		attachment: () => dom.getAttachment(),
-		isEncoding: () => dom.isEncoding(),
-		notify: (text) => dom.flash(text)
-	});
-	dom.resizeInput();
-	place();
-	if (opts.initialImage) dom.setImageFile(opts.initialImage);
-	if (opts.initialEncoded) dom.setEncoded(opts.initialEncoded);
-	input.focus();
-	return {
-		el: root,
-		close,
-		startHear: dom.startHear,
-		stopHear: dom.stopHear,
-		isHearing: dom.isHearing,
-		setEncoded: dom.setEncoded,
-		setImageFile: dom.setImageFile,
-		flash: dom.flash
-	};
-}
-
-//#endregion
-//#region src/shared/chat/capture.ts
-/** 等到视频真正有尺寸。 */
-function waitForFrame(video) {
-	if (video.videoWidth > 0) return Promise.resolve();
-	return new Promise((resolve) => {
-		video.onloadeddata = () => resolve();
-	});
-}
-async function captureDisplayFrame() {
-	const media = navigator.mediaDevices;
-	if (!media || typeof media.getDisplayMedia !== "function") throw new Error("当前环境不支持截屏");
-	const stream = await media.getDisplayMedia({
-		video: true,
-		audio: false
-	});
-	try {
-		const video = document.createElement("video");
-		video.srcObject = stream;
-		video.muted = true;
-		await video.play();
-		await waitForFrame(video);
-		const canvas = document.createElement("canvas");
-		canvas.width = video.videoWidth || 1280;
-		canvas.height = video.videoHeight || 720;
-		canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
-		return encodeCanvas(canvas);
-	} finally {
-		for (const track of stream.getTracks()) track.stop();
-	}
-}
-
-//#endregion
-//#region src/client/file-drop.ts
-const DROP_TARGET_CLASS = "is-drop-target";
-function claimFileDragEnter(event) {
-	if (!dragHasFiles(event)) return false;
-	event.stopPropagation();
-	hideHostDropOverlay();
-	return true;
-}
-function claimFileDragOver(event) {
-	if (!dragHasFiles(event)) return false;
-	event.preventDefault();
-	event.stopPropagation();
-	return true;
-}
-function claimFileDrop(event) {
-	if (!dragHasFiles(event)) return void 0;
-	event.preventDefault();
-	event.stopPropagation();
-	hideHostDropOverlay();
-	return firstImageFile(event.dataTransfer);
-}
-/**
-* 收起宿主（DSH）的整页拖拽遮罩。
-*
-* 它用 document 上的 dragenter/dragleave 计数维护遮罩，只有 drop 与 window 的 dragend 会清零。
-* 我们的 drop 截住冒泡后它收不到收尾信号，遮罩会一直挂着；补这一次不带文件，不会触发上传。
-*/
-function hideHostDropOverlay() {
-	if (typeof window === "undefined") return;
-	window.dispatchEvent(new Event("dragend"));
-}
-function markDropTarget(event) {
-	const el = event.currentTarget;
-	if (!(el instanceof HTMLElement)) return;
-	if (!claimFileDragEnter(event)) return;
-	el.classList.add(DROP_TARGET_CLASS);
-}
-function unmarkDropTarget(event) {
-	const el = event.currentTarget;
-	const to = event.relatedTarget;
-	if (!(el instanceof HTMLElement)) return;
-	if (to instanceof Node && el.contains(to)) return;
-	el.classList.remove(DROP_TARGET_CLASS);
-}
-
-//#endregion
-//#region src/client/pet/card/open-chat.ts
-function bindOpenChat(input) {
-	const { stage, isHovered, openChat } = input;
-	const onKeyDown = (e) => {
-		if (!isHovered() || !isChatHotkey(e)) return;
-		e.preventDefault();
-		openChat();
-	};
-	const onPaste = (e) => {
-		if (!isHovered() || isTypingTarget(e.target)) return;
-		const file = firstImageFromClipboard(e.clipboardData);
-		if (file === void 0) return;
-		e.preventDefault();
-		openChat(file);
-	};
-	const onDragOver = (e) => {
-		if (!claimFileDragOver(e)) return;
-		if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-	};
-	const onDrop = (e) => {
-		const file = claimFileDrop(e);
-		if (file !== void 0) openChat(file);
-	};
-	document.addEventListener("keydown", onKeyDown, true);
-	document.addEventListener("paste", onPaste, true);
-	stage?.addEventListener("dragenter", claimFileDragEnter);
-	stage?.addEventListener("dragover", onDragOver);
-	stage?.addEventListener("drop", onDrop);
-	return () => {
-		document.removeEventListener("keydown", onKeyDown, true);
-		document.removeEventListener("paste", onPaste, true);
-		stage?.removeEventListener("dragenter", claimFileDragEnter);
-		stage?.removeEventListener("dragover", onDragOver);
-		stage?.removeEventListener("drop", onDrop);
-	};
-}
-
-//#endregion
 //#region src/client/pet/card/entry.ts
 function createCardEntry(rt) {
 	const { useEffect, useRef } = rt;
 	return function useCardEntry(input) {
-		const { card, cfgRef, drag, live, menuItemsRef, motion, runMenuAction, showTodo, stage, tipRef, toggleTodo } = input;
+		const { card, cfgRef, drag, live, menuItemsRef, motion, runMenuAction, showTodo, tipRef, toggleTodo } = input;
 		const menuRef = useRef(null);
-		const chatRef = useRef(null);
-		/** 把提示框摆到光标右下，放不下时翻边并夹回视口。
-		*  直接写 DOM style：每次鼠标移动都走 React 状态会让整个 PetCard 重渲染。
-		*/
 		const placeTip = (clientX, clientY) => {
-			const tipEl$1 = tipRef.current;
-			if (!tipEl$1) return;
+			const tipEl = tipRef.current;
+			if (!tipEl) return;
 			const viewport = document.documentElement;
 			const p = tooltipPlacement({
 				x: clientX,
 				y: clientY
 			}, {
-				w: tipEl$1.offsetWidth,
-				h: tipEl$1.offsetHeight
+				w: tipEl.offsetWidth,
+				h: tipEl.offsetHeight
 			}, {
 				x: 0,
 				y: 0,
 				w: viewport.clientWidth,
 				h: viewport.clientHeight
 			}, motion.metrics().size * TOOLTIP_GAP_RATIO);
-			tipEl$1.style.left = p.x + "px";
-			tipEl$1.style.top = p.y + "px";
+			tipEl.style.left = p.x + "px";
+			tipEl.style.top = p.y + "px";
 		};
 		useEffect(() => () => {
 			if (menuRef.current) {
 				menuRef.current.close();
 				menuRef.current = null;
 			}
-			if (chatRef.current) {
-				chatRef.current.close();
-				chatRef.current = null;
-			}
 		}, []);
-		/** 挂载对话弹窗：弹窗贴在身体命中区右上角，视频框右上角不等于宠物右上角；超出视口夹回。 */
-		const mountChat = (seed) => {
-			if (chatRef.current) chatRef.current.close();
-			const hitRect = stage()?.querySelector(".dsh-pet-hit")?.getBoundingClientRect();
-			chatRef.current = mountChatDialog({
-				petId: cfgRef.current.id,
-				baseUrl: ROUTE_PATH + "/chat",
-				surface: "web",
-				x: hitRect ? hitRect.right + 6 : window.innerWidth - 256,
-				y: hitRect ? hitRect.top + 6 : 8,
-				...seed.image ? { initialImage: seed.image } : {},
-				...seed.encoded ? { initialEncoded: seed.encoded } : {},
-				capture: captureDisplayFrame,
-				onSent: () => {
-					console.info("[dsh-pet] 对话已发送 pet=" + cfgRef.current.id);
-				},
-				onClose: () => {
-					chatRef.current = null;
-				}
-			});
-		};
-		/** 打开对话（菜单、悬停 L、拖拽都走这条）；带图时直接进入待发送状态。 */
-		const openChat = (image) => mountChat(image ? { image } : {});
-		/** 把一张图送进对话：已开着就塞进去（不丢写了一半的字），没开就带图打开。 */
-		const openChatWithImage = (file) => {
-			const existing = chatRef.current;
-			if (existing !== null) {
-				existing.setImageFile(file);
-				return;
-			}
-			openChat(file);
-		};
-		/** 打开待办面板：面板占气泡槽，重复点击是幂等的。 */
 		const openTodo = () => showTodo();
-		/** 「按住说话」按下：弹窗没开就先开一个，再让它开录；已开着就直接在它上面开录。 */
-		const startChatHear = () => {
-			if (!chatRef.current) openChat();
-			chatRef.current?.startHear();
-		};
-		/** 「按住说话」松开：只收尾，不关弹窗——识别结果要落进输入框让人看一眼。 */
-		const stopChatHear = () => {
-			chatRef.current?.stopHear();
-		};
-		/** 打开对话：已经开着就只把焦点交回输入框，重开会把打了一半的字丢掉。 */
-		const openChatOrFocus = () => {
-			const existing = chatRef.current;
-			if (existing === null) {
-				openChat();
-				return;
-			}
-			existing.el.querySelector(".dsh-pet-chat-input")?.focus();
-		};
-		/** 截一帧塞进对话；截不到时照样开弹窗，把原因写在弹窗里——静默失败会被当成快捷键坏了。 */
-		const captureInto = async () => {
-			let encoded;
-			try {
-				encoded = await captureDisplayFrame();
-			} catch (error) {
-				const reason = "截屏失败：" + (error instanceof Error ? error.message : String(error));
-				const opened = chatRef.current;
-				if (opened !== null) {
-					opened.flash(reason);
-					return;
-				}
-				mountChat({});
-				chatRef.current?.flash(reason);
-				return;
-			}
-			const existing = chatRef.current;
-			if (existing !== null) {
-				existing.setEncoded(encoded);
-				return;
-			}
-			mountChat({ encoded });
-		};
-		/** 截图动作的对外形状；异步收在里面，调用方不关心。 */
-		const screenshot = () => {
-			captureInto();
-		};
 		const hoverRef = useRef(false);
-		const openChatRef = useRef(openChat);
-		openChatRef.current = openChat;
-		const stageGetterRef = useRef(stage);
-		stageGetterRef.current = stage;
 		const toggleTodoRef = useRef(toggleTodo);
 		toggleTodoRef.current = toggleTodo;
 		const toggleSleepRef = useRef(() => {});
@@ -10459,56 +8929,13 @@ function createCardEntry(rt) {
 				display
 			});
 		};
-		const startChatHearRef = useRef(startChatHear);
-		startChatHearRef.current = startChatHear;
-		const stopChatHearRef = useRef(stopChatHear);
-		stopChatHearRef.current = stopChatHear;
-		const openChatOrFocusRef = useRef(openChatOrFocus);
-		openChatOrFocusRef.current = openChatOrFocus;
-		const openChatWithImageRef = useRef(openChatWithImage);
-		openChatWithImageRef.current = openChatWithImage;
-		const screenshotRef = useRef(screenshot);
-		screenshotRef.current = screenshot;
-		useEffect(() => registerPetChatHandle(cfgRef.current.id, {
-			open: () => openChatOrFocusRef.current(),
-			close: () => chatRef.current?.close(),
-			isOpen: () => chatRef.current !== null,
-			startHear: () => startChatHearRef.current(),
-			stopHear: () => stopChatHearRef.current(),
-			isHearing: () => chatRef.current?.isHearing() ?? false,
-			screenshot: () => screenshotRef.current()
-		}), [cfgRef]);
 		useEffect(() => {
-			const offChat = bindOpenChat({
-				stage: stageGetterRef.current(),
-				isHovered: () => hoverRef.current,
-				openChat: (image) => image === void 0 ? openChatRef.current() : openChatWithImageRef.current(image)
-			});
-			const hearHold = createHearHold({
-				isArmed: () => {
-					if (hoverRef.current) return true;
-					const chat = chatRef.current;
-					const active = document.activeElement;
-					return !!chat && !!active && chat.el.contains(active);
-				},
-				onPress: () => startChatHearRef.current(),
-				onRelease: () => stopChatHearRef.current()
-			});
 			const onKeyDown = (e) => {
-				if (hearHold.onKeyDown(e)) {
-					e.preventDefault();
-					return;
-				}
 				if (!hoverRef.current) return;
 				const display = displayOfHotkey(e);
 				if (display !== void 0) {
 					e.preventDefault();
 					switchDisplayRef.current(display);
-					return;
-				}
-				if (isCaptureHotkey(e)) {
-					e.preventDefault();
-					screenshotRef.current();
 					return;
 				}
 				if (isSleepHotkey(e)) {
@@ -10520,22 +8947,13 @@ function createCardEntry(rt) {
 				e.preventDefault();
 				toggleTodoRef.current();
 			};
-			const onKeyUp = (e) => hearHold.onKeyUp(e);
 			document.addEventListener("keydown", onKeyDown, true);
-			document.addEventListener("keyup", onKeyUp, true);
-			return () => {
-				offChat();
-				document.removeEventListener("keydown", onKeyDown, true);
-				document.removeEventListener("keyup", onKeyUp, true);
-			};
+			return () => document.removeEventListener("keydown", onKeyDown, true);
 		}, []);
 		live.current.placeTip = placeTip;
 		live.current.tipOn = () => card.state.tipOn;
-		/** 打开右键菜单。 */
 		const handleContextMenu = (e) => {
 			const more = buildMoreBranch(menuItemsRef.current);
-			const pic = cfgRef.current;
-			const memes = buildMemeBranch(pic, (name) => memeThumbUrl(ROUTE_PATH, pic.assetRoot, name));
 			const asleep = live.current.flow?.sleeping() ?? false;
 			const canSleep = (cfgRef.current.animations.sleep ?? []).length > 0;
 			const sleepItem = asleep ? {
@@ -10547,15 +8965,11 @@ function createCardEntry(rt) {
 				action: "sleep",
 				hint: SLEEP_HOTKEY_HINT
 			};
-			const tools = [
-				{
-					label: "待办事项",
-					action: "todo",
-					hint: TODO_HOTKEY_HINT
-				},
-				...memes ? [memes] : [],
-				...canSleep ? [sleepItem] : []
-			];
+			const tools = [{
+				label: "待办事项",
+				action: "todo",
+				hint: TODO_HOTKEY_HINT
+			}, ...canSleep ? [sleepItem] : []];
 			const tail = [displayMenuBranch(), {
 				label: "回到初始位置",
 				action: "home"
@@ -10594,7 +9008,6 @@ function createCardEntry(rt) {
 				hoverRef.current = false;
 				card.actions.setTipOn(false);
 			},
-			openChat,
 			openTodo,
 			placeTip
 		};
@@ -10716,9 +9129,9 @@ function createFlight(deps) {
 		held = false;
 		quietMs = 0;
 	};
-	const start = (px$1, py, vx, vy) => {
+	const start = (px, py, vx, vy) => {
 		held = false;
-		run(px$1, py, vx, vy);
+		run(px, py, vx, vy);
 	};
 	/** 体感常驻模式：没有初速，重力逐帧由 {@link FlightDeps.gravity} 提供；已在常驻时无副作用。 */
 	const startHeld = () => {
@@ -10754,7 +9167,7 @@ function createFlight(deps) {
 		state.vx += dvx;
 		state.vy += dvy;
 	};
-	const run = (px$1, py, vx, vy) => {
+	const run = (px, py, vx, vy) => {
 		const metrics = deps.metrics();
 		const viewport = deps.viewport();
 		const physics = deps.physics();
@@ -10767,7 +9180,7 @@ function createFlight(deps) {
 		const own = ++token;
 		quietMs = 0;
 		let current$1 = {
-			x: px$1,
+			x: px,
 			y: py,
 			vx,
 			vy
@@ -10868,144 +9281,6 @@ function createFlight(deps) {
 			vy: 0
 		}
 	};
-}
-
-//#endregion
-//#region src/client/pet/haptics.ts
-const HAPTIC_COOLDOWN_MS = 120;
-const HAPTIC_MIN_SPEED = 150;
-/** 手感锚点：与落地挤压同一组速度阈值——软碰取最短，硬砸取最长。 */
-const SOFT_SPEED = 300;
-const HARD_SPEED = 1500;
-const SHORT_PULSE_MS = 10;
-const LONG_PULSE_MS = 28;
-function pulseMsFor(speed) {
-	if (!Number.isFinite(speed) || speed < HAPTIC_MIN_SPEED) return null;
-	const t = Math.min(1, Math.max(0, (speed - SOFT_SPEED) / (HARD_SPEED - SOFT_SPEED)));
-	return Math.round(SHORT_PULSE_MS + (LONG_PULSE_MS - SHORT_PULSE_MS) * t);
-}
-function createHaptics(deps) {
-	const vibrate = deps?.vibrate ?? hardwareVibrate;
-	const now = deps?.now ?? (() => performance.now());
-	const enabled = deps?.enabled ?? (() => true);
-	/** 每类撞击上次震动的时刻；`undefined` = 还没震过。 */
-	const lastAt = new Map();
-	return { hit(kind, speed) {
-		if (!enabled()) return;
-		const ms = pulseMsFor(speed);
-		if (ms === null) return;
-		const at = now();
-		const prev = lastAt.get(kind);
-		if (prev !== void 0 && at - prev < HAPTIC_COOLDOWN_MS) return;
-		lastAt.set(kind, at);
-		vibrate(ms);
-	} };
-}
-/** 真实硬件：无 API、页面不可见或 WebView 抛错时静默跳过——触觉不是关键路径。 */
-function hardwareVibrate(ms) {
-	if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return;
-	if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-	try {
-		navigator.vibrate(ms);
-	} catch {}
-}
-
-//#endregion
-//#region src/client/pet/device-tilt.ts
-const TILT_DEAD_ZONE_DEG = 2;
-const SHAKE_THRESHOLD = 18;
-const SHAKE_COOLDOWN_MS = 300;
-/** 摇一摇基准：3600 px/s 起，随加速度线性加码，封顶 4800。 */
-const SHAKE_BASE_SPEED = 3600;
-const SHAKE_GAIN = 160;
-const SHAKE_MAX_BONUS = 4800;
-/** 屏幕方向角（0/90/180/270）：横屏时倾斜轴要换过来。 */
-const screenAngleDeg = () => {
-	if (typeof screen === "undefined" || !screen.orientation) return 0;
-	return screen.orientation.angle || 0;
-};
-/** 把角度差折到最近的等价角，避免从 179° 跳到 -179° 时方向反转。 */
-const nearestDelta = (delta, period) => {
-	const half = period / 2;
-	return ((delta + half) % period + period) % period - half;
-};
-function tiltGravity(sample, baseline, gravity, screenAngle = screenAngleDeg()) {
-	const dBeta = nearestDelta(sample.beta - baseline.beta, 360);
-	const dGamma = nearestDelta(sample.gamma - baseline.gamma, 180);
-	if (Math.abs(dBeta) < TILT_DEAD_ZONE_DEG && Math.abs(dGamma) < TILT_DEAD_ZONE_DEG) return {
-		gx: 0,
-		gy: 0
-	};
-	if (!Number.isFinite(gravity) || gravity <= 0) return {
-		gx: 0,
-		gy: 0
-	};
-	const rad = Math.PI / 180;
-	const ax = gravity * Math.sin(dGamma * rad);
-	const ay = gravity * Math.sin(dBeta * rad);
-	switch ((screenAngle % 360 + 360) % 360) {
-		case 90: return {
-			gx: ay,
-			gy: -ax
-		};
-		case 180: return {
-			gx: -ax,
-			gy: -ay
-		};
-		case 270: return {
-			gx: -ay,
-			gy: ax
-		};
-		default: return {
-			gx: ax,
-			gy: ay
-		};
-	}
-}
-function shakeImpulse(ax, ay, az, throwPower) {
-	const mag = Math.hypot(ax, ay, az);
-	if (!Number.isFinite(mag) || mag < SHAKE_THRESHOLD) return null;
-	const lateral = Math.hypot(ax, ay);
-	if (lateral < 1e-6) return null;
-	const speed = (SHAKE_BASE_SPEED + Math.min(SHAKE_MAX_BONUS, mag * SHAKE_GAIN)) * Math.max(0, throwPower);
-	return {
-		vx: ax / lateral * speed,
-		vy: ay / lateral * speed
-	};
-}
-function canReadMotionSensors() {
-	return typeof DeviceOrientationEvent !== "undefined" && typeof DeviceMotionEvent !== "undefined";
-}
-function subscribeTilt(onSample) {
-	if (typeof window === "undefined" || typeof DeviceOrientationEvent === "undefined") return () => {};
-	const handler = (e) => {
-		if (e.beta === null || e.gamma === null) return;
-		onSample({
-			beta: e.beta,
-			gamma: e.gamma
-		});
-	};
-	window.addEventListener("deviceorientation", handler, true);
-	return () => window.removeEventListener("deviceorientation", handler, true);
-}
-function subscribeShake(onShake, now = () => performance.now()) {
-	if (typeof window === "undefined" || typeof DeviceMotionEvent === "undefined") return () => {};
-	let lastAt = 0;
-	const handler = (e) => {
-		const a = e.acceleration;
-		const raw = a && (a.x !== null || a.y !== null || a.z !== null) ? a : e.accelerationIncludingGravity;
-		if (!raw) return;
-		const ax = raw.x ?? 0;
-		const ay = raw.y ?? 0;
-		const az = raw.z ?? 0;
-		if (Math.hypot(ax, ay, az) < SHAKE_THRESHOLD) return;
-		const at = now();
-		if (at - lastAt < SHAKE_COOLDOWN_MS) return;
-		lastAt = at;
-		onShake(ax, ay, az);
-	};
-	window.addEventListener("devicemotion", handler, true);
-	return () => window.removeEventListener("devicemotion", handler, true);
 }
 
 //#endregion
@@ -11359,10 +9634,6 @@ function createCardMotion(rt) {
 			posFollowRef.current?.stop();
 		};
 		const flightRef = useRef(null);
-		/** 触觉反馈：每张卡一个，冷却状态跟着卡片走；开关实时读配置。 */
-		const hapticsRef = useRef(null);
-		hapticsRef.current ?? (hapticsRef.current = createHaptics({ enabled: () => cfgRef.current.physics?.hapticEnabled !== false }));
-		const haptics = hapticsRef.current;
 		flightRef.current ?? (flightRef.current = createFlight({
 			root,
 			metrics: () => motionRef.current,
@@ -11385,34 +9656,17 @@ function createCardMotion(rt) {
 				const frontEl = live.current.ownAnim.frontVideo();
 				if (frontEl) live.current.squash.start(frontEl, landingSquash(impactVy));
 			},
-			onImpact: (impact) => {
-				haptics.hit(impact.kind, impact.speed);
-			},
-			gravity: () => {
-				const physics = cfgRef.current.physics;
-				const gravity = physics?.gravity ?? 0;
-				if (physics?.tiltGravity !== true) return {
-					gx: 0,
-					gy: gravity
-				};
-				const sample = tiltSampleRef.current;
-				const baseline = tiltBaselineRef.current;
-				if (sample === null || baseline === null) return {
-					gx: 0,
-					gy: gravity
-				};
-				return tiltGravity(sample, baseline, gravity);
-			}
+			gravity: () => ({
+				gx: 0,
+				gy: cfgRef.current.physics?.gravity ?? 0
+			})
 		}));
 		const flight = flightRef.current;
-		/** 体感：采样与中性姿态；关掉倾斜时两个都清空，下次再开重新标定。 */
-		const tiltSampleRef = useRef(null);
-		const tiltBaselineRef = useRef(null);
 		/** 从给定左上角与初速起飞；先停弹簧跟随与走位，免得两套运动同时改位置。 */
-		const startThrow = (px$1, py, vx, vy) => {
+		const startThrow = (px, py, vx, vy) => {
 			live.current.drag.stopFollow();
 			stopMove();
-			flight.start(px$1, py, vx, vy);
+			flight.start(px, py, vx, vy);
 		};
 		/**
 		* 把速度落到这只宠物身上：在跑就按给定口径处理，没跑就从落点起飞。
@@ -11437,37 +9691,6 @@ function createCardMotion(rt) {
 		/** 最新的 applyVelocity 引用，供碰撞槽与传感器回调转发，避免陈旧闭包。 */
 		const applyVelocityRef = useRef(() => {});
 		applyVelocityRef.current = applyVelocity;
-		useEffect(() => {
-			if (!canReadMotionSensors()) return;
-			const offTilt = subscribeTilt((sample) => {
-				if (cfgRef.current.physics?.tiltGravity !== true) {
-					tiltSampleRef.current = null;
-					tiltBaselineRef.current = null;
-					if (flight.isHeld()) flight.stop();
-					return;
-				}
-				if (tiltBaselineRef.current === null) tiltBaselineRef.current = sample;
-				tiltSampleRef.current = sample;
-				if (live.current.drag.isActive() || flight.isFlying()) return;
-				const gravity = cfgRef.current.physics?.gravity ?? 0;
-				const vector = tiltGravity(sample, tiltBaselineRef.current, gravity);
-				if (vector.gx === 0 && vector.gy === 0) return;
-				stopMove();
-				flight.startHeld();
-			});
-			const offShake = subscribeShake((ax, ay, az) => {
-				const physics = cfgRef.current.physics;
-				if (physics?.shakeThrow !== true) return;
-				if (live.current.drag.isActive()) return;
-				const impulse = shakeImpulse(ax, ay, az, physics.throwPower ?? 1);
-				if (impulse !== null) applyVelocityRef.current(impulse.vx, impulse.vy, "add");
-			});
-			return () => {
-				offTilt();
-				offShake();
-				flight.stop();
-			};
-		}, []);
 		const posFollowRef = useRef(null);
 		posFollowRef.current ?? (posFollowRef.current = createPositionFollow({
 			root,
@@ -12005,7 +10228,6 @@ function createCardRuntime(rt) {
 			motion,
 			runMenuAction: (leaf$1, playbackId, keepFacing) => menuActionsRef.current?.run(leaf$1, playbackId, keepFacing),
 			showTodo: bubbles.showTodo,
-			stage: () => stageRef.current,
 			tipRef,
 			toggleTodo: bubbles.toggleTodo
 		});
@@ -12015,7 +10237,6 @@ function createCardRuntime(rt) {
 			applyMerged: (merged) => petBridge.reload(merged),
 			faceLeft: () => actions.setFacing("left"),
 			isFacingRight: () => card.facingRef.current === "right",
-			openChat: () => entryRef.current?.openChat(),
 			openTodo: () => entryRef.current?.openTodo(),
 			petId: cfg.id,
 			playOnce: (anim, playbackId) => {
@@ -12187,12 +10408,6 @@ function setStateSnapshot(state) {
 }
 function getStateSnapshot() {
 	return latest;
-}
-function subscribeStateSnapshot(listener) {
-	listeners.add(listener);
-	return () => {
-		listeners.delete(listener);
-	};
 }
 
 //#endregion
@@ -12457,40 +10672,6 @@ function makePetUI(rt) {
 }
 
 //#endregion
-//#region src/client/command-faces.ts
-function installCommandFaces(commandUi, faces) {
-	const original = commandUi.candidates;
-	if (typeof original !== "function") {
-		console.warn("[dsh-pet] 命令图标不可用：commandUi.candidates 缺失（命令本身仍可用，只是没有图标）");
-		return () => {};
-	}
-	const patched = async (session, req) => {
-		const rows = await original.call(commandUi, session, req);
-		try {
-			if (!Array.isArray(rows)) return rows;
-			return rows.map((raw) => {
-				if (raw === null || typeof raw !== "object") return raw;
-				const row = raw;
-				const face = faces.get(typeof row.name === "string" ? row.name : "");
-				if (face === void 0 || row.icon !== void 0) return row;
-				return {
-					...row,
-					label: face.label(),
-					icon: face.icon
-				};
-			});
-		} catch (error) {
-			console.warn("[dsh-pet] 命令图标补丁异常，本次退回原始菜单行：" + (error instanceof Error ? error.message : String(error)));
-			return rows;
-		}
-	};
-	commandUi.candidates = patched;
-	return () => {
-		if (commandUi.candidates === patched) commandUi.candidates = original;
-	};
-}
-
-//#endregion
 //#region src/client/nav-icon.ts
 /**
 * 设置面板导航图标补丁：把「桌宠配置」那一行的兜底齿轮换成指定图标。
@@ -12655,1853 +10836,132 @@ function installSectionNavIcon(target) {
 }
 
 //#endregion
-//#region src/client/chat/api.ts
-/** 校验并收窄一条图片引用；形状不对返回 undefined（旧记录没有这个字段）。 */
-function imageRefOf(raw) {
-	if (!raw || typeof raw !== "object") return void 0;
-	const ref = raw;
-	if (typeof ref.attachmentId !== "string" || ref.attachmentId === "") return void 0;
-	const num = (value) => typeof value === "number" && Number.isFinite(value) ? value : 0;
-	return {
-		attachmentId: ref.attachmentId,
-		mediaType: typeof ref.mediaType === "string" ? ref.mediaType : "image/png",
-		bytes: num(ref.bytes),
-		width: num(ref.width),
-		height: num(ref.height)
-	};
-}
-function toChatMessages(body) {
-	const raw = body?.messages;
-	if (!Array.isArray(raw)) return [];
-	const out = [];
-	for (const item of raw) {
-		if (!item || typeof item !== "object") continue;
-		const m = item;
-		const role = m.role === "assistant" ? "assistant" : m.role === "user" ? "user" : void 0;
-		if (role === void 0 || typeof m.content !== "string") continue;
-		const image = imageRefOf(m.image);
-		const meme = typeof m.meme === "string" && m.meme !== "" ? m.meme : void 0;
-		const action = typeof m.action === "string" && m.action !== "" ? m.action : void 0;
-		out.push({
-			role,
-			text: m.content,
-			ts: typeof m.ts === "number" ? m.ts : 0,
-			...image === void 0 ? {} : { image },
-			...meme === void 0 ? {} : { meme },
-			...action === void 0 ? {} : { action }
-		});
-	}
-	return out;
-}
-function groupRounds(messages) {
-	const rounds = [];
-	for (const message of messages) {
-		const last = rounds[rounds.length - 1];
-		if (last !== void 0 && last.ts === message.ts && message.ts !== 0) {
-			rounds[rounds.length - 1] = message.role === "user" ? {
-				...last,
-				user: message
-			} : {
-				...last,
-				assistant: message
-			};
-			continue;
-		}
-		rounds.push(message.role === "user" ? {
-			ts: message.ts,
-			user: message
-		} : {
-			ts: message.ts,
-			assistant: message
-		});
-	}
-	return rounds;
-}
-const LOGO_URL = ROUTE_PATH + "/logo";
-async function playAction(petId, name) {
-	return postAction(ROUTE_PATH + "/anim?pet=" + encodeURIComponent(petId) + "&surface=any", { name });
-}
-function attachmentUrl(ref) {
-	return ROUTE_PATH + "/attachment?id=" + encodeURIComponent(ref.attachmentId);
-}
-function memeUrl(name, assetRoot) {
-	const root = assetRoot.trim();
-	const prefix = root === "" ? "" : encodeURIComponent(root) + "/";
-	return ROUTE_PATH + "/pic/memes/" + prefix + encodeURIComponent(name) + ".png";
-}
-function personaText(own, entry) {
-	if (typeof own === "string" && own.trim() !== "") return own;
-	return typeof entry === "string" ? entry : "";
-}
-async function fetchChatConfig() {
-	const res = await fetch(ROUTE_PATH + "/config", { cache: "no-store" });
-	if (!res.ok) throw new Error("config HTTP " + res.status);
-	const body = await res.json();
-	if (body.ok === false) throw new Error("config: " + String(body.reason ?? "failed"));
-	const merged = body;
-	const roundsByEntry = {};
-	for (const [entry, conf] of Object.entries(merged)) {
-		const rounds = Number(conf?.chatMemoryRounds);
-		if (Number.isFinite(rounds) && rounds >= 0) roundsByEntry[entry] = Math.floor(rounds);
-	}
-	const pets = flattenConfigPets(merged);
-	const personaByPet = {};
-	for (const pet of pets) {
-		const entry = merged[pet.assetRoot ?? ""]?.whisperPrompt;
-		personaByPet[pet.id] = personaText(pet.whisperPrompt, entry);
-	}
-	return {
-		pets,
-		roundsByEntry,
-		personaByPet
-	};
-}
-function memoryBoundaryIndex(totalRounds, memoryRounds) {
-	if (memoryRounds === void 0 || memoryRounds <= 0) return null;
-	const cut = totalRounds - memoryRounds;
-	return cut > 0 ? cut : null;
-}
-const HISTORY_ROUNDS = 200;
-async function fetchHistory(petId) {
-	const url = ROUTE_PATH + "/chat?pet=" + encodeURIComponent(petId) + "&rounds=" + HISTORY_ROUNDS;
-	const res = await fetch(url, { cache: "no-store" });
-	if (!res.ok) throw new Error("chat HTTP " + res.status);
-	return toChatMessages(await res.json());
-}
-async function sendMessage(petId, text, attachment) {
-	const url = ROUTE_PATH + "/chat?pet=" + encodeURIComponent(petId) + "&surface=any";
-	const result = await sendChat(url, text, attachment);
-	return result.ok ? { ok: true } : {
-		ok: false,
-		message: result.message ?? result.reason
-	};
-}
-/** 把删除响应收窄成回执；`ts` 为空 = 清空整只。 */
-async function deleteChat(petId, ts) {
-	const query = ts.map((value) => "&ts=" + encodeURIComponent(String(value))).join("");
-	const res = await fetch(ROUTE_PATH + "/chat?pet=" + encodeURIComponent(petId) + query, { method: "DELETE" });
-	const body = await res.json().catch(() => null);
-	if (body?.ok === true) return {
-		ok: true,
-		removed: Number(body.removed ?? 0)
-	};
-	const reason = typeof body?.message === "string" ? body.message : "HTTP " + res.status;
-	return {
-		ok: false,
-		message: reason
-	};
-}
-async function deleteRounds(petId, ts) {
-	if (ts.length === 0) return {
-		ok: true,
-		removed: 0
-	};
-	return deleteChat(petId, ts);
-}
-async function clearHistory(petId) {
-	return deleteChat(petId, []);
-}
-async function fetchOrphans() {
-	const res = await fetch(ROUTE_PATH + "/chat/memory", { cache: "no-store" });
-	if (!res.ok) throw new Error("chat/memory HTTP " + res.status);
-	const body = await res.json();
-	const raw = Array.isArray(body.orphans) ? body.orphans : [];
-	const out = [];
-	for (const item of raw) {
-		if (!item || typeof item !== "object") continue;
-		const one = item;
-		if (typeof one.petId !== "string") continue;
-		out.push({
-			entry: typeof one.entry === "string" ? one.entry : "",
-			petId: one.petId,
-			messages: typeof one.messages === "number" ? one.messages : 0,
-			lastTs: typeof one.lastTs === "number" ? one.lastTs : 0
-		});
-	}
-	return out;
-}
-async function clearOrphans() {
-	const res = await fetch(ROUTE_PATH + "/chat/memory", { method: "DELETE" });
-	const body = await res.json().catch(() => null);
-	if (body?.ok === true) return {
-		ok: true,
-		pets: Number(body.pets ?? 0),
-		messages: Number(body.messages ?? 0)
-	};
-	return {
-		ok: false,
-		message: typeof body?.message === "string" ? body.message : "HTTP " + res.status
-	};
-}
-
-//#endregion
-//#region src/client/chat/actions.ts
-function createHistoryActions(ports) {
-	/** 跑一次删除：失败只报错；成功后清勾选并以服务端为准重读。 */
-	const apply = async (run) => {
-		try {
-			const result = await run();
-			if (!result.ok) {
-				ports.fail(result.message);
-				return;
-			}
-			ports.patch({
-				selected: [],
-				error: ""
-			});
-			await ports.reload(ports.read().petId);
-		} catch (error) {
-			ports.fail(error);
-		}
-	};
-	return {
-		deleteSelected: () => {
-			const { petId, selected } = ports.read();
-			if (petId === "" || selected.length === 0) return;
-			apply(() => deleteRounds(petId, selected));
-		},
-		clearAll: () => {
-			const { petId } = ports.read();
-			if (petId === "") return;
-			apply(() => clearHistory(petId));
-		}
-	};
-}
-function createSendActions(ports) {
-	return {
-		send: () => {
-			const data = ports.read();
-			const text = data.draft.trim();
-			if (text === "" || data.busy || data.petId === "") return;
-			ports.patch({
-				busy: true,
-				error: ""
-			});
-			(async () => {
-				try {
-					const attachment = data.attachment === void 0 ? void 0 : {
-						mediaType: data.attachment.mediaType,
-						data: data.attachment.base64
-					};
-					const result = await sendMessage(data.petId, text, attachment);
-					if (!result.ok) {
-						ports.fail(result.message);
-						return;
-					}
-					ports.patch({
-						draft: "",
-						attachment: void 0
-					});
-					await ports.reload(data.petId);
-				} catch (error) {
-					ports.fail(error);
-				} finally {
-					ports.patch({ busy: false });
-				}
-			})();
-		},
-		pickFile: (file) => {
-			(async () => {
-				try {
-					ports.patch({
-						attachment: await encodeImageFile(file),
-						error: ""
-					});
-				} catch (error) {
-					ports.fail(error);
-				}
-			})();
-		}
-	};
-}
-function createShellActions(deps) {
-	const { ports, history, listRef, pageRounds } = deps;
-	/** 清掉已删宠物残留的历史。 */
-	const clearOrphans$1 = () => {
-		(async () => {
-			try {
-				const result = await clearOrphans();
-				if (!result.ok) {
-					ports.fail(result.message);
-					return;
-				}
-				ports.patch({
-					orphans: [],
-					error: ""
-				});
-			} catch (error) {
-				ports.fail(error);
-			}
-		})();
-	};
-	/** 确认条点「确定」后按待办类型分发；先清 pending，避免重复触发。 */
-	const confirmAsk = () => {
-		const kind = ports.read().pending;
-		ports.patch({ pending: null });
-		if (kind === "delete-selected") history.deleteSelected();
-		else if (kind === "clear-all") history.clearAll();
-		else if (kind === "clear-orphans") clearOrphans$1();
-	};
-	/** 多放一批更早的轮；按高度差补偿滚动位置，视线不跳。 */
-	const showOlder = () => {
-		const el = listRef.current;
-		const before = el?.scrollHeight ?? 0;
-		ports.patch({ visibleRounds: ports.read().visibleRounds + pageRounds });
-		if (el === null) return;
-		requestAnimationFrame(() => {
-			el.scrollTop = el.scrollHeight - before;
-		});
-	};
-	return {
-		clearOrphans: clearOrphans$1,
-		ask: (kind) => ports.patch({ pending: kind }),
-		cancelAsk: () => ports.patch({ pending: null }),
-		confirmAsk,
-		showOlder
-	};
-}
-
-//#endregion
-//#region src/client/chat/metrics.ts
-const SIZE = {
-	pad: 12,
-	padBottom: 10,
-	gap: 8,
-	gapTight: 6,
-	gapWide: 10,
-	listGap: 20,
-	avatar: 28,
-	imgMaxW: 220,
-	imgMaxH: 180,
-	preview: 48,
-	hairline: 2,
-	spinner: 12,
-	tabPadY: 3,
-	tabPadX: 12,
-	toolPadY: 2,
-	toolPadX: 10,
-	bubblePadY: 8,
-	bubblePadX: 12,
-	composerPad: 10,
-	composerPadBottom: 6,
-	inputMinH: 44,
-	inputMaxH: 140,
-	send: 34,
-	pillPadY: 4,
-	pill: 999,
-	tipPadY: 6,
-	tipPadX: 10,
-	tipMaxW: 260,
-	personaMaxH: 200
-};
-const INPUT_MAX_HEIGHT = SIZE.inputMaxH;
-const px = (value) => value + "px";
-
-//#endregion
-//#region src/client/chat/effects.ts
-function createChatEffects(rt) {
-	const { useEffect } = rt;
-	return function useChatEffects(input) {
-		const { data, fail, listRef, draftRef, newestTs, patch, reload } = input;
-		useEffect(() => {
-			(async () => {
-				try {
-					const [config, orphans] = await Promise.all([fetchChatConfig(), fetchOrphans().catch(() => [])]);
-					const first = config.pets[0]?.id ?? "";
-					patch({
-						pets: config.pets,
-						roundsByEntry: config.roundsByEntry,
-						personas: config.personaByPet,
-						petId: first,
-						orphans
-					});
-					await reload(first);
-				} catch (error) {
-					fail(error);
-				} finally {
-					patch({ loading: false });
-				}
-			})();
-		}, []);
-		useEffect(() => {
-			const el = listRef.current;
-			if (el === null) return;
-			const newest = data.messages[data.messages.length - 1]?.ts ?? 0;
-			if (newest === newestTs.current) return;
-			newestTs.current = newest;
-			el.scrollTop = el.scrollHeight;
-		}, [data.messages]);
-		useEffect(() => {
-			const el = draftRef.current;
-			if (el === null) return;
-			el.style.height = "auto";
-			el.style.height = Math.min(el.scrollHeight, INPUT_MAX_HEIGHT) + "px";
-		}, [data.draft]);
-		useEffect(() => {
-			const petId = data.petId;
-			if (petId === "") return;
-			let last = getStateSnapshot()?.pets[petId]?.say?.counter ?? 0;
-			return subscribeStateSnapshot((snapshot) => {
-				const counter = snapshot.pets[petId]?.say?.counter ?? 0;
-				if (counter === last) return;
-				last = counter;
-				reload(petId);
-			});
-		}, [data.petId]);
-	};
-}
-
-//#endregion
-//#region src/client/chat/state.ts
-/** 首屏与每次「加载更早」放出的轮数。 */
-const PAGE_ROUNDS = 10;
-/** 初始状态：空列表 + 加载中。 */
-const INITIAL = {
-	pets: [],
-	petId: "",
-	messages: [],
-	draft: "",
-	attachment: void 0,
-	busy: false,
-	loading: true,
-	error: "",
-	selected: [],
-	selecting: false,
-	orphans: [],
-	pending: null,
-	visibleRounds: PAGE_ROUNDS,
-	previewUrl: void 0,
-	roundsByEntry: {},
-	personas: {},
-	personaOpen: false,
-	speaking: null
-};
-function createPetChatState(rt) {
-	const { useRef, useState } = rt;
-	const useChatEffects = createChatEffects(rt);
-	return function usePetChatState() {
-		const [data, setData] = useState(INITIAL);
-		const listRef = useRef(null);
-		const draftRef = useRef(null);
-		/** 已贴到底的那条消息（`ts`）：只有它变化时才自动滚到底。 */
-		const newestTs = useRef(0);
-		const patch = (next) => setData((prev) => ({
-			...prev,
-			...next
-		}));
-		const fail = (error) => patch({ error: error instanceof Error ? error.message : String(error) });
-		/** 重读某只宠物的历史；失败只落在 error 上，不静默清空已有消息。 */
-		const reload = async (petId) => {
-			if (petId === "") return;
-			try {
-				patch({ messages: await fetchHistory(petId) });
-			} catch (error) {
-				fail(error);
-			}
-		};
-		useChatEffects({
-			data,
-			patch,
-			fail,
-			reload,
-			listRef,
-			draftRef,
-			newestTs
-		});
-		const ports = {
-			read: () => data,
-			patch,
-			fail,
-			reload
-		};
-		const history = createHistoryActions(ports);
-		const shell = createShellActions({
-			ports,
-			history,
-			listRef,
-			pageRounds: PAGE_ROUNDS
-		});
-		const pet = data.pets.find((one) => one.id === data.petId);
-		const allRounds = groupRounds(data.messages);
-		const rounds = allRounds.slice(-data.visibleRounds);
+//#region src/client/app-shortcut.ts
+const SHORTCUT_PROFILES = [
+	"desktop:macos",
+	"desktop:windows",
+	"desktop:linux",
+	"web:macos",
+	"web:windows"
+];
+function registerAppShortcut(ctx, shortcut) {
+	const shortcuts = ctx.get?.("shortcuts");
+	if (shortcuts === void 0 || typeof shortcuts.register !== "function") {
+		console.warn("[dsh-pet] 快捷键服务不可用，「" + shortcut.id + "」未注册");
 		return {
-			...data,
-			...createSendActions(ports),
-			...history,
-			...shell,
-			rounds,
-			hasOlder: allRounds.length > rounds.length,
-			petName: pet?.name || "宠",
-			assetRoot: pet?.assetRoot ?? "",
-			memoryRounds: data.roundsByEntry[pet?.assetRoot ?? ""],
-			persona: data.personas[data.petId] ?? "",
-			togglePersona: () => patch({ personaOpen: !data.personaOpen }),
-			closePersona: () => patch({ personaOpen: false }),
-			listRef,
-			draftRef,
-			pickPet: (petId) => {
-				patch({
-					petId,
-					messages: [],
-					selected: [],
-					selecting: false,
-					pending: null,
-					visibleRounds: PAGE_ROUNDS,
-					error: ""
-				});
-				reload(petId);
-			},
-			toggleSelecting: () => patch({
-				selecting: !data.selecting,
-				selected: []
-			}),
-			toggleRound: (ts) => patch({ selected: data.selected.includes(ts) ? data.selected.filter((one) => one !== ts) : [...data.selected, ts] }),
-			setDraft: (draft) => patch({ draft }),
-			speakRound: (ts, text) => {
-				speakText(text, (phase) => {
-					setData((prev) => {
-						if (phase === "idle") return prev.speaking?.ts === ts ? {
-							...prev,
-							speaking: null
-						} : prev;
-						return {
-							...prev,
-							speaking: {
-								ts,
-								phase
-							}
-						};
-					});
-				});
-			},
-			playAction: (name) => {
-				if (data.petId !== "") playAction(data.petId, name);
-			},
-			clearAttachment: () => patch({ attachment: void 0 }),
-			showImage: (previewUrl) => patch({ previewUrl }),
-			closeImage: () => patch({ previewUrl: void 0 })
+			registered: false,
+			dispose: () => {}
 		};
-	};
+	}
+	try {
+		const defaults = Object.fromEntries(SHORTCUT_PROFILES.map((profile) => [profile, shortcut.binding]));
+		const dispose = shortcuts.register({
+			id: shortcut.id,
+			label: shortcut.label,
+			aliases: [],
+			defaults,
+			regions: ["page", "editable"],
+			modals: [],
+			resolve: () => ({
+				status: "handled",
+				run: shortcut.run
+			})
+		});
+		return {
+			registered: true,
+			dispose: () => dispose()
+		};
+	} catch (error) {
+		console.warn("[dsh-pet] 快捷键注册失败：" + (error instanceof Error ? error.message : String(error)));
+		return {
+			registered: false,
+			dispose: () => {}
+		};
+	}
 }
 
 //#endregion
-//#region src/client/chat/view-node.ts
-function orphansNode(h, state) {
-	if (state.orphans.length === 0) return null;
-	const messages = state.orphans.reduce((sum, one) => sum + one.messages, 0);
-	return h("div", {
-		className: "pet-chat-orphans",
-		children: [
-			h("span", { children: `有 ${state.orphans.length} 只已删除宠物的历史（${messages} 条）` }),
-			h("span", { className: "pet-chat-composer-spacer" }),
-			h("button", {
-				type: "button",
-				className: "pet-chat-tool",
-				onClick: () => state.ask("clear-orphans"),
-				children: "清理"
-			})
-		]
-	});
+//#region src/client/pet/card/registry.ts
+/** 按宠物 id 登记；Map 的插入序就是渲染序，「第一只」的兜底直接靠它。 */
+const handles = new Map();
+function pickPetChatHandle() {
+	const mainId = petBridge.template?.id;
+	if (typeof mainId === "string") {
+		const main = handles.get(mainId);
+		if (main !== void 0) return main;
+	}
+	return handles.values().next().value;
 }
-/** 卷帘块与按钮共用的 id：`aria-controls` 要指向它。 */
-const PERSONA_PANEL_ID = "pet-chat-persona";
-/** 「人设」按钮：点一下展开 / 收起工具栏下方那块卷帘。 */
-function personaButton(h, state) {
-	return h("button", {
-		type: "button",
-		className: "pet-chat-tool",
-		"aria-expanded": String(state.personaOpen),
-		"aria-controls": PERSONA_PANEL_ID,
-		onClick: () => state.togglePersona(),
-		children: "人设"
-	});
+function togglePetChatHear(handle) {
+	if (handle === void 0) return;
+	if (handle.isHearing()) handle.stopHear();
+	else handle.startHear();
 }
-function personaNode(h, state) {
-	return h("div", {
-		id: PERSONA_PANEL_ID,
-		className: "pet-chat-persona" + (state.personaOpen ? " is-open" : ""),
-		"aria-hidden": String(!state.personaOpen),
-		children: [h("div", {
-			className: "pet-chat-persona-clip",
-			children: [h("div", {
-				className: "pet-chat-persona-body",
-				children: state.persona
-			})]
-		})]
-	});
+function togglePetChat(handle) {
+	if (handle === void 0) return;
+	if (handle.isOpen()) handle.close();
+	else handle.open();
 }
-function toolsNode(h, state) {
-	return h("div", {
-		className: "pet-chat-tools",
-		children: [
-			personaButton(h, state),
-			h("button", {
-				type: "button",
-				className: "pet-chat-tool",
-				"aria-pressed": String(state.selecting),
-				onClick: () => state.toggleSelecting(),
-				children: state.selecting ? "取消选择" : "选择"
-			}),
-			state.selecting ? h("button", {
-				type: "button",
-				className: "pet-chat-tool",
-				disabled: state.selected.length === 0,
-				onClick: () => state.ask("delete-selected"),
-				children: state.selected.length === 0 ? "删除选中" : "删除选中 " + state.selected.length
-			}) : null,
-			h("button", {
-				type: "button",
-				className: "pet-chat-tool",
-				onClick: () => state.ask("clear-all"),
-				children: "清空历史"
-			})
-		]
-	});
-}
-/** 待确认操作的文案：每条都说清「删什么、不可恢复」。 */
-const CONFIRM_TEXT = {
-	"delete-selected": "删除选中的这几轮对话？",
-	"clear-all": "清空这只宠物的全部对话历史？",
-	"clear-orphans": "清理已删除宠物的残留历史？"
+
+//#endregion
+//#region src/client/pet/card/shortcut.ts
+const PET_FLOAT_COMMAND_ID = "pet-chat.float";
+const PET_HEAR_COMMAND_ID = "pet-chat.hear";
+const PET_CAPTURE_COMMAND_ID = "pet-chat.capture";
+/** 弹窗键位：主修饰键 + Shift + L。T 在浏览器里被「恢复标签页」占用，L 两端都空着。 */
+const FLOAT_BINDING = {
+	code: "KeyL",
+	modifiers: ["primary", "shift"]
 };
-function confirmNode(rt, state) {
-	if (state.pending === null) return null;
-	const { h, ui } = rt;
-	const count = state.pending === "delete-selected" ? `（${state.selected.length} 轮）` : state.pending === "clear-orphans" ? `（${state.orphans.length} 只）` : "";
-	const description = CONFIRM_TEXT[state.pending] + count + "删了找不回来。";
-	if (ui === void 0) return h("div", {
-		className: "pet-chat-confirm",
-		role: "alertdialog",
-		children: [
-			h("span", { children: description }),
-			h("span", { className: "pet-chat-composer-spacer" }),
-			h("button", {
-				type: "button",
-				className: "pet-chat-danger",
-				onClick: () => state.confirmAsk(),
-				children: "删除"
-			}),
-			h("button", {
-				type: "button",
-				className: "pet-chat-tool",
-				onClick: () => state.cancelAsk(),
-				children: "取消"
-			})
-		]
-	});
-	const { Button, Modal } = ui;
-	return h(Modal, {
-		open: true,
-		title: "删除对话历史",
-		closeLabel: "关闭",
-		description,
-		onClose: () => state.cancelAsk(),
-		footer: h("div", {
-			className: "pet-chat-confirm-actions",
-			children: [h(Button, {
-				variant: "ghost",
-				type: "button",
-				onClick: () => state.cancelAsk(),
-				children: "取消"
-			}), h(Button, {
-				variant: "primary",
-				type: "button",
-				onClick: () => state.confirmAsk(),
-				children: "删除"
-			})]
-		})
-	});
-}
-/** 待发送图片的预览条。 */
-function previewNode$1(h, state) {
-	if (state.attachment === void 0) return null;
-	return h("div", {
-		className: "pet-chat-preview",
-		children: [
-			h("img", {
-				className: "pet-chat-preview-img",
-				src: state.attachment.previewUrl,
-				alt: "待发送的图片"
-			}),
-			h("span", {
-				className: "pet-chat-preview-meta",
-				children: state.attachment.width + "×" + state.attachment.height
-			}),
-			h("button", {
-				type: "button",
-				className: "pet-chat-tool",
-				onClick: () => state.clearAttachment(),
-				children: "移除"
-			})
-		]
-	});
-}
-/** 发送键里的箭头：与 DSH 输入框一致的圆形按钮造型。 */
-function sendIcon(h) {
-	return h("svg", {
-		viewBox: "0 0 24 24",
-		width: 16,
-		height: 16,
-		"aria-hidden": "true",
-		children: [h("path", {
-			d: "M12 19V6M6 12l6-6 6 6",
-			fill: "none",
-			stroke: "currentColor",
-			strokeWidth: 2,
-			strokeLinecap: "round",
-			strokeLinejoin: "round"
-		})]
-	});
-}
-function composerNode(h, state) {
-	return h("div", {
-		className: "pet-chat-composer",
-		onDragEnter: markDropTarget,
-		onDragLeave: unmarkDropTarget,
-		onDragOver: (event) => {
-			claimFileDragOver(event);
-		},
-		onDrop: (event) => {
-			const file = claimFileDrop(event);
-			if (file !== void 0) state.pickFile(file);
-			unmarkDropTarget(event);
-		},
-		children: [
-			previewNode$1(h, state),
-			h("textarea", {
-				className: "pet-chat-input",
-				ref: state.draftRef,
-				value: state.draft,
-				rows: 2,
-				placeholder: "说点什么…（Enter 发送，Shift+Enter 换行）",
-				onChange: (event) => state.setDraft(event.target.value),
-				onPaste: (event) => {
-					const file = event.clipboardData?.files?.[0];
-					if (file === void 0) return;
-					event.preventDefault();
-					state.pickFile(file);
-				},
-				onKeyDown: (event) => {
-					if (event.key === "Enter" && !event.shiftKey) {
-						event.preventDefault();
-						state.send();
-					}
-				}
-			}),
-			h("div", {
-				className: "pet-chat-composer-bar",
-				children: [
-					h("label", {
-						className: "pet-chat-attach",
-						title: "附一张图（也可以直接粘贴）",
-						children: ["附图", h("input", {
-							className: "pet-chat-file",
-							type: "file",
-							accept: "image/png,image/jpeg,image/webp,image/gif",
-							onChange: (event) => {
-								const file = event.target.files?.[0];
-								if (file !== void 0) state.pickFile(file);
-								event.target.value = "";
-							}
-						})]
-					}),
-					h("span", { className: "pet-chat-composer-spacer" }),
-					h("button", {
-						type: "button",
-						className: "pet-chat-send",
-						"aria-label": state.busy ? "生成中" : "发送",
-						onClick: () => state.send(),
-						disabled: state.busy,
-						children: sendIcon(h)
-					})
-				]
-			})
-		]
-	});
-}
-
-//#endregion
-//#region src/client/chat/stamp.ts
-/**
-* 消息时间戳的展示格式。
-*
-* 纯函数：`now` 由调用方传入，不读时钟，便于测试。今天的消息只给时间，
-* 更早的补上日期——聊天记录跨天时，光看 `08:26:46` 分不清是哪天。
-* @module dsh-pet/src/client/chat/stamp
-*/
-/** 一天的毫秒数；只用于算「差几天」，日界按本地时区取整。 */
-const DAY_MS = 24 * 60 * 60 * 1e3;
-/** 两位补零。 */
-const pad = (value) => String(value).padStart(2, "0");
-/** 时:分:秒。 */
-const clockOf = (date) => pad(date.getHours()) + ":" + pad(date.getMinutes()) + ":" + pad(date.getSeconds());
-/** 本地日界的时间戳（当天 00:00）。 */
-const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-function formatStamp(ts, now) {
-	if (!Number.isFinite(ts) || ts <= 0) return "";
-	const date = new Date(ts);
-	const today = new Date(now);
-	const days = Math.round((startOfDay(today) - startOfDay(date)) / DAY_MS);
-	const clock = clockOf(date);
-	if (days <= 0) return clock;
-	if (days === 1) return "昨天 " + clock;
-	const monthDay = date.getMonth() + 1 + "月" + date.getDate() + "日";
-	if (date.getFullYear() === today.getFullYear()) return monthDay + " " + clock;
-	return date.getFullYear() + "年" + monthDay + " " + clock;
-}
-
-//#endregion
-//#region src/client/chat/tooltip.ts
-const TIP_CLASS = "pet-chat-tip";
-/** 光标与气泡的间隙（px）：与设置页的 data-tip 气泡一致，视觉上不贴手。 */
-const TIP_GAP_PX = 10;
-/** 唯一的那个气泡；面板里悬停很频繁，反复建删会让气泡闪，所以复用。 */
-let tipEl;
-/** 全局监听的解除函数；与气泡一起登记、一起回收。 */
-let unwatch;
-/** 收起气泡：元素留着复用，只摘 `is-on`。 */
-function hideTip() {
-	tipEl?.classList.remove("is-on");
-}
-/** 取气泡元素，没有就建一个并挂到 body（挂 body 才不会被子孙的 overflow 裁掉）。 */
-function ensureTip() {
-	if (tipEl !== void 0 && tipEl.parentNode === document.body) return tipEl;
-	const el = document.createElement("div");
-	el.setAttribute("class", TIP_CLASS);
-	el.setAttribute("role", "tooltip");
-	document.body.appendChild(el);
-	tipEl = el;
-	const win = window;
-	const root = document;
-	const close = () => hideTip();
-	win.addEventListener("scroll", close, true);
-	root.addEventListener("pointerdown", close, true);
-	unwatch = () => {
-		win.removeEventListener("scroll", close, true);
-		root.removeEventListener("pointerdown", close, true);
-		unwatch = void 0;
-	};
-	return el;
-}
-/**
-* 在光标处显示气泡。
-*
-* @param text - 气泡正文；每次重设，同一个气泡服务所有触发元素。
-* @param cursor - 光标位置（视口坐标）。
-*/
-function showTip(text, cursor) {
-	const el = ensureTip();
-	el.textContent = text;
-	el.style.left = px(0);
-	el.style.top = px(0);
-	const placed = tooltipPlacement(cursor, {
-		w: el.offsetWidth,
-		h: el.offsetHeight
-	}, {
-		x: 0,
-		y: 0,
-		w: window.innerWidth,
-		h: window.innerHeight
-	}, TIP_GAP_PX);
-	el.style.left = px(placed.x);
-	el.style.top = px(placed.y);
-	el.classList.add("is-on");
-}
-function tipAttrs(text) {
-	return {
-		onMouseEnter: (event) => showTip(text, {
-			x: event.clientX,
-			y: event.clientY
-		}),
-		onMouseLeave: () => hideTip()
-	};
-}
-function disposeTip() {
-	unwatch?.();
-	tipEl?.remove();
-	tipEl = void 0;
-}
-
-//#endregion
-//#region src/client/chat/view-message.ts
-/** 语音播报按钮：贴在时间右边，四种状态一眼可分——可播 / 生成中转圈 / 播放中高亮 / 失败可重试。 */
-function speakNode(h, text, ts, state) {
-	const phase = state.speaking?.ts === ts ? state.speaking.phase : "idle";
-	const label = phase === "loading" ? "正在生成语音…" : phase === "playing" ? "正在播放" : phase === "failed" ? "播放失败，点击重试" : "播放这句";
-	return h("button", {
-		type: "button",
-		className: "pet-chat-speak is-" + phase,
-		"aria-label": label,
-		...tipAttrs(label),
-		onClick: (event) => {
-			event.stopPropagation();
-			if (phase === "idle" || phase === "failed") state.speakRound(ts, text);
-		},
-		children: phase === "loading" ? null : phase === "failed" ? "🔇" : "🔊"
-	});
-}
-/**
-* 动作播放按钮：这一轮回答演出过动作时，贴在喇叭右边，悬浮显示动作名，点一下重演。
-*
-* 悬浮气泡只显示动作名本身（不加「播放动作：」这类前缀）；读屏需要的语义放在 aria-label 上。
-*/
-function actionNode(h, action, state) {
-	return h("button", {
-		type: "button",
-		className: "pet-chat-action",
-		"aria-label": "播放动作：" + action,
-		...tipAttrs(action),
-		onClick: (event) => {
-			event.stopPropagation();
-			state.playAction(action);
-		},
-		children: h("svg", {
-			className: "pet-chat-action-icon",
-			viewBox: "0 0 16 16",
-			"aria-hidden": "true",
-			children: h("path", {
-				d: "M4.5 2.5v11l9-5.5z",
-				fill: "currentColor"
-			})
-		})
-	});
-}
-function avatarNode(h, isMe) {
-	if (!isMe) return h("img", {
-		className: "pet-chat-avatar",
-		src: LOGO_URL,
-		alt: "",
-		loading: "lazy"
-	});
-	return h("svg", {
-		className: "pet-chat-avatar",
-		viewBox: "0 0 32 32",
-		"aria-hidden": "true",
-		children: [
-			h("circle", {
-				cx: 16,
-				cy: 16,
-				r: 16,
-				fill: "var(--dsw-specific-bubble)"
-			}),
-			h("circle", {
-				cx: 16,
-				cy: 17.5,
-				r: 9.5,
-				fill: "var(--dsw-alias-bg-layer-1)"
-			}),
-			h("path", {
-				d: "M6.8 15.5a9.2 9.2 0 0 1 18.4 0q-4.6-4.2-9.2-4.2t-9.2 4.2z",
-				fill: "var(--dsw-alias-label-tertiary)",
-				opacity: .75
-			}),
-			h("path", {
-				d: "M16 9.2q1.1-2.6 3.4-1.7",
-				fill: "none",
-				stroke: "var(--dsw-alias-label-tertiary)",
-				strokeWidth: 1.3,
-				strokeLinecap: "round",
-				opacity: .75
-			}),
-			h("ellipse", {
-				cx: 12.4,
-				cy: 17.6,
-				rx: 1.5,
-				ry: 2,
-				fill: "var(--dsw-alias-label-primary)"
-			}),
-			h("ellipse", {
-				cx: 19.6,
-				cy: 17.6,
-				rx: 1.5,
-				ry: 2,
-				fill: "var(--dsw-alias-label-primary)"
-			}),
-			h("circle", {
-				cx: 12.9,
-				cy: 16.8,
-				r: .5,
-				fill: "var(--dsw-alias-bg-layer-1)"
-			}),
-			h("circle", {
-				cx: 20.1,
-				cy: 16.8,
-				r: .5,
-				fill: "var(--dsw-alias-bg-layer-1)"
-			}),
-			h("ellipse", {
-				cx: 9.6,
-				cy: 21,
-				rx: 1.7,
-				ry: 1.1,
-				fill: "var(--dsw-alias-state-error-secondary)",
-				opacity: .45
-			}),
-			h("ellipse", {
-				cx: 22.4,
-				cy: 21,
-				rx: 1.7,
-				ry: 1.1,
-				fill: "var(--dsw-alias-state-error-secondary)",
-				opacity: .45
-			}),
-			h("path", {
-				d: "M14.6 21.6q1.4 1.5 2.8 0",
-				fill: "none",
-				stroke: "var(--dsw-alias-label-secondary)",
-				strokeWidth: 1,
-				strokeLinecap: "round"
-			}),
-			h("path", {
-				d: "M25.5 5.5v4M23.5 7.5h4",
-				fill: "none",
-				stroke: "var(--dsw-alias-state-business-primary)",
-				strokeWidth: 1.3,
-				strokeLinecap: "round",
-				opacity: .9
-			})
-		]
-	});
-}
-function messageNode(h, message, isMe, assetRoot, onOpenImage) {
-	const image = message.image !== void 0 ? attachmentUrl(message.image) : message.meme !== void 0 ? memeUrl(message.meme, assetRoot) : void 0;
-	return h("div", {
-		className: "pet-chat-msg " + (isMe ? "is-me" : "is-pet"),
-		children: [avatarNode(h, isMe), h("div", {
-			className: "pet-chat-bubble",
-			children: [h("div", {
-				className: "pet-chat-text",
-				children: message.text
-			}), image === void 0 ? null : h("button", {
-				type: "button",
-				className: "pet-chat-img-btn",
-				"aria-label": "点开看大图",
-				...tipAttrs("点开看大图"),
-				onClick: () => onOpenImage(image),
-				children: h("img", {
-					className: "pet-chat-img",
-					src: image,
-					alt: "对话图片",
-					loading: "lazy"
-				})
-			})]
-		})]
-	});
-}
-function roundNode(rt, state, round) {
-	const { h } = rt;
-	const selected = state.selected.includes(round.ts);
-	const className = "pet-chat-round" + (state.selecting ? " is-selecting" : "") + (selected ? " is-selected" : "");
-	return h("div", {
-		key: String(round.ts),
-		className,
-		onClick: state.selecting ? (event) => {
-			const target = event.target;
-			if (!(target instanceof Element)) return;
-			if (target.closest(".pet-chat-pick, button, a, [role=\"button\"]") !== null) return;
-			state.toggleRound(round.ts);
-		} : void 0,
-		children: [state.selecting ? h("label", {
-			className: "pet-chat-pick",
-			title: "选中这一轮（问 + 答一起删）",
-			children: [h("input", {
-				type: "checkbox",
-				checked: selected,
-				onChange: () => state.toggleRound(round.ts),
-				"aria-label": "选中这一轮"
-			})]
-		}) : null, h("div", {
-			className: "pet-chat-round-body",
-			children: [
-				round.user === void 0 ? null : messageNode(h, round.user, true, state.assetRoot, state.showImage),
-				round.assistant === void 0 ? null : messageNode(h, round.assistant, false, state.assetRoot, state.showImage),
-				round.ts > 0 ? h("div", {
-					className: "pet-chat-time " + (round.assistant === void 0 ? "is-me" : "is-pet"),
-					children: [
-						formatStamp(round.ts, Date.now()),
-						round.assistant === void 0 ? null : speakNode(h, round.assistant.text, round.ts, state),
-						round.assistant?.action === void 0 ? null : actionNode(h, round.assistant.action, state)
-					]
-				}) : null
-			]
-		})]
-	});
-}
-
-//#endregion
-//#region src/client/chat/view.ts
-/** 宠物标签条：点击切换对话。 */
-function tabsNode(h, state) {
-	return h("div", {
-		className: "pet-chat-tabs",
-		children: state.pets.map((pet) => h("button", {
-			key: pet.id,
-			type: "button",
-			className: "pet-chat-tab",
-			"aria-pressed": String(pet.id === state.petId),
-			onClick: () => state.pickPet(pet.id),
-			children: pet.name || pet.id
-		}))
-	});
-}
-/**
-* 顶部「加载更早」：与 DSH 自己的历史加载同一个位置与形态。
-*
-* 内存里没有更早的轮时，同一个位置换成一行说明——不然按钮消失后用户不知道是「到底了」还是「坏了」。
-*/
-function olderNode(h, state) {
-	if (state.rounds.length === 0) return null;
-	if (state.hasOlder) return h("div", {
-		className: "pet-chat-older",
-		children: [h("button", {
-			type: "button",
-			className: "pet-chat-older-btn",
-			onClick: () => state.showOlder(),
-			children: "加载更早"
-		})]
-	});
-	const capped = state.rounds.length >= HISTORY_ROUNDS;
-	return h("div", {
-		className: "pet-chat-older",
-		children: [h("span", {
-			className: "pet-chat-older-note",
-			children: capped ? "已经到底了（最多加载 " + HISTORY_ROUNDS + " 轮）" : "已经到底了"
-		})]
-	});
-}
-/** 记忆边界：线以下才是桌宠每次真正带进上下文的最近 N 轮。 */
-function memoryLineNode(h, rounds) {
-	return h("div", {
-		key: "memory-line",
-		className: "pet-chat-memory",
-		children: [h("span", {
-			className: "pet-chat-memory-note",
-			children: `以下 ${rounds} 轮进入桌宠的记忆`
-		})]
-	});
-}
-/** 消息列表：加载更早 + 记忆边界 + 空态提示或按轮渲染。 */
-function listNode(rt, state) {
-	const emptyText = state.loading ? "加载中…" : state.petId === "" ? "没有可对话的桌宠" : "还没有聊过天";
-	const body = state.rounds.length === 0 ? [rt.h("div", {
-		key: "empty",
-		className: "pet-chat-hint",
-		children: emptyText
-	})] : state.rounds.map((round) => roundNode(rt, state, round));
-	const cut = memoryBoundaryIndex(state.rounds.length, state.memoryRounds);
-	if (cut !== null && state.memoryRounds !== void 0) body.splice(cut, 0, memoryLineNode(rt.h, state.memoryRounds));
-	return rt.h("div", {
-		className: "pet-chat-list",
-		ref: state.listRef,
-		children: [olderNode(rt.h, state), ...body]
-	});
-}
-/**
-* 图片放大：直接用平台的 `ImageLightbox`——与 DSH 会话里点开图片是同一个组件，
-* 全屏遮罩、Esc / 点遮罩关闭、关闭后焦点回到原处都由它负责。
-*
-* @returns 没有预览或拿不到 primitives 时是 null。
-*/
-function previewNode(rt, state) {
-	if (state.previewUrl === void 0 || rt.ui === void 0) return null;
-	const { ImageLightbox } = rt.ui;
-	return rt.h(ImageLightbox, {
-		src: state.previewUrl,
-		alt: "对话图片",
-		labels: {
-			dialog: "图片预览",
-			close: "关闭"
-		},
-		onClose: () => state.closeImage()
-	});
-}
-function buildPanel(rt, state) {
-	const { h } = rt;
-	return h("div", {
-		className: "pet-chat",
-		onKeyDown: (event) => {
-			if (state.personaOpen && event.key === "Escape") state.closePersona();
-		},
-		children: [
-			tabsNode(h, state),
-			orphansNode(h, state),
-			toolsNode(h, state),
-			personaNode(h, state),
-			listNode(rt, state),
-			confirmNode(rt, state),
-			previewNode(rt, state),
-			state.error === "" ? null : h("div", {
-				className: "pet-chat-error",
-				role: "alert",
-				children: state.error
-			}),
-			composerNode(h, state)
-		]
-	});
-}
-
-//#endregion
-//#region src/client/chat/panel.ts
-function makePetChatPanel(rt) {
-	const useChatState = createPetChatState(rt);
-	return function PetChatPanel() {
-		return buildPanel(rt, useChatState());
-	};
-}
-
-//#endregion
-//#region src/client/chat/panel-css.ts
-const PANEL_CSS = `
-.pet-chat {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  gap: ${px(SIZE.gapWide)};
-  padding: ${px(SIZE.pad)} ${px(SIZE.pad)} ${px(SIZE.padBottom)};
-  color: var(--dsw-alias-label-primary);
-  font: var(--dsw-font-s-14);
-}
-
-.pet-chat-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: ${px(SIZE.gapTight)};
-  flex: 0 0 auto;
-}
-
-.pet-chat-tab {
-  border: 1px solid var(--dsw-alias-border-l2);
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  border-radius: var(--dsw-radius-md);
-  padding: ${px(SIZE.tabPadY)} ${px(SIZE.tabPadX)};
-  font: var(--dsw-font-xxs-12);
-  cursor: pointer;
-  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out),
-    color var(--ds-transition-duration-fast) var(--ds-ease-in-out);
-}
-
-.pet-chat-tab:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.pet-chat-tab[aria-pressed="true"] {
-  background: var(--dsw-alias-bg-multi-select);
-  border-color: var(--dsw-alias-border-l3);
-  color: var(--dsw-alias-label-primary);
-  font-weight: 500;
-}
-
-.pet-chat-tools {
-  display: flex;
-  justify-content: flex-end;
-  gap: ${px(SIZE.gapTight)};
-  flex: 0 0 auto;
-}
-
-/* 人设卷帘：展开时把消息列表顶下去，而不是浮在对话上——人设可以很长，浮层会挡住内容。
-   0fr → 1fr 是唯一不用量高度的展开过渡；夹层负责裁剪，正文层才放内边距与边框，
-   否则收起时 padding 与 border 仍在，留下一道缝。 */
-.pet-chat-persona {
-  display: grid;
-  grid-template-rows: 0fr;
-  flex: 0 0 auto;
-  transition: grid-template-rows var(--ds-transition-duration-fast) var(--ds-ease-in-out);
-}
-
-.pet-chat-persona.is-open {
-  grid-template-rows: 1fr;
-}
-
-.pet-chat-persona-clip {
-  min-height: 0;
-  overflow: hidden;
-}
-
-.pet-chat-persona-body {
-  max-height: ${px(SIZE.personaMaxH)};
-  overflow-y: auto;
-  padding: ${px(SIZE.bubblePadY)} ${px(SIZE.bubblePadX)};
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-module-platform);
-  color: var(--dsw-alias-label-primary);
-  font: var(--dsw-font-s-14);
-  line-height: 1.6;
-  /* 人设正文自己带换行与缩进：保留排版，长单词与 URL 也要能断开 */
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.pet-chat-orphans {
-  display: flex;
-  align-items: center;
-  gap: ${px(SIZE.gap)};
-  flex: 0 0 auto;
-  padding: ${px(SIZE.gapTight)} ${px(SIZE.tabPadX)};
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-bg-multi-select);
-  color: var(--dsw-alias-label-secondary);
-  font: var(--dsw-font-xxs-12);
-}
-
-.pet-chat-confirm {
-  display: flex;
-  align-items: center;
-  gap: ${px(SIZE.gap)};
-  flex: 0 0 auto;
-  padding: ${px(SIZE.gapTight)} ${px(SIZE.tabPadX)};
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-interactive-bg-hover-danger);
-  color: var(--dsw-alias-label-primary);
-  font: var(--dsw-font-xxs-12);
-}
-
-.pet-chat-danger {
-  flex: 0 0 auto;
-  border: none;
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-state-error-primary);
-  color: var(--dsw-alias-label-primary-foreground);
-  padding: ${px(SIZE.toolPadY)} ${px(SIZE.tabPadX)};
-  font: var(--dsw-font-xxs-12);
-  cursor: pointer;
-  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
-}
-
-.pet-chat-danger:hover {
-  background: var(--dsw-alias-state-error-secondary);
-}
-
-.pet-chat-confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: ${px(SIZE.gap)};
-}
-
-/* 指南页卡片图标：框架给的槽位只按图标尺寸排版，所以让 logo 铺满它 */
-.pet-chat-guide-icon {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  border-radius: var(--dsw-radius-xs);
-  display: block;
-}
-
-.pet-chat-tool {
-  border: 1px solid var(--dsw-alias-border-l2);
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  border-radius: var(--dsw-radius-sm);
-  padding: ${px(SIZE.toolPadY)} ${px(SIZE.toolPadX)};
-  font: var(--dsw-font-xxs-12);
-  cursor: pointer;
-}
-
-.pet-chat-tool:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.pet-chat-tool[aria-pressed="true"] {
-  background: var(--dsw-alias-bg-multi-select);
-  border-color: var(--dsw-alias-border-l3);
-  color: var(--dsw-alias-label-primary);
-}
-
-.pet-chat-tool:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.pet-chat-list {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: ${px(SIZE.listGap)};
-  padding-right: ${px(SIZE.hairline)};
-}
-
-.pet-chat-older {
-  display: flex;
-  justify-content: center;
-  flex: 0 0 auto;
-}
-
-.pet-chat-older-btn {
-  border: none;
-  border-radius: ${px(SIZE.pill)};
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-secondary);
-  padding: ${px(SIZE.pillPadY)} ${px(SIZE.tabPadX)};
-  font: var(--dsw-font-xxs-12);
-  cursor: pointer;
-  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
-}
-
-.pet-chat-older-btn:hover {
-  background: var(--dsw-alias-interactive-bg-active);
-}
-
-.pet-chat-older-note {
-  color: var(--dsw-alias-label-tertiary);
-  font: var(--dsw-font-xxs-12);
-  padding: ${px(SIZE.pillPadY)} 0;
-}
-
-.pet-chat-memory {
-  display: flex;
-  align-items: center;
-  gap: ${px(SIZE.gap)};
-  flex: 0 0 auto;
-  color: var(--dsw-alias-label-caption);
-  font: var(--dsw-font-xxxs-11);
-}
-
-/* 线本身用伪元素画，文字居中：视觉上是「一条带说明的分隔线」 */
-.pet-chat-memory::before,
-.pet-chat-memory::after {
-  content: '';
-  flex: 1 1 auto;
-  border-top: 1px dashed var(--dsw-alias-border-l3);
-}
-
-.pet-chat-memory-note {
-  flex: 0 0 auto;
-}
-
-.pet-chat-round {
-  display: flex;
-  align-items: flex-start;
-  gap: ${px(SIZE.gap)};
-}
-
-/* 多选模式：整轮是一张可点卡片；选中给浅底，未选中透明（与豆包的选中样式一致） */
-.pet-chat-round.is-selecting {
-  padding: ${px(SIZE.gapTight)} ${px(SIZE.gapWide)};
-  border-radius: var(--dsw-radius-md);
-  cursor: pointer;
-  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
-}
-
-.pet-chat-round.is-selecting:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.pet-chat-round.is-selected {
-  background: var(--dsw-alias-bg-multi-select);
-}
-
-.pet-chat-pick {
-  flex: 0 0 auto;
-  padding-top: ${px(SIZE.gapTight)};
-  opacity: 0.55;
-  cursor: pointer;
-}
-
-.pet-chat-pick:hover {
-  opacity: 1;
-}
-
-.pet-chat-round-body {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: ${px(SIZE.gap)};
-}
-
-.pet-chat-msg {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: ${px(SIZE.gap)};
-  max-width: 92%;
-}
-
-.pet-chat-msg.is-me {
-  align-self: flex-end;
-  flex-direction: row-reverse;
-}
-
-.pet-chat-msg.is-pet {
-  align-self: flex-start;
-}
-
-.pet-chat-avatar {
-  flex: 0 0 auto;
-  width: ${px(SIZE.avatar)};
-  height: ${px(SIZE.avatar)};
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.pet-chat-msg.is-pet .pet-chat-avatar {
-  border: 1px solid var(--dsw-alias-border-l2);
-}
-
-.pet-chat-bubble {
-  padding: ${px(SIZE.bubblePadY)} ${px(SIZE.bubblePadX)};
-  border-radius: var(--dsw-radius-md);
-  word-break: break-word;
-  line-height: 1.6;
-}
-
-.pet-chat-text {
-  white-space: pre-wrap;
-}
-
-.pet-chat-msg.is-me .pet-chat-bubble {
-  background: var(--dsw-specific-bubble);
-  color: var(--dsw-alias-label-primary);
-}
-
-.pet-chat-msg.is-pet .pet-chat-bubble {
-  background: var(--dsw-alias-bg-module-platform);
-  color: var(--dsw-alias-label-primary);
-}
-
-.pet-chat-img-btn {
-  display: block;
-  margin-top: ${px(SIZE.gapTight)};
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: zoom-in;
-}
-
-.pet-chat-img {
-  display: block;
-  max-width: ${px(SIZE.imgMaxW)};
-  max-height: ${px(SIZE.imgMaxH)};
-  border-radius: var(--dsw-radius-sm);
-  object-fit: contain;
-}
-
-.pet-chat-time {
-  display: inline-flex;
-  align-items: center;
-  gap: ${px(SIZE.gap)};
-  margin-top: ${px(SIZE.hairline)};
-  font: var(--dsw-font-xxxs-11);
-  color: var(--dsw-alias-label-caption);
-}
-
-/* 时间右边的播报 / 动作按钮：与时间同字号，靠透明度与颜色表意，不占额外行高 */
-.pet-chat-speak,
-.pet-chat-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: ${px(SIZE.hairline * 12)};
-  height: ${px(SIZE.hairline * 12)};
-  border: 0;
-  padding: 0;
-  background: transparent;
-  font: inherit;
-  line-height: 1;
-  color: inherit;
-  cursor: pointer;
-  opacity: 0.55;
-  transition:
-    opacity 0.15s,
-    color 0.15s;
-}
-
-.pet-chat-speak:hover,
-.pet-chat-action:hover {
-  opacity: 1;
-}
-
-/* 动作键图标：内联 SVG 单色三角，颜色跟行内文字走。
-   换成 emoji（▶️）会渲染成一块彩色方块，和喇叭放在一起就是两种风格。 */
-.pet-chat-action-icon {
-  display: block;
-  width: ${px(SIZE.hairline * 5)};
-  height: ${px(SIZE.hairline * 5)};
-}
-
-/* 生成中：只有上半圈带色的细环，靠旋转表达「在生成」。
-   尺寸与时间文字同高；border-box + flex:none 是必须的：默认 content-box 会把描边算在尺寸外，
-   而在 flex 行里被压缩时环会变成椭圆，看着就是个「奇怪的圆角方块」。 */
-.pet-chat-speak.is-loading {
-  opacity: 0.9;
-  cursor: default;
-}
-
-.pet-chat-speak.is-loading::before {
-  content: '';
-  box-sizing: border-box;
-  flex: none;
-  width: ${px(SIZE.spinner)};
-  height: ${px(SIZE.spinner)};
-  border: 1.5px solid var(--dsw-alias-border-l2);
-  border-top-color: var(--dsw-alias-label-secondary);
-  border-radius: 50%;
-  animation: pet-chat-spin 0.8s linear infinite;
-}
-
-/* 播放中：主色 + 满不透明，和「可播放」明显区分 */
-.pet-chat-speak.is-playing {
-  opacity: 1;
-  color: var(--dsw-alias-state-business-primary);
-  cursor: default;
-}
-
-/* 失败：压暗表示没成，但仍可点（重试），所以指针保持手型 */
-.pet-chat-speak.is-failed {
-  opacity: 0.5;
-}
-
-@keyframes pet-chat-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.pet-chat-time.is-pet {
-  align-self: flex-start;
-  /* 与宠物气泡左沿对齐：让时间明显属于这一轮的回答，而不是下一轮提问的开头 */
-  margin-left: ${px(SIZE.avatar + SIZE.gap)};
-}
-
-.pet-chat-time.is-me {
-  align-self: flex-end;
-}
-
-.pet-chat-hint {
-  color: var(--dsw-alias-label-tertiary);
-  font: var(--dsw-font-xxs-12);
-}
-
-.pet-chat-error {
-  color: var(--dsw-alias-state-error-primary);
-  font: var(--dsw-font-xxs-12);
-}
-
-.pet-chat-composer {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: ${px(SIZE.gapTight)};
-  padding: ${px(SIZE.composerPad)} ${px(SIZE.pad)} ${px(SIZE.composerPadBottom)};
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-xl);
-  background: var(--dsw-specific-input-major);
-  transition: border-color var(--ds-transition-duration-fast) var(--ds-ease-in-out);
-}
-
-.pet-chat-composer:focus-within {
-  border-color: var(--dsw-alias-state-business-primary);
-}
-
-.pet-chat-composer.is-drop-target {
-  border-color: var(--dsw-alias-state-business-primary);
-}
-
-.pet-chat-preview {
-  display: flex;
-  align-items: center;
-  gap: ${px(SIZE.gap)};
-}
-
-.pet-chat-preview-img {
-  width: ${px(SIZE.preview)};
-  height: ${px(SIZE.preview)};
-  object-fit: cover;
-  border-radius: var(--dsw-radius-sm);
-  border: 1px solid var(--dsw-alias-border-l2);
-}
-
-.pet-chat-preview-meta {
-  font: var(--dsw-font-xxxs-11);
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.pet-chat-input {
-  width: 100%;
-  resize: none;
-  border: none;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  padding: 0;
-  min-height: ${px(SIZE.inputMinH)};
-  max-height: ${px(SIZE.inputMaxH)};
-  overflow-y: auto;
-  font: var(--dsw-font-s-14);
-  outline: none;
-}
-
-.pet-chat-input::placeholder {
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.pet-chat-composer-bar {
-  display: flex;
-  align-items: center;
-  gap: ${px(SIZE.gap)};
-}
-
-.pet-chat-attach {
-  display: inline-flex;
-  align-items: center;
-  gap: ${px(SIZE.hairline)};
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: ${px(SIZE.pill)};
-  padding: ${px(SIZE.pillPadY)} ${px(SIZE.tabPadX)};
-  font: var(--dsw-font-xxs-12);
-  color: var(--dsw-alias-label-secondary);
-  cursor: pointer;
-  user-select: none;
-  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
-}
-
-.pet-chat-attach:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.pet-chat-file {
-  display: none;
-}
-
-.pet-chat-composer-spacer {
-  flex: 1 1 auto;
-}
-
-.pet-chat-send {
-  flex: 0 0 auto;
-  width: ${px(SIZE.send)};
-  height: ${px(SIZE.send)};
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 50%;
-  background: var(--dsw-alias-button-info-fill);
-  color: var(--dsw-alias-label-primary-foreground);
-  cursor: pointer;
-  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out),
-    opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
-}
-
-.pet-chat-send:hover:not(:disabled) {
-  background: var(--dsw-alias-button-info-hover);
-}
-
-.pet-chat-send:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-/* 悬浮提示气泡：挂在 body 上按光标定位（见 ./tooltip），不在 .pet-chat 里，
-   所以字体与颜色全部自带——气泡是深色底，两种主题下都靠白字与背景的对比度读。 */
-.pet-chat-tip {
-  position: fixed;
-  z-index: 2147483000;
-  max-width: ${px(SIZE.tipMaxW)};
-  padding: ${px(SIZE.tipPadY)} ${px(SIZE.tipPadX)};
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-tooltip-bg);
-  color: var(--dsw-static-neutral-00);
-  font: var(--dsw-font-xxs-12);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
-}
-
-.pet-chat-tip.is-on {
-  opacity: 1;
-}
-`;
-
-//#endregion
-//#region src/client/chat/styles.ts
-/** 样式标签的归属标记；同一 key 只注入一次。 */
-const STYLE_KEY = "dsh-pet-chat-panel";
-/** 当前挂载数：多个 pane 可能同时挂载面板，靠引用计数决定何时移除样式标签。 */
-let mountedCount = 0;
-/** 已注入的 style 元素（第一个挂载时创建）。 */
-let styleTag;
-function injectPanelCss() {
-	if (typeof document === "undefined") return () => {};
-	mountedCount += 1;
-	if (styleTag === void 0) {
-		const tag = document.createElement("style");
-		tag.dataset.dshPetCss = STYLE_KEY;
-		tag.textContent = PANEL_CSS;
-		document.head.appendChild(tag);
-		styleTag = tag;
+/** 录音键位：主修饰键 + Shift + M（M = mic）。V 在输入框里会被浏览器当成「粘贴为纯文本」，避开。 */
+const HEAR_BINDING = {
+	code: "KeyM",
+	modifiers: ["primary", "shift"]
+};
+/** 截图键位：主修饰键 + Shift + S。Edge 与 Firefox 把它给了自己的截图，Chrome 空着。 */
+const CAPTURE_BINDING = {
+	code: "KeyS",
+	modifiers: ["primary", "shift"]
+};
+/** 命令 id 与默认键位：注册与展示都从这里取，不写第二份。 */
+const COMMANDS = {
+	chat: {
+		id: PET_FLOAT_COMMAND_ID,
+		binding: FLOAT_BINDING
+	},
+	hear: {
+		id: PET_HEAR_COMMAND_ID,
+		binding: HEAR_BINDING
+	},
+	capture: {
+		id: PET_CAPTURE_COMMAND_ID,
+		binding: CAPTURE_BINDING
 	}
-	let released = false;
-	return () => {
-		if (released) return;
-		released = true;
-		mountedCount -= 1;
-		if (mountedCount === 0 && styleTag !== void 0) {
-			styleTag.remove();
-			styleTag = void 0;
-		}
-	};
-}
-
-//#endregion
-//#region src/client/chat/register.ts
-/** 标签实现身份；同时也是正文与标题插槽的 key。 */
-const TAB_ID = "dsh-pet-chat";
-/** 标签类型；`openTab` 按它打开。 */
-const TAB_KIND = "pet-chat";
-/** 标签头与指南页卡片的文案。 */
-const TAB_TITLE = "桌宠对话";
-function openPetChatTab(ctx) {
-	const controller = ctx.get?.("sidebarRight");
-	controller?.openTab?.(TAB_KIND);
-}
-function registerPetChatTab(ctx, rt, options = {}) {
-	const tabs = ctx.get?.("sidebarRightTabs");
-	if (tabs === void 0 || typeof tabs.register !== "function") {
-		console.warn("[dsh-pet] 右侧栏不可用：没有 sidebarRightTabs 服务，桌宠对话标签未注册");
-		return () => {};
-	}
-	const disposeCss = injectPanelCss();
-	const Panel = makePetChatPanel(rt);
-	/** 指南页卡片的图标：插件 logo；框架给的位置只有 16px 左右，靠 CSS 铺满。 */
-	const GuideIcon = () => rt.h("img", {
-		className: "pet-chat-guide-icon",
-		src: LOGO_URL,
-		alt: "",
-		loading: "lazy"
+};
+function registerPetCardShortcuts(ctx, label) {
+	const float = registerAppShortcut(ctx, {
+		id: COMMANDS.chat.id,
+		label: () => label("shortcut.chat"),
+		binding: COMMANDS.chat.binding,
+		run: () => togglePetChat(pickPetChatHandle())
 	});
-	const commandId = options.commandId;
-	const disposeType = tabs.register({
-		id: TAB_ID,
-		kind: TAB_KIND,
-		priority: "extension",
-		title: () => TAB_TITLE,
-		guide: [{
-			id: TAB_KIND,
-			order: 400,
-			title: () => TAB_TITLE,
-			description: () => "与所有桌宠对话，点标签切换",
-			icon: GuideIcon,
-			...commandId === void 0 ? {} : { commandId }
-		}]
+	const hear = registerAppShortcut(ctx, {
+		id: COMMANDS.hear.id,
+		label: () => label("shortcut.hear"),
+		binding: COMMANDS.hear.binding,
+		run: () => togglePetChatHear(pickPetChatHandle())
 	});
-	ctx.slots.inject("sidebar.right.pane.tab", function* () {
-		yield ctx.slots.register({
-			name: "sidebar.right.pane.tab",
-			key: TAB_ID,
-			order: 100
-		}, () => rt.h(Panel, {}));
+	const capture = registerAppShortcut(ctx, {
+		id: COMMANDS.capture.id,
+		label: () => label("shortcut.capture"),
+		binding: COMMANDS.capture.binding,
+		run: () => pickPetChatHandle()?.screenshot()
 	});
-	return () => {
-		disposeType();
-		disposeTip();
-		disposeCss();
-	};
+	return { dispose: () => {
+		float.dispose();
+		hear.dispose();
+		capture.dispose();
+	} };
 }
 
 //#endregion
@@ -14533,7 +10993,7 @@ function makeFactory() {
 				}
 			};
 		} catch (error) {
-			console.warn("[dsh-pet] 图标渲染器不可用（react-dom 缺失）：" + (error instanceof Error ? error.message : String(error)));
+			console.warn("[dsh-pet] 图标渲染器不可用：" + (error instanceof Error ? error.message : String(error)));
 		}
 		const PetMulti = makePetUI({
 			h,
@@ -14545,10 +11005,7 @@ function makeFactory() {
 		const inject = [
 			"slots",
 			"locale",
-			"connection",
-			"remote",
-			"remote.commands",
-			"commandUi"
+			"connection"
 		];
 		function apply(ctx) {
 			ctx.effect(() => ctx.locale.register(NS, dicts), "dsh-pet: dictionaries");
@@ -14563,59 +11020,15 @@ function makeFactory() {
 				openSession: (sessionId) => ctx.get?.("uiWorkspace")?.openSession?.(sessionId),
 				sessionTitle: (sessionId) => {
 					const row = ctx.get?.("sessions")?.list?.getSnapshot?.()?.byId?.[sessionId];
-					const name$1 = typeof row?.title === "string" ? row.title.trim() : "";
-					return name$1 || void 0;
+					const title = typeof row?.title === "string" ? row.title.trim() : "";
+					return title || void 0;
 				}
 			}), "dsh-pet: notifications");
-			ctx.effect(() => {
-				const commandUi = ctx.get?.("commandUi");
-				if (!commandUi || typeof commandUi.decorate !== "function") {
-					console.warn("[dsh-pet] 命令选择框不可用：commandUi 服务缺失（/pet 仍可手输 id 或名字）");
-					return () => {};
-				}
-				return commandUi.decorate({
-					name: "pet",
-					available: () => true,
-					ui: {
-						kind: "popupSelect",
-						options: async () => petBridge.current.map((p) => ({
-							id: p.id,
-							label: p.name || p.id,
-							detail: (p.assetRoot && p.assetRoot !== p.id ? p.assetRoot + " / " : "") + p.id
-						})),
-						onSelect: async (option, session) => {
-							await ctx.remote?.commands?.execute(session.sessionId, "/pet " + option.id, []);
-						}
-					}
-				});
-			}, "dsh-pet: /pet picker");
-			ctx.effect(() => {
-				const commandUi = ctx.get?.("commandUi");
-				const icons = primitives;
-				if (commandUi === void 0 || icons === void 0) {
-					console.warn("[dsh-pet] 命令图标不可用（命令本身仍可用，只是没有图标）");
-					return () => {};
-				}
-				return installCommandFaces(commandUi, new Map([
-					["chat", {
-						label: () => t("cmd.chat"),
-						icon: icons.IconQueueOutlineRegular
-					}],
-					["pet", {
-						label: () => t("cmd.pet"),
-						icon: icons.IconUsersOutlineRegular
-					}],
-					["balance", {
-						label: () => t("cmd.balance"),
-						icon: icons.IconGaugeOutlineRegular
-					}]
-				]));
-			}, "dsh-pet: command faces");
 			ctx.effect(() => {
 				const renderIcon = renderIconSvg;
 				const icon = primitives?.IconSlidersTwoOutlineMedium;
 				if (renderIcon === void 0 || icon === void 0) {
-					console.warn("[dsh-pet] 设置页导航图标不可用（那一行仍是齿轮）");
+					console.warn("[dsh-pet] 设置页导航图标不可用");
 					return () => {};
 				}
 				return installSectionNavIcon({
@@ -14637,7 +11050,7 @@ function makeFactory() {
 				useRef,
 				useCallback,
 				t
-			}, ctx);
+			});
 			ctx.slots.inject("settings.section", function* () {
 				yield ctx.slots.register({
 					name: "settings.section",
@@ -14647,40 +11060,10 @@ function makeFactory() {
 					inject: () => ({ t })
 				}, PetConfigSection);
 			});
-			let sidebarChatReady = false;
 			ctx.effect(() => {
-				const sidebarChat = registerPetChatShortcut(ctx, () => t("shortcut.open"), () => openPetChatTab(ctx));
-				sidebarChatReady = sidebarChat.registered;
 				const card = registerPetCardShortcuts(ctx, (key) => t(key));
-				return () => {
-					sidebarChatReady = false;
-					sidebarChat.dispose();
-					card.dispose();
-				};
+				return () => card.dispose();
 			}, "dsh-pet: shortcuts");
-			ctx.effect(() => {
-				try {
-					return registerPetChatTab(
-						ctx,
-						{
-							h,
-							useEffect,
-							useRef,
-							useState,
-							...primitives === void 0 ? {} : { ui: {
-								Modal: primitives.Modal,
-								Button: primitives.Button,
-								ImageLightbox: primitives.ImageLightbox
-							} }
-						},
-						// 命令没登记成功就不带 commandId：指向不存在的命令会让侧栏注册抛错
-						sidebarChatReady ? { commandId: PET_CHAT_COMMAND_ID } : {}
-);
-				} catch (error) {
-					console.error("[dsh-pet] 右侧栏对话面板注册失败（已忽略，不影响启动）：", error);
-					return () => {};
-				}
-			}, "dsh-pet: sidebar chat tab");
 		}
 		module.exports = {
 			apply,

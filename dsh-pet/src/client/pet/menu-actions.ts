@@ -31,8 +31,6 @@ export interface MenuActionDeps {
   playOnce: (anim: string, playbackId: string | null) => void;
   /** 清掉会话位置，回到配置角落。 */
   resetPosition: () => void;
-  /** 打开对话弹窗。 */
-  openChat: () => void;
   /** 打开待办面板。 */
   openTodo: () => void;
   /** 上报点播回执。 */
@@ -137,25 +135,6 @@ export function createMenuActions(deps: MenuActionDeps): MenuActions {
       const route = leaf.action === 'sleep' ? '/sleep' : '/wake';
       console.info('[dsh-pet] 菜单' + (leaf.action === 'sleep' ? '睡觉' : '起来') + ' pet=' + petId);
       fireAction(ROUTE_PATH + route + '?pet=' + encodeURIComponent(petId), leaf.action === 'sleep' ? '睡觉' : '起来');
-      return;
-    }
-    if (leaf.action === 'show-balance') {
-      // 动作端点让宿主刷新并写入 /state，页面什么都不用做。
-      console.info('[dsh-pet] 菜单查看余额 pet=' + petId);
-      fireAction(ROUTE_PATH + '/balance', '余额刷新动作');
-      return;
-    }
-    if (leaf.action === 'whisper') {
-      // 手动碎碎念：文本随长轮询送达，不受 whisperEnabled 限制；surface 必填，本页面就是网页端。
-      console.info('[dsh-pet] 菜单触发碎碎念 pet=' + petId + (leaf.image ? ' image=' + leaf.image : ''));
-      // 「配图」菜单点的是具体某张 → 带名称让宿主用这张（不在池内宿主会回 unknown-image）；
-      // 其余入口不带，仍按配置随机抽图。名称可能含空格与中文，必须编码。
-      const pic = leaf.image ? '&image=' + encodeURIComponent(leaf.image) : '';
-      fireAction(ROUTE_PATH + '/whisper?pet=' + encodeURIComponent(petId) + '&surface=web' + pic, '碎碎念手动触发');
-      return;
-    }
-    if (leaf.action === 'chat') {
-      deps.openChat();
       return;
     }
     if (leaf.action === 'todo') {

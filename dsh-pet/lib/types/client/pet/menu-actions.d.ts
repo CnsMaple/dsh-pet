@@ -20,8 +20,6 @@ export interface MenuActionDeps {
     playOnce: (anim: string, playbackId: string | null) => void;
     /** 清掉会话位置，回到配置角落。 */
     resetPosition: () => void;
-    /** 打开对话弹窗。 */
-    openChat: () => void;
     /** 打开待办面板。 */
     openTodo: () => void;
     /** 上报点播回执。 */

@@ -184,7 +184,6 @@ export function createCardRuntime(rt: PetRuntime) {
       motion,
       runMenuAction: (leaf, playbackId, keepFacing) => menuActionsRef.current?.run(leaf, playbackId, keepFacing),
       showTodo: bubbles.showTodo,
-      stage: () => stageRef.current,
       tipRef,
       toggleTodo: bubbles.toggleTodo,
     });
@@ -196,7 +195,6 @@ export function createCardRuntime(rt: PetRuntime) {
       applyMerged: (merged) => petBridge.reload(merged),
       faceLeft: () => actions.setFacing('left'),
       isFacingRight: () => card.facingRef.current === 'right',
-      openChat: () => entryRef.current?.openChat(),
       openTodo: () => entryRef.current?.openTodo(),
       petId: cfg.id,
       playOnce: (anim, playbackId) => {

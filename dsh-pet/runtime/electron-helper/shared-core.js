@@ -1255,67 +1255,6 @@ function isNoMirrorAnimation(categories, anim) {
 }
 
 //#endregion
-//#region src/shared/menu/memes.ts
-/**
-* 可用图的名称清单：描述为空的不算。
-*
-* 与宿主的池判定同口径（`host/memes` 的 readMemePool 要求描述非空）：模型靠描述才认得出这张图，
-* 没描述的条目即使文件存在也进不了对话与碎碎念。顺序保留配置里的书写顺序。
-*/
-function usableNames(memes) {
-	if (!memes || typeof memes !== "object" || Array.isArray(memes)) return [];
-	const out = [];
-	for (const [name, desc] of Object.entries(memes)) {
-		if (!name.trim()) continue;
-		if (typeof desc !== "string" || desc.trim() === "") continue;
-		out.push(name);
-	}
-	return out;
-}
-function groupMemes(source) {
-	const names = usableNames(source.memes);
-	const limit = Math.floor(Number(source.chatImageLimit));
-	const unlimited = !Number.isFinite(limit) || limit <= 0;
-	const take = source.chatImageEnabled !== true ? 0 : unlimited ? names.length : Math.min(limit, names.length);
-	return {
-		chat: names.slice(0, take),
-		other: names.slice(take)
-	};
-}
-/** 单张图 → 菜单叶子：点它就是「用这张图说一句」；给了缩略图地址就带上，菜单据此画小图。 */
-function memeLeaf(name, thumbOf) {
-	const leaf$1 = {
-		label: name,
-		action: "whisper",
-		image: name
-	};
-	if (thumbOf) leaf$1.thumb = thumbOf(name);
-	return leaf$1;
-}
-function memeThumbUrl(baseUrl, assetRoot, name) {
-	const root = assetRoot && assetRoot.trim() !== "" ? assetRoot : "main";
-	return baseUrl + "/pic/memes/" + encodeURIComponent(root) + "/" + encodeURIComponent(name) + ".png";
-}
-function buildMemeBranch(source, thumbOf) {
-	const { chat, other } = groupMemes(source);
-	const leaf$1 = (name) => memeLeaf(name, thumbOf);
-	const groups = [];
-	if (chat.length > 0) groups.push({
-		label: "纳入对话的配图",
-		children: chat.map(leaf$1)
-	});
-	if (other.length > 0) groups.push({
-		label: "其他",
-		children: other.map(leaf$1)
-	});
-	if (groups.length === 0) return null;
-	return {
-		label: "配图",
-		children: groups
-	};
-}
-
-//#endregion
 //#region src/shared/menu/css.ts
 const MENU_CSS = [
 	".dsh-pet-menu{position:fixed;left:0;top:0;z-index:2147483000;color:#2b2b2b;font-size:13px;line-height:1.5;",
@@ -4697,7 +4636,6 @@ exports.bodyPixelBox = bodyPixelBox
 exports.boundingRect = boundingRect
 exports.bubbleMaxHeightPx = bubbleMaxHeightPx
 exports.bubbleTopMarginPx = bubbleTopMarginPx
-exports.buildMemeBranch = buildMemeBranch
 exports.buildMenuTree = buildMenuTree
 exports.buildMoreBranch = buildMoreBranch
 exports.clampPointInRect = clampPointInRect
@@ -4726,7 +4664,6 @@ exports.fontStackOf = fontStackOf
 exports.formatDateTimeLocal = formatDateTimeLocal
 exports.frameToToast = frameToToast
 exports.getVoiceState = getVoiceState
-exports.groupMemes = groupMemes
 exports.indexAtPoint = indexAtPoint
 exports.injectMemeBubbleCss = injectMemeBubbleCss
 exports.isCaptureHotkey = isCaptureHotkey
@@ -4744,7 +4681,6 @@ exports.isWebVisible = isWebVisible
 exports.landingSquash = landingSquash
 exports.loadTodos = loadTodos
 exports.memeImageUrl = memeImageUrl
-exports.memeThumbUrl = memeThumbUrl
 exports.metaLabel = metaLabel
 exports.mountChatDialog = mountChatDialog
 exports.mountContextMenu = mountContextMenu

@@ -5,8 +5,6 @@
  * @module dsh-pet/src/client/pet/card/motion
  */
 import { createFlight, type Flight, type FlightMetrics } from '../motion/flight.ts';
-import { createHaptics, type Haptics } from '../haptics.ts';
-import { canReadMotionSensors, shakeImpulse, subscribeShake, subscribeTilt, tiltGravity } from '../device-tilt.ts';
 import { createPositionFollow, type PositionFollow } from '../motion/position-follow.ts';
 import { createSquashDriver, type SquashDriver } from '../motion/squash.ts';
 import { createWalk, type Walk } from '../motion/walk.ts';
@@ -149,10 +147,6 @@ export function createCardMotion(rt: CardMotionRuntime) {
     };
 
     const flightRef = useRef<Flight | null>(null);
-    /** 触觉反馈：每张卡一个，冷却状态跟着卡片走；开关实时读配置。 */
-    const hapticsRef = useRef<Haptics | null>(null);
-    hapticsRef.current ??= createHaptics({ enabled: () => cfgRef.current.physics?.hapticEnabled !== false });
-    const haptics = hapticsRef.current;
     flightRef.current ??= createFlight({
       root,
       metrics: () => motionRef.current,
@@ -173,25 +167,9 @@ export function createCardMotion(rt: CardMotionRuntime) {
         const frontEl = live.current.ownAnim.frontVideo();
         if (frontEl) live.current.squash.start(frontEl, landingSquash(impactVy));
       },
-      onImpact: (impact) => {
-        haptics.hit(impact.kind, impact.speed);
-      },
-      // 只在常驻（倾斜）模式被读：倾斜没开或还没有采样时退回竖直重力，行为与关掉体感一致。
-      gravity: () => {
-        const physics = cfgRef.current.physics;
-        const gravity = physics?.gravity ?? 0;
-        if (physics?.tiltGravity !== true) return { gx: 0, gy: gravity };
-        const sample = tiltSampleRef.current;
-        const baseline = tiltBaselineRef.current;
-        if (sample === null || baseline === null) return { gx: 0, gy: gravity };
-        return tiltGravity(sample, baseline, gravity);
-      },
+      gravity: () => ({ gx: 0, gy: cfgRef.current.physics?.gravity ?? 0 }),
     });
     const flight = flightRef.current;
-
-    /** 体感：采样与中性姿态；关掉倾斜时两个都清空，下次再开重新标定。 */
-    const tiltSampleRef = useRef<{ beta: number; gamma: number } | null>(null);
-    const tiltBaselineRef = useRef<{ beta: number; gamma: number } | null>(null);
 
     /** 从给定左上角与初速起飞；先停弹簧跟随与走位，免得两套运动同时改位置。 */
     const startThrow = (px: number, py: number, vx: number, vy: number): void => {
@@ -223,44 +201,6 @@ export function createCardMotion(rt: CardMotionRuntime) {
     /** 最新的 applyVelocity 引用，供碰撞槽与传感器回调转发，避免陈旧闭包。 */
     const applyVelocityRef = useRef<(vx: number, vy: number, mode: 'set' | 'add') => void>(() => {});
     applyVelocityRef.current = applyVelocity;
-
-    // 传感器订阅只建一次：两个开关与物理参数每次回调现读，避免重订阅。
-    useEffect(() => {
-      if (!canReadMotionSensors()) return;
-      const offTilt = subscribeTilt((sample) => {
-        if (cfgRef.current.physics?.tiltGravity !== true) {
-          tiltSampleRef.current = null;
-          tiltBaselineRef.current = null;
-          // 关掉开关时立刻收手：常驻模式若还在跑，会继续按朝下的重力往下掉。
-          // 只停常驻——无条件 stop 会把正在飞的抛掷一起按掉，而传感器采样是持续不断的。
-          if (flight.isHeld()) flight.stop();
-          return;
-        }
-        if (tiltBaselineRef.current === null) tiltBaselineRef.current = sample;
-        tiltSampleRef.current = sample;
-        if (live.current.drag.isActive() || flight.isFlying()) return;
-        // 只有真的倾斜了才起步：平放时每帧都起/停会长跑一个停不下来的空循环。
-        const gravity = cfgRef.current.physics?.gravity ?? 0;
-        const vector = tiltGravity(sample, tiltBaselineRef.current, gravity);
-        if (vector.gx === 0 && vector.gy === 0) return;
-        // 起步前先让走位与跟随松手：两套驱动同时写 left/top 会抖，互撞读的盒子也会被写乱。
-        stopMove();
-        flight.startHeld();
-      });
-      const offShake = subscribeShake((ax, ay, az) => {
-        const physics = cfgRef.current.physics;
-        if (physics?.shakeThrow !== true) return;
-        if (live.current.drag.isActive()) return;
-        const impulse = shakeImpulse(ax, ay, az, physics.throwPower ?? 1);
-        if (impulse !== null) applyVelocityRef.current(impulse.vx, impulse.vy, 'add');
-      });
-      return () => {
-        offTilt();
-        offShake();
-        flight.stop();
-      };
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- 订阅只建一次；开关、物理参数与驱动实例都经 ref 现读
-    }, []);
 
     const posFollowRef = useRef<PositionFollow | null>(null);
     posFollowRef.current ??= createPositionFollow({

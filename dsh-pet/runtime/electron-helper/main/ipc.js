@@ -1,5 +1,5 @@
 'use strict';
-const { BrowserWindow, desktopCapturer, screen } = require('electron');
+const { BrowserWindow, desktopCapturer, screen, Notification } = require('electron');
 const { decideWindowIgnore } = require('../pointer-target.js');
 /**
  * 渲染端到主进程的 ipc：窗口跟随、飞行状态、碰撞转发、穿透翻转、输入租约与菜单首项（打开软件 / 打开 AI 设置）。
@@ -18,6 +18,27 @@ const { decideWindowIgnore } = require('../pointer-target.js');
  * @param deps.petRoute - 宠物路由前缀。
  */
 function registerIpc({ ipcMain, petWindows, shell, openTarget, petRoute }) {
+  /** 存活的系统通知对象集合：不持有引用会被 GC，正在显示的通知可能提前消失。 */
+  const liveNotifications = new Set();
+  // 系统通知：渲染端把已映射好的 title/body 发来，用 Electron 原生通知弹出（系统级，不依赖网页通知权限）。
+  ipcMain.on('pet:notify', (_event, payload) => {
+    try {
+      if (!Notification.isSupported()) return;
+      const title = String((payload && payload.title) || 'DSH');
+      const body = String((payload && payload.body) || '');
+      const n = new Notification({ title, body: body || undefined });
+      liveNotifications.add(n);
+      n.on('close', () => liveNotifications.delete(n));
+      n.on('click', () => {
+        liveNotifications.delete(n);
+        // 唤起 DSH：桌面应用宿主用自注册协议把主窗口叫回前台；其余形态不强行开浏览器。
+        if (openTarget === 'desktop') shell.openExternal('dsh://open').catch(() => {});
+      });
+      n.show();
+    } catch (error) {
+      console.error('[dsh-pet-desktop-helper] notify failed:', error);
+    }
+  });
   // 宠物窗口跟随：renderer 逐帧上报窗口内容区位置/尺寸
   ipcMain.on('pet:set-bounds', (event, bounds) => {
     const win = BrowserWindow.fromWebContents(event.sender);

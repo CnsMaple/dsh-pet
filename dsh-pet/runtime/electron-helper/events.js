@@ -403,6 +403,17 @@ function applyMenuLeaf(leaf) {
   for (const s of sprites) s.menuItems = items;
 }
 
+/** 系统通知段：桌面端用 Electron 原生通知弹出；帧映射与过滤复用 shared 的 frameToToast（aborted/interrupted 等跳过）。 */
+function applyNotifyFrame(leaf) {
+  if (!leaf || leaf.data === null) return;
+  if (typeof config !== 'undefined' && config && config.notificationsEnabled === false) return;
+  if (!S.frameToToast || !window.petBridge || typeof window.petBridge.notify !== 'function') return;
+  const t = S.frameToToast(leaf.data);
+  if (!t) return;
+  const sessionId = leaf.data && typeof leaf.data.sessionId === 'string' ? leaf.data.sessionId : '';
+  window.petBridge.notify({ title: t.title, body: t.body, sessionId });
+}
+
 /** 跑一拍 /state。返回 true = 按长轮询命中（宿主支持长轮询，可以立刻再请求）。 */
 async function pollStateOnce() {
   try {
@@ -431,6 +442,7 @@ async function pollStateOnce() {
       if (change.path === 'sections.balance') applyBalanceLeaf(change.leaf);
       else if (change.path === 'sections.workStatus') applyWorkStatusLeaf(change.leaf);
       else if (change.path === 'sections.menu') applyMenuLeaf(change.leaf);
+      else if (change.path === 'sections.notify') applyNotifyFrame(change.leaf);
       else if (change.path.startsWith('pets.') && change.path.endsWith('.say')) {
         // 宠物 id 允许含点号：按前缀/后缀切片，绝不 split('.')
         applySayLeaf(change.path.slice('pets.'.length, -'.say'.length), change.leaf);

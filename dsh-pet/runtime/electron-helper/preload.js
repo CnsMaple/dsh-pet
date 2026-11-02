@@ -49,6 +49,10 @@ contextBridge.exposeInMainWorld('petBridge', {
   requestKeyboardFocus() {
     ipcRenderer.send('pet:request-keyboard-focus');
   },
+  // 系统通知：桌面端用 Electron 原生通知（主进程 new Notification）；帧映射已由渲染端用 shared 完成。
+  notify(payload) {
+    ipcRenderer.send('pet:notify', payload);
+  },
   // 右键菜单「打开网站」：去向由主进程按宿主形态决定——桌面应用宿主唤起主窗口，否则用系统浏览器打开站点。
   openDshSite(url) {
     ipcRenderer.send('pet:open-site', { url });

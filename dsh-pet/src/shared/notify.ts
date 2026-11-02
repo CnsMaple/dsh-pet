@@ -120,6 +120,9 @@ export function frameToToast(
         icon: NOTIFY_ICONS.error,
       };
     }
+    case 'host/test': {
+      return { title: '测试通知', body: '【dsh-pet】系统通知已就绪。', icon: NOTIFY_ICONS.test };
+    }
     default:
       return null;
   }

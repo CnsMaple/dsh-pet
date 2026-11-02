@@ -151,5 +151,13 @@ export async function handleStateRoutes(deps: PetRouteDeps, input: RouteInput): 
     });
   }
 
+  // 测试通知：设置页「测试弹窗」按真实链路触发——写一条 notify 帧进 /state，
+  // 网页端弹 Web 通知、桌面宠物窗口（Electron）弹原生通知。不走权限申请，仅验证链路。
+  if (rest === 'notify-test') {
+    if (method !== 'POST') return methodNotAllowed();
+    state.writeSection('notify', { type: 'host/test', at: Date.now() });
+    return okResult({ ok: true });
+  }
+
   return undefined;
 }

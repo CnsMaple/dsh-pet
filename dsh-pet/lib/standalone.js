@@ -3728,6 +3728,14 @@ async function handleStateRoutes(deps, input) {
 			task: workStatus.taskOf(EXTERNAL_WORK_SESSION)
 		});
 	}
+	if (rest === "notify-test") {
+		if (method !== "POST") return methodNotAllowed();
+		state.writeSection("notify", {
+			type: "host/test",
+			at: Date.now()
+		});
+		return okResult({ ok: true });
+	}
 	return void 0;
 }
 

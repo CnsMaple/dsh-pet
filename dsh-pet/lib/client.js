@@ -1967,6 +1967,11 @@ function frameToToast(frame, sessionTitle) {
 			body: typeof frame.message === "string" ? frame.message : "",
 			icon: NOTIFY_ICONS$1.error
 		};
+		case "host/test": return {
+			title: "测试通知",
+			body: "【dsh-pet】系统通知已就绪。",
+			icon: NOTIFY_ICONS$1.test
+		};
 		default: return null;
 	}
 }
@@ -2077,6 +2082,7 @@ function toast(title, body, icon, sessionId) {
 */
 function shouldNotify(frame) {
 	if (!settings.enabled) return false;
+	if (frame.type === "host/test") return true;
 	if (frame.type === "approval/requested") return settings.approval;
 	if (frame.type === "question/requested") return settings.question;
 	if (frame.type === "host/agent-error") return true;
@@ -3074,11 +3080,16 @@ async function runNotificationTest(deps) {
 		return;
 	}
 	try {
-		wireNotificationClick(new Notification("测试通知", {
-			body: "【dsh-pet】系统通知已就绪。",
-			icon: NOTIFY_ICONS.test
-		}));
-	} catch {}
+		const resp = await fetch(ROUTE_PATH + "/notify-test", { method: "POST" });
+		if (!resp.ok) throw new Error("notify-test HTTP " + resp.status);
+	} catch {
+		try {
+			wireNotificationClick(new Notification("测试通知", {
+				body: "【dsh-pet】系统通知已就绪。",
+				icon: NOTIFY_ICONS.test
+			}));
+		} catch {}
+	}
 	report({
 		kind: "ok",
 		text: t("notifyTestOk")

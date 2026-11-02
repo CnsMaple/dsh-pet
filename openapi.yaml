@@ -426,6 +426,26 @@ paths:
         "405":
           $ref: "#/components/responses/MethodNotAllowed"
 
+  /dsh-pet-7340/notify-test:
+    post:
+      tags: [Action]
+      operationId: testNotification
+      summary: 触发一条测试系统通知
+      description: |
+        设置页「测试弹窗」按真实链路触发一次系统通知：宿主写一条 notify 帧进 `/state`，
+        网页端据此弹 Web 通知、桌面宠物窗口（Electron）据此弹原生通知。只验证链路，不看总开关/焦点。
+      responses:
+        "200":
+          description: "已写入通知帧。"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
   /dsh-pet-7340/bubble/clear:
     post:
       tags: [Action]

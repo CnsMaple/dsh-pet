@@ -170,6 +170,8 @@ function toast(title: string, body?: string, icon?: string, sessionId?: string):
  */
 function shouldNotify(frame: NotifyFrame): boolean {
   if (!settings.enabled) return false;
+  // 测试通知：走真实链路，不看焦点，总是展示。
+  if (frame.type === 'host/test') return true;
   if (frame.type === 'approval/requested') return settings.approval;
   if (frame.type === 'question/requested') return settings.question;
   if (frame.type === 'host/agent-error') return true;

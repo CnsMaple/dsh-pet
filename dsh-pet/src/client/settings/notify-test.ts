@@ -5,6 +5,7 @@
  * @module dsh-pet/src/client/settings/notify-test
  */
 import { NOTIFY_ICONS, requestNotificationPermission, wireNotificationClick } from '../notify.ts';
+import { ROUTE_PATH } from '../../shared/constants.ts';
 import type { Feedback } from './actions.ts';
 
 /** {@link runNotificationTest} 的依赖。 */
@@ -39,12 +40,18 @@ export async function runNotificationTest(deps: NotificationTestDeps): Promise<v
     return;
   }
   try {
-    // 绕过聚焦门直接发一条测试通知；点击行为与真实事件通知共用 wireNotificationClick。
-    wireNotificationClick(
-      new Notification('测试通知', { body: '【dsh-pet】系统通知已就绪。', icon: NOTIFY_ICONS.test }),
-    );
+    // 走真实通知链路：请求宿主写一条 notify 帧 → 网页弹 Web 通知、桌面宠物窗口弹 Electron 原生通知。
+    const resp = await fetch(ROUTE_PATH + '/notify-test', { method: 'POST' });
+    if (!resp.ok) throw new Error('notify-test HTTP ' + resp.status);
   } catch {
-    /* 个别环境构造失败：仍按已授权提示。 */
+    // 宿主不支持（旧版本）时退回本地 Web 通知，至少给个反馈。
+    try {
+      wireNotificationClick(
+        new Notification('测试通知', { body: '【dsh-pet】系统通知已就绪。', icon: NOTIFY_ICONS.test }),
+      );
+    } catch {
+      /* 构造失败也不报错 */
+    }
   }
   report({ kind: 'ok', text: t('notifyTestOk') });
 }

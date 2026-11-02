@@ -194,19 +194,7 @@ Object.assign(PetSprite.prototype, {
   inputBusy() {
     // 可点的余额气泡是第四个来源：它长在窗口里、靠窗口级 click 触发，却悬在平时穿透的余量区，
     // 正需要借 busy + 控件矩形把它圈出来。
-    return this.dragState.active || this.menuOpen || this.chatOpen || this.todoOpen || this.balanceClickable();
-  },
-
-  /** 余额气泡当前有几页：规则归共享层（与每页内容同源），这里只补「还没有结果」的兜底。 */
-  balancePageCount() {
-    const s = this.balanceState;
-    return s ? S.balancePageCount(s) : 1;
-  },
-
-  /** 余额气泡此刻是否可点切页：页数多于 1 且气泡正在显示。 */
-  balanceClickable() {
-    if (!this.bubbleOn || this.balanceWrap) return false;
-    return this.balancePageCount() > 1;
+    return this.dragState.active || this.menuOpen || this.todoOpen;
   },
 
   /**
@@ -226,9 +214,7 @@ Object.assign(PetSprite.prototype, {
     if (!window.petBridge || !window.petBridge.setInputRegions) return;
     const rects = [];
     // 控件矩形 = 主进程允许接收点击的区域，矩形外继续穿透。可点的余额气泡悬在余量区，不登记就点不到。
-    const controls = [
-      ...document.querySelectorAll('.dsh-pet-menu-column, .dsh-pet-chat, .dsh-pet-todo, .pet-bubble.is-clickable'),
-    ];
+    const controls = [...document.querySelectorAll('.dsh-pet-menu-column, .dsh-pet-todo')];
     for (const el of this.inputRegionElements) {
       if (!controls.includes(el)) {
         this.inputRegionResize.unobserve(el);
@@ -279,7 +265,7 @@ Object.assign(PetSprite.prototype, {
       return;
     }
     // 右键菜单/对话弹窗/待办面板开启：整窗保持可交互，关闭后恢复命中区判定
-    if (this.menuOpen || this.chatOpen || this.todoOpen) {
+    if (this.menuOpen || this.todoOpen) {
       this.syncInputRegions(); // 级联菜单按悬停增减面板，及时更新占用区域
       this.setInteractive(true);
       this.setTip(false); // 菜单/弹窗期间提示让位，不跟浮层抢注意力
@@ -357,46 +343,13 @@ Object.assign(PetSprite.prototype, {
 });
 
 Object.assign(PetSprite.prototype, {
-  /**
-   * 拖拽经过命中区：只处理带文件的拖拽。
-   * 必须 preventDefault，否则窗口会把这个文件当导航打开（页面直接被替换）。
-   */
-  onDragOverImage(e) {
-    if (!S.dragHasFiles(e)) return;
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-  },
-
-  /** 松手：第一张图片直接开对话并挂成待发送图；不是图片就当没发生。 */
-  onDropImage(e) {
-    const file = S.firstImageFile(e.dataTransfer);
-    if (!file) return;
-    e.preventDefault();
-    this.showChatFromMenu(file);
-  },
-
   /** 悬停快捷键：按住 M 说话、L 开对话、S 截图、Z 切换睡/醒、D 开关待办、1-4 切显示位置。 */
   onHotkey(e) {
-    // 按住说话先判：它要吃掉按住期间的自动重复，晚一步就会被输入框收走
-    if (this.hearHold.onKeyDown(e)) {
-      e.preventDefault();
-      return;
-    }
     if (!this.hoverBody) return;
     const display = S.displayOfHotkey(e);
     if (display) {
       e.preventDefault();
       this.setPetDisplay(display);
-      return;
-    }
-    if (S.isChatHotkey(e)) {
-      e.preventDefault();
-      this.showChatFromMenu();
-      return;
-    }
-    if (S.isCaptureHotkey(e)) {
-      e.preventDefault();
-      this.screenshotFromShortcut();
       return;
     }
     if (S.isTodoHotkey(e)) {
@@ -412,7 +365,5 @@ Object.assign(PetSprite.prototype, {
   },
 
   /** 松手：结束「按住说话」的那次录音（没在按住时什么都不做）。 */
-  onHotkeyUp(e) {
-    this.hearHold.onKeyUp(e);
-  },
+  onHotkeyUp(e) {},
 });

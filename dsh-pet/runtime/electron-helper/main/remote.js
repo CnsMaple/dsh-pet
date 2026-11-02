@@ -56,8 +56,11 @@ function createRemoteSupervisor(deps) {
       await bridge.probe(3000);
       const resp = await bridge.hostRequest('GET', petRoute + '/config');
       failures = 0;
-      const pets = petsFromMerged(JSON.parse((resp && resp.body) || '{}'));
-      const signature = JSON.stringify(pets);
+      const merged = JSON.parse((resp && resp.body) || '{}');
+      const pets = petsFromMerged(merged);
+      // 签名用整份成品聚合：字体/字号（含「随宠物大小缩放」）/显示等任何渲染相关字段变化都要重建窗口——
+      // 渲染端只在建窗时读一次 /config，不轮询；不重建就不会重新应用字体等。
+      const signature = JSON.stringify(merged);
       if (signature !== lastSignature) {
         lastSignature = signature;
         petWindows.rebuild(pets);

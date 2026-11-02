@@ -97,186 +97,7 @@ PetSprite.prototype.onWorkTick = function onWorkTick(snapshot, tick) {
   else this.switchTo(name, false); // 进行中循环播（单动画/单候选档位）
 };
 
-// 余额事件：自动轮询按 balanceEnabled 门控，手动请求无条件。
-// manual = 这次刷新是用户主动要的（右键「查看余额」/ `/balance` 命令）：不受开关限制，一律给答复。
-PetSprite.prototype.onBalanceTick = function onBalanceTick(state, tick, manual) {
-  if (!this.pet.balanceEnabled && !manual) return; // 自动轮询受开关门控；手动无条件通过（与浏览器一致）
-  if (tick === 0 || tick === this.prevTick) return;
-  this.prevTick = tick;
-  // 占用锁：锁生效时不看自动余额（那是宠物自己的行为），手动请求照常（用户交互优先）。
-  // 判在 tick 消费之后：占用期间这一拍就当过去了，解冻后不补播（事件是瞬时的）。
-  if (this.frozen && !manual) return;
-  this.showBalanceNow(state, manual);
-};
-
-// 余额不可用（服务商未登记 / 缺凭证 / 抓取失败）：只弹文字说明气泡，不播档位动画。
-// 显隐与定时和成功路径同一套；不 stopMove——本次没有动画要抢前台。
-// 门控：自动轮询要求 balanceEnabled，手动请求无条件弹（包括「服务商不支持」这件事）。
-// 睡觉一票否决：与档位动画同一口径，手动请求也不打断睡姿。
-PetSprite.prototype.showBalanceNotice = function showBalanceNotice(state, manual) {
-  if (!this.pet.balanceEnabled && !manual) return; // 自动轮询受开关门控；手动无条件通过
-  if (this.frozen && !manual) return; // 占用锁：自动来源不看；手动照常（用户问了就得有答复）
-  if (this.sleeping) return; // 睡着不弹：睡姿优先于余额说明
-  if (!state || state.ok) return;
-  this.bubbleOn = true;
-  this.balanceWrap = true; // 文字说明可能多行：renderBubble 据此套用紧凑变体（字号缩到 0.75、宽度下限更窄）
-  this.balanceView = S.balanceBubbleView(state);
-  this.balanceState = state; // 留着：不可用状态不可展开，但要防止上一次的余额读数残留在字段里
-  this.balanceViewIndex = 0; // 文字说明只有一页（页数由 balancePageCount 从 state 算）
-  this.renderBubble();
-  if (this.bubbleTimer !== null) window.clearTimeout(this.bubbleTimer);
-  this.bubbleTimer = window.setTimeout(() => {
-    this.bubbleOn = false;
-    this.renderBubble();
-  }, BUBBLE_DURATION_MS);
-};
-
-// 碎碎念 / 命令气泡 / 对话回复 / 清空走同一条通道：都写进 S 的 pets.<id>.say，
-// 由 /state 统一轮询分发到对应宠物（见 applySayLeaf）——本窗口只装一只宠物，按 id 命中即可。
-
-// 推进说话气泡的收起计划并重排计时器：语音合成期间挂起，播完再留一小段尾巴。
-// 计划与常量在 shared/bubble-hold，与浏览器端共用同一份（两端行为不能各自漂移）。
-PetSprite.prototype.applyWhisperHold = function applyWhisperHold(event) {
-  const next = S.reduceBubbleHold(this.whisperHold, event);
-  if (next === this.whisperHold) return; // 同引用 = 无事发生，不白重排计时器
-  this.whisperHold = next;
-  this.whisperOn = next.on;
-  if (this.whisperTimer !== null) window.clearTimeout(this.whisperTimer);
-  this.whisperTimer = null;
-  if (next.delayMs !== null) {
-    this.whisperTimer = window.setTimeout(() => {
-      this.whisperTimer = null;
-      this.applyWhisperHold({ kind: 'hide' });
-    }, next.delayMs);
-  }
-  this.renderBubble();
-};
-
-// 收起说话气泡（POST /bubble/clear 的落点）。只动气泡：正在播的动画、余额气泡、
-// 工作状态气泡都不碰——气泡与动作是两把锁、分别释放。与浏览器端 clearWhisperBubble 同一语义。
-PetSprite.prototype.clearWhisper = function clearWhisper() {
-  this.whisperText = '';
-  this.whisperView = null;
-  this.whisperImage = '';
-  this.whisperUrl = '';
-  this.applyWhisperHold({ kind: 'clear' });
-};
-
-// 碎碎念展示（本宠物）：随机抽 events.whisper 动画 + 弹文本气泡（与余额同一套定时语义）。
-// image 是 host 随机抽定的配图名；url 是第三方自带的完整地址：两者二选一（host 判定层保证），
-// 由字段名区分、不靠嗅探。anim === false 时整段跳过动画联动（不查池、不换源、不 stopMove），
-// 于是缺 events.whisper 时只弹气泡也走得通。duration === 0 表示这一条不显示，且不动当前气泡
-// （要收起请用 POST /bubble/clear，两件事不重叠）。
-PetSprite.prototype.showWhisper = function showWhisper(text, image, url, duration, anim) {
-  let name = null;
-  if (anim !== false) {
-    const pool = this.animations.events?.whisper;
-    if (!pool || pool.length === 0) {
-      console.error('[dsh-pet] 配置缺少 animations.events.whisper，无法播放碎碎念动画');
-      return;
-    }
-    // 整池随机抽 1 槽（避开当前正播动画，避免连续重复）；槽位若为数组候选再档内随机（与浏览器一致）
-    name = S.pickSlot(S.pick(pool, this.anim), this.anim);
-  }
-  console.log(
-    '[dsh-pet] ' +
-      new Date().toTimeString().slice(0, 8) +
-      ' whisper pet=' +
-      this.pet.id +
-      (name === null ? ' （不联动动画）' : ' -> [' + name + ']') +
-      ' 「' +
-      text +
-      '」' +
-      (image ? ' [' + image + ']' : ''),
-  );
-  // 先起动画：它与气泡时长是两个独立参数（duration=0 时动画照播、只是不弹泡）
-  // 睡觉：气泡照弹（拒绝台词就是这么来的），动画不换——自动来源不该打断睡姿（睡姿循环归睡觉状态机）。
-  if (name !== null && !this.sleeping) {
-    this.stopMove();
-    this.playOnce(name);
-  }
-  if (duration === 0) return;
-  this.whisperView = S.whisperBubbleView({ ok: true, text, ts: 0 });
-  this.whisperText = text;
-  this.whisperImage = typeof image === 'string' ? image : '';
-  this.whisperUrl = typeof url === 'string' ? url : '';
-  // 收起时机交给收起计划：这句要念时，随后的语音开始事件会把它挂起（见 applyWhisperHold）。
-  this.applyWhisperHold({ durationMs: duration ?? BUBBLE_DURATION_MS, kind: 'show' });
-};
-
-// 余额展示（气泡 + 档位动画）：周期轮询与菜单点播共用同一展示路径，视觉与行为严格一致。
-// 弹气泡：手动请求无条件弹（哪怕关了 balanceEnabled、哪怕没有百分比语义）；自动轮询要求有内容可展示，
-// custom 形态不看百分比。档位动画只属于启用余额的宠物，且必须有百分比依据，关掉开关的点菜单也不演。
-PetSprite.prototype.showBalanceNow = function showBalanceNow(state, manual) {
-  if (!state || !state.ok) return;
-  const p = S.balancePercent(state);
-  if (!manual && p === undefined && state.shape !== 'custom') return; // 自动轮询没有百分比语义：没有档位依据，不弹（手动仍要给答复）
-  this.bubbleOn = true;
-  this.balanceWrap = false; // 正常余额气泡用常规尺寸，别继承上一次文字说明的紧凑变体
-  this.balanceView = S.balanceBubbleView(state);
-  this.balanceState = state; // 展开态按页现算窗口明细与用量行（balanceView 只是收起态那两行）
-  this.balanceViewIndex = 0; // 新一轮查询一律从第一页开始（与浏览器一致）
-  this.renderBubble();
-  // 气泡 10s 定时消失（与动画解耦：即使动画被点击/拖拽打断，气泡也按时收起；重复触发先清旧定时器）
-  if (this.bubbleTimer !== null) window.clearTimeout(this.bubbleTimer);
-  this.bubbleTimer = window.setTimeout(() => {
-    this.bubbleOn = false;
-    this.renderBubble();
-  }, BUBBLE_DURATION_MS);
-  // 档位动画：开关关闭的宠物不演；没有百分比语义（纯余额金额）也没有档位可映射
-  // 睡觉：气泡已经亮起，动画不换——自动来源不该打断睡姿（睡姿循环归睡觉状态机）。
-  if (this.sleeping) return;
-  if (!this.pet.balanceEnabled) return;
-  if (p === undefined) return;
-  const pool = this.animations.events?.balance;
-  if (!pool || pool.length === 0) {
-    console.error('[dsh-pet] 配置缺少 animations.events.balance，无法播放余额事件动画');
-    return;
-  }
-  const idx = S.balanceEventIndex(p);
-  const slot = pool[idx];
-  if (!slot) {
-    console.error('[dsh-pet] balance 档位索引越界：p=' + p + ' idx=' + idx);
-    return;
-  }
-  const name = S.pickSlot(slot, this.anim); // 数组槽位档内随机抽 1，且避开当前正播动画（避免连续重复，与浏览器一致）
-  this.stopMove();
-  this.playOnce(name);
-};
-
-// 点余额气泡：切到下一页（末页回第一页），页数由 balancePageCount 决定。
-// 淡出 → 换内容 → 淡入（250ms 后才重绘，否则内容会在半透明时被替换 = 硬切）；同时重置 10s 定时器，
-// 否则第 8 秒才点开就只剩 2 秒。命中区由 renderBubble 末尾的 syncInputBusy() 重报。
-PetSprite.prototype.toggleBalanceDetail = function toggleBalanceDetail() {
-  if (!this.balanceClickable()) return;
-  this.balanceViewIndex = (this.balanceViewIndex + 1) % this.balancePageCount();
-  this.bubble.classList.add('is-fading');
-  if (this.balanceFadeTimer !== null) window.clearTimeout(this.balanceFadeTimer);
-  this.balanceFadeTimer = window.setTimeout(() => {
-    this.balanceFadeTimer = null;
-    this.bubble.classList.remove('is-fading');
-    this.renderBubble(); // 重绘内容 + 重报控件矩形（展开态/换页宽度变了，矩形也得跟着变）
-  }, BALANCE_FADE_MS);
-  if (this.bubbleTimer !== null) window.clearTimeout(this.bubbleTimer);
-  this.bubbleTimer = window.setTimeout(() => {
-    this.bubbleOn = false;
-    this.renderBubble();
-  }, BUBBLE_DURATION_MS);
-};
-
 // 轮询组装：容器统一拉取与触发，与浏览器端同一套路径。
-
-// 余额不可用 → 文字说明气泡（周期轮询与手动 /balance 共用这一条路径，判定在 shared）：
-// explicit（手动触发）一律弹；自动轮询只在原因（含服务商）变化时弹一次，避免反复刷同一句话。
-function applyBalanceNotice(state, explicit) {
-  const notice = S.decideBalanceNotice(state, balanceNoticeKey, explicit);
-  balanceNoticeKey = notice.key;
-  if (notice.show) for (const s of sprites) s.showBalanceNotice(state, explicit);
-  // 未登记服务商是配置事实（已由气泡说明），不再刷 console；其余原因照旧显式报错，绝不伪造余额
-  if (state.reason !== 'unsupported') {
-    console.error('[dsh-pet] 余额查询失败 reason=' + state.reason + (state.message ? ' ' + state.message : ''));
-  }
-}
 
 // 统一轮询（GET /state，长轮询）：与浏览器同一份数据来源与渲染入口。
 // 每个叶子 = { counter, data }：首拉只记基线（不渲染），之后 counter 变了才渲染。
@@ -285,22 +106,6 @@ let stateBaseline = null;
 let stateSince;
 /** 宿主支持长轮询吗？响应带 counter = 支持；不带 = 老宿主（会立刻返回全量，必须退避） */
 let stateLongPoll = true;
-
-/** 余额叶子 → 展示（成功播档位动画 + 气泡；不可用按 shared 判定弹文字说明） */
-function applyBalanceLeaf(leaf) {
-  const hit = S.readBalance(leaf);
-  if (!hit) return;
-  balance = hit.state;
-  window.__dshPetDebug.lastBalanceOk = hit.state && hit.state.ok === true;
-  if (hit.state.ok) {
-    balanceTick++;
-    // 睡着一律不播：档位动画与气泡都不更新，手动请求也不例外（睡姿优先）
-    for (const s of sprites) if (!s.sleeping) s.onBalanceTick(hit.state, balanceTick, hit.manual);
-  } else {
-    // 不可用：manual（用户主动要的）一律弹，周期刷新只在原因变化时弹一次
-    applyBalanceNotice(hit.state, hit.manual);
-  }
-}
 
 /** 说话叶子 → 对应宠物播说话动画 + 气泡。`kind: 'clear'` = 收起气泡，其余 = 弹一个气泡。 */
 function applySayLeaf(petId, leaf) {
@@ -316,7 +121,6 @@ function applySayLeaf(petId, leaf) {
     // 两端各判各的：叶子点名 desktop 才念，没点名或点了网页端就只弹气泡。
     // 必须留在按 petId 过滤的循环里：每个窗口都收到全部叶子（全局计数器唤醒所有窗口），
     // 放到循环外会让没装这只宠物的窗口跟着一起念，N 只桌面宠物就是 N 份语音。
-    S.playSayVoice(said);
   }
 }
 
@@ -443,7 +247,6 @@ async function pollStateOnce() {
     }
     for (const change of S.takeChanged(s, stateBaseline)) {
       if (change.leaf.data === null) continue;
-      if (change.path === 'sections.balance') applyBalanceLeaf(change.leaf);
       else if (change.path === 'sections.workStatus') applyWorkStatusLeaf(change.leaf);
       else if (change.path === 'sections.menu') applyMenuLeaf(change.leaf);
       else if (change.path === 'sections.notify') applyNotifyFrame(change.leaf);
@@ -474,18 +277,6 @@ async function pollStateOnce() {
 function startLoops() {
   if (loopsStarted) return;
   loopsStarted = true;
-
-  // 语音状态一变就重绘气泡：转圈 → 喇叭（或退回无角标）要立刻反映出来，
-  // 不能等到下一条消息把气泡重画。桌面端没有 react，只能靠订阅手动重绘。
-  S.subscribeVoiceState(() => {
-    for (const s of sprites) s.renderBubble();
-  });
-
-  // 语音每句的开始/结束推进气泡的收起计划：合成慢时气泡挂住，播完再收。
-  // 按文本认句：本窗口只装一只宠物，但同一份状态是模块单例，认句才不会算到别人头上。
-  S.subscribeVoiceUtterance((event) => {
-    for (const s of sprites) if (s.whisperText === event.text) s.applyWhisperHold(event);
-  });
 
   // 统一轮询是自调度的长轮询（请求 → 处理 → 立刻再请求）：宿主在版本没变时挂起，空闲时
   // 1 请求/秒，叶子一变立刻收到。本窗口只装一只宠物，所以每个窗口各跑一份；全局计数器意味着

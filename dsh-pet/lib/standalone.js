@@ -193,8 +193,7 @@ function isValidPetId(value) {
 const GLOBAL_DEFAULT_KEYS = [
 	"physics",
 	"font",
-	"confineToScreen",
-	"eventsRefreshSec"
+	"confineToScreen"
 ];
 /** 已告警过的 文件:字段（进程内去重：同一问题只告警一次，避免每请求刷屏；重启重置） */
 const warnedKeys = new Set();
@@ -403,7 +402,6 @@ function topFieldValid(key, value) {
 		case "trayEnabled": return typeof value === "boolean";
 		case "animations": return animationsValid(value);
 		case "animationWeights": return weightsValid(value);
-		case "eventsRefreshSec": return eventsRefreshSecValid(value);
 		case "physics": return physicsValid(value);
 		case "font": return fontValid(value);
 		case "whisperModel":
@@ -417,18 +415,6 @@ function topFieldValid(key, value) {
 		}
 		default: return true;
 	}
-}
-/**
-* eventsRefreshSec 段校验：事件名 → 间隔秒（正的有限数字）。
-* 这是整段替换字段：缺的键由消费端各自兜底（1800 / 300），多写的键原样保留；空对象合法。
-*/
-function eventsRefreshSecValid(value) {
-	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-	for (const v of Object.values(value)) {
-		const n = Number(v);
-		if (!Number.isFinite(n) || n <= 0) return false;
-	}
-	return true;
 }
 
 //#endregion
@@ -530,8 +516,6 @@ function mergePet(base, raw, label, seenIds) {
 		name,
 		size: petNumber(p.size, base.size, 1, label, "size", id),
 		...petSizePercentField(p.sizePercent, base.sizePercent, label, id),
-		balanceEnabled: petBool(p.balanceEnabled, base.balanceEnabled, label, "balanceEnabled", id),
-		whisperEnabled: petBool(p.whisperEnabled, base.whisperEnabled, label, "whisperEnabled", id),
 		workStatusEnabled: petBool(p.workStatusEnabled, base.workStatusEnabled, label, "workStatusEnabled", id),
 		fixedEnabled: petBool(p.fixedEnabled, base.fixedEnabled, label, "fixedEnabled", id),
 		display: petEnum(p.display, PET_DISPLAY_SET, base.display, label, "display", id),
@@ -638,10 +622,6 @@ function saveUserConfig(raw, existing) {
 			defaultLog("warn", `dsh-pet: pet「${id}」缺少 name，已按默认 ${id}（宠物 id）处理`);
 			name = id;
 		}
-		const balanceEnabled = pp.balanceEnabled;
-		if (typeof balanceEnabled !== "boolean") return null;
-		const whisperEnabled = pp.whisperEnabled;
-		if (whisperEnabled !== void 0 && typeof whisperEnabled !== "boolean") return null;
 		const workStatusEnabled = pp.workStatusEnabled;
 		if (workStatusEnabled !== void 0 && typeof workStatusEnabled !== "boolean") return null;
 		const fixedEnabled = pp.fixedEnabled;
@@ -658,8 +638,6 @@ function saveUserConfig(raw, existing) {
 			id,
 			name,
 			size,
-			balanceEnabled,
-			whisperEnabled,
 			workStatusEnabled,
 			fixedEnabled,
 			display,

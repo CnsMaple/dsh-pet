@@ -29,7 +29,6 @@ import type { Pet } from './types.ts';
 const ENTRY_FIELDS: Array<keyof Pet> = [
   'animations',
   'animationWeights',
-  'eventsRefreshSec',
   'physics',
   'confineToScreen',
   'workStatusTexts',

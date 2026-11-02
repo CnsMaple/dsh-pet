@@ -10,7 +10,6 @@ import type { jsx } from 'react/jsx-runtime';
 export type RuntimePet = Pet & {
     animations: Animations;
     animationWeights: Weights;
-    eventsRefreshSec: Record<string, number>;
     physics: PhysicsParams;
 };
 /** 注入的 react 能力：由模块工厂提供，本目录不直接 import react 运行时。 */

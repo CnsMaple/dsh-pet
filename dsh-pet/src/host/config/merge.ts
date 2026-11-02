@@ -161,8 +161,6 @@ function mergePet(
     name,
     size: petNumber(p.size, base.size, 1, label, 'size', id),
     ...petSizePercentField(p.sizePercent, base.sizePercent, label, id),
-    balanceEnabled: petBool(p.balanceEnabled, base.balanceEnabled, label, 'balanceEnabled', id),
-    whisperEnabled: petBool(p.whisperEnabled, base.whisperEnabled, label, 'whisperEnabled', id),
     workStatusEnabled: petBool(p.workStatusEnabled, base.workStatusEnabled, label, 'workStatusEnabled', id),
     fixedEnabled: petBool(p.fixedEnabled, base.fixedEnabled, label, 'fixedEnabled', id),
     display: petEnum(p.display, PET_DISPLAY_SET, base.display, label, 'display', id),

@@ -170,8 +170,6 @@ export function topFieldValid(key: string, value: unknown): boolean {
       return animationsValid(value);
     case 'animationWeights':
       return weightsValid(value);
-    case 'eventsRefreshSec':
-      return eventsRefreshSecValid(value);
     case 'physics':
       return physicsValid(value);
     case 'font':
@@ -191,17 +189,4 @@ export function topFieldValid(key: string, value: unknown): boolean {
     default:
       return true;
   }
-}
-
-/**
- * eventsRefreshSec 段校验：事件名 → 间隔秒（正的有限数字）。
- * 这是整段替换字段：缺的键由消费端各自兜底（1800 / 300），多写的键原样保留；空对象合法。
- */
-function eventsRefreshSecValid(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  for (const v of Object.values(value as Record<string, unknown>)) {
-    const n = Number(v);
-    if (!Number.isFinite(n) || n <= 0) return false;
-  }
-  return true;
 }

@@ -256,7 +256,6 @@ function flattenConfigPets(merged) {
 			...p,
 			animations: conf.animations,
 			animationWeights: conf.animationWeights,
-			eventsRefreshSec: conf.eventsRefreshSec,
 			physics: conf.physics,
 			font: conf.font,
 			confineToScreen: conf.confineToScreen,

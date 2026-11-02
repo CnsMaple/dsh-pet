@@ -48,10 +48,6 @@ export function saveUserConfig(
       defaultLog('warn', `dsh-pet: pet「${id}」缺少 name，已按默认 ${id}（宠物 id）处理`);
       name = id;
     }
-    const balanceEnabled = pp.balanceEnabled;
-    if (typeof balanceEnabled !== 'boolean') return null;
-    const whisperEnabled = pp.whisperEnabled;
-    if (whisperEnabled !== undefined && typeof whisperEnabled !== 'boolean') return null;
     const workStatusEnabled = pp.workStatusEnabled;
     if (workStatusEnabled !== undefined && typeof workStatusEnabled !== 'boolean') return null;
     // 宠物固定（随机链不再抽「转向 / 移动」两档）：与上面两个开关同语义——可选，
@@ -70,8 +66,6 @@ export function saveUserConfig(
       id,
       name,
       size,
-      balanceEnabled,
-      whisperEnabled,
       workStatusEnabled,
       fixedEnabled,
       display,

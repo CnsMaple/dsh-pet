@@ -90,12 +90,6 @@ export interface Pet {
    *  100 ≈ 不限制（宽窗口下与按 px 显示一致）；填 150 人物会宽于屏幕，但画框仍被 `size` 夹住。
    *  小于 1 或非数字回落到 20。只作用于浏览器半侧——桌面透明窗始终用 `size`。 */
   sizePercent?: number;
-  /** 是否启用余额功能：true = 触发余额动画并显示余额气泡，false = 该宠物完全禁用余额。缺失即配置错误 */
-  balanceEnabled: boolean;
-  /** 是否启用碎碎念：true = 按 eventsRefreshSec.whisper 周期生成一句话并播碎碎念动画，false = 禁用。
-   *  缺失默认 true；碎碎念每次生成都会调用当前对话的模型，本地 LLM 单并发时会顶掉正在跑的任务的 KV cache，
-   *  不需要的宠物请显式写 false。display 为 none 的宠物整体跳过：不生成、不调模型。 */
-  whisperEnabled: boolean;
   /** 是否启用工作状态联动：true = 监听 DSH 会话事件，按 animations.events.workStatus 切档位动画与气泡。
    *  缺失默认 true。监听不调用模型，无 KV cache 风险。 */
   workStatusEnabled: boolean;
@@ -109,9 +103,6 @@ export interface Pet {
   animationWeights?: Weights;
   extra?: boolean;
   assetRoot?: string;
-  /** 全局默认：事件刷新周期（秒，事件名 → 间隔；整段替换，缺的键由消费端各自兜底）。
-   *  .whisper 按所属条目读（种类可覆盖），.balance 只读 main 条目。 */
-  eventsRefreshSec?: Record<string, number>;
   /** 全局默认：拖拽抛掷物理参数（用户写一次即对所有宠物生效，含 pet pack；种类文件顶层写了则用自己那份） */
   physics?: PhysicsParams;
   /** 全局默认：是否锁定在当前屏幕——抛掷与自主漫游都只在当前所在那块屏内活动 */
@@ -210,5 +201,4 @@ export interface ClientConfig {
   /** 拖拽抛掷物理参数（全局，所有宠物共用；合并器已填默认） */
   physics: PhysicsParams;
   /** 事件刷新周期（秒）：事件名 → 间隔；balance = 余额数据刷新与动画触发间隔 */
-  eventsRefreshSec: Record<string, number>;
 }

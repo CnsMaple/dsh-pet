@@ -34,7 +34,7 @@ const bubbleCss = [
   '.dsh-pet-sessions{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% - var(--dsh-pet-size)*0.108);' +
     'display:flex;flex-direction:column;gap:calc(var(--f)*0.22);align-items:center;z-index:3;pointer-events:none;' +
     '--f0:var(--dsh-pet-font-bubble,calc(var(--dsh-pet-size)*0.0455));--f:var(--f0)}',
-  '.dsh-pet-session-bubble{box-sizing:border-box;max-width:min(calc(var(--f)*18),78vw);' +
+  '.dsh-pet-session-bubble{box-sizing:border-box;min-width:calc(var(--f)*9);max-width:min(calc(var(--f)*22),82vw);' +
     'padding:calc(var(--f)*0.42) calc(var(--f)*0.62);border-radius:calc(var(--f)*0.72);background:rgba(255,255,255,.92);' +
     'color:#2b2b2b;font-family:var(--dsh-pet-font-family,"ShangshouSoftCandy","Yuanti SC","PingFang SC","Microsoft YaHei",sans-serif);' +
     'font-size:var(--f);line-height:1.45;text-align:left;' +

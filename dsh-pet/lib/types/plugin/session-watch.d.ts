@@ -6,6 +6,9 @@ import type { HostContext } from './context.ts';
 export type SessionWatchInput = {
     /** 宿主上下文（apply 收到的那一个）。 */
     ctx: HostContext;
-} & Pick<SessionNotify, 'cancelTerminalCleanup'> & Pick<SessionNotify, 'lastTodoText'> & Pick<SessionNotify, 'lastReplyText'> & Pick<SessionNotify, 'notifyActivityTimers'> & Pick<WorkStatusBridge, 'publishWorkStatus'> & Pick<SessionNotify, 'pushNotifyFrame'> & Pick<SessionNotify, 'scheduleCompletionNotify'> & Pick<SessionNotify, 'scheduleTerminalCleanup'> & Pick<SessionNotify, 'terminalTimers'> & Pick<SessionNotify, 'toolsInFlight'> & Pick<SessionNotify, 'turnFlags'> & Pick<HostSetup, 'workStatus'>;
+} & Pick<SessionNotify, 'cancelTerminalCleanup'> & Pick<SessionNotify, 'lastTodoText'> & Pick<SessionNotify, 'lastReplyText'> & Pick<SessionNotify, 'notifyActivityTimers'> & Pick<WorkStatusBridge, 'publishWorkStatus'> & Pick<SessionNotify, 'pushNotifyFrame'> & Pick<SessionNotify, 'scheduleCompletionNotify'> & Pick<SessionNotify, 'scheduleTerminalCleanup'> & Pick<SessionNotify, 'terminalTimers'> & Pick<SessionNotify, 'toolsInFlight'> & Pick<SessionNotify, 'turnFlags'> & Pick<HostSetup, 'workStatus'> & {
+    /** 会话 id → 标题缓存（从 session 事件里抓，供 sessions 段用）。 */
+    sessionTitles: Map<string, string>;
+};
 /** 注册会话事件监听；返回的清理函数由 ctx.effect 收集。 */
 export declare function registerSessionWatch(deps: SessionWatchInput): void;

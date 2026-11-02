@@ -68,7 +68,10 @@ export function apply(ctx: any): void {
     scheduleCompletionNotify,
   } = sessionNotify;
 
-  /** 取会话标题：DSH sessions 服务；取不到退回「会话 · id末4位」。 */
+  /** 会话 id → 标题（session-watch 从事件里抓，优先用它）。 */
+  const sessionTitles = new Map<string, string>();
+
+  /** 取会话标题：优先事件缓存，其次 DSH sessions 服务；取不到退回「会话 · id末4位」。 */
   const sessionTitleOf = (id: string): string => {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DSH 注入 ctx 无静态类型
@@ -88,7 +91,13 @@ export function apply(ctx: any): void {
       if (e.state === 'success' || e.state === 'error') continue;
       const bucket = toolsInFlight.get(e.sessionId);
       const tools = bucket ? Array.from(bucket.values()).slice(0, 3) : [];
-      rows.push({ id: e.sessionId, title: sessionTitleOf(e.sessionId), state: e.state, tools, seq: e.seq });
+      rows.push({
+        id: e.sessionId,
+        title: sessionTitles.get(e.sessionId) || sessionTitleOf(e.sessionId),
+        state: e.state,
+        tools,
+        seq: e.seq,
+      });
     }
     rows.sort((a, b) => b.seq - a.seq);
     state.writeSection(
@@ -141,6 +150,7 @@ export function apply(ctx: any): void {
     toolsInFlight,
     turnFlags,
     workStatus,
+    sessionTitles,
   });
 
   registerTodoReminders({

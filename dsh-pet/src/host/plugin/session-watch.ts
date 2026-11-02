@@ -35,7 +35,10 @@ export type SessionWatchInput = {
   Pick<SessionNotify, 'terminalTimers'> &
   Pick<SessionNotify, 'toolsInFlight'> &
   Pick<SessionNotify, 'turnFlags'> &
-  Pick<HostSetup, 'workStatus'>;
+  Pick<HostSetup, 'workStatus'> & {
+    /** 会话 id → 标题缓存（从 session 事件里抓，供 sessions 段用）。 */
+    sessionTitles: Map<string, string>;
+  };
 
 /** 一次工具事件在记账表里的形态：调用开始（带详情）或结果返回（按标识移除一条）。 */
 type ToolPhase =
@@ -131,6 +134,14 @@ function trackToolEvent(ledger: ToolCallLedger, sessionId: string, input: TrackI
   return undefined;
 }
 
+/** 从 session 对象里尽量取标题（不同版本字段位置不同，逐个候选）。 */
+function sessionTitleFrom(session: unknown): string {
+  const s = session as { title?: unknown; name?: unknown; header?: { title?: unknown; name?: unknown } } | null;
+  const cands = [s?.title, s?.header?.title, s?.name, s?.header?.name];
+  for (const c of cands) if (typeof c === 'string' && c.trim() !== '') return c.trim();
+  return '';
+}
+
 /** 注册会话事件监听；返回的清理函数由 ctx.effect 收集。 */
 export function registerSessionWatch(deps: SessionWatchInput): void {
   const {
@@ -147,6 +158,7 @@ export function registerSessionWatch(deps: SessionWatchInput): void {
     toolsInFlight,
     turnFlags,
     workStatus,
+    sessionTitles,
   } = deps;
   // 工作状态联动：监听 DSH 会话事件 → 聚合当前活动状态（WorkStatusStore → 展示快照）。
   // 消费 turn/start、user/message（goal 续跑轮判定）、tool/call、tool/result、approval/asked、
@@ -160,6 +172,8 @@ export function registerSessionWatch(deps: SessionWatchInput): void {
           (session as { id?: unknown } | null)?.id ??
           'unknown',
       );
+      const title = sessionTitleFrom(session);
+      if (title) sessionTitles.set(sessionId, title);
       if (type === 'todo/write') {
         // 任务详情文案只写该会话的条目（state/task 同源，不可能串会话）。会话没有活动条目
         // （已空闲/已清理）→ 不动：不会被展示，写进去只会成为一条幽灵文案。

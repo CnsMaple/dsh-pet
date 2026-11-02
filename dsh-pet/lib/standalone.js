@@ -4789,13 +4789,27 @@ function trackToolEvent(ledger, sessionId, input) {
 	}, input.lastTodo);
 	return void 0;
 }
+/** 从 session 对象里尽量取标题（不同版本字段位置不同，逐个候选）。 */
+function sessionTitleFrom(session) {
+	const s = session;
+	const cands = [
+		s?.title,
+		s?.header?.title,
+		s?.name,
+		s?.header?.name
+	];
+	for (const c of cands) if (typeof c === "string" && c.trim() !== "") return c.trim();
+	return "";
+}
 function registerSessionWatch(deps) {
-	const { ctx, cancelTerminalCleanup, lastTodoText, lastReplyText, notifyActivityTimers, publishWorkStatus, pushNotifyFrame, scheduleCompletionNotify, scheduleTerminalCleanup, terminalTimers, toolsInFlight, turnFlags, workStatus } = deps;
+	const { ctx, cancelTerminalCleanup, lastTodoText, lastReplyText, notifyActivityTimers, publishWorkStatus, pushNotifyFrame, scheduleCompletionNotify, scheduleTerminalCleanup, terminalTimers, toolsInFlight, turnFlags, workStatus, sessionTitles } = deps;
 	ctx.effect(() => {
 		const dispose = ctx.on("session/event", (session, event) => {
 			const type = event?.type;
 			if (!type) return;
 			const sessionId = String(session?.header?.id ?? session?.id ?? "unknown");
+			const title = sessionTitleFrom(session);
+			if (title) sessionTitles.set(sessionId, title);
 			if (type === "todo/write") {
 				const text = currentTaskFromTodo(event);
 				lastTodoText.set(sessionId, text);
@@ -6447,7 +6461,9 @@ function apply(ctx) {
 		workStatus
 	});
 	const { pushNotifyFrame, turnFlags, terminalTimers, lastTodoText, lastReplyText, toolsInFlight, cancelTerminalCleanup, scheduleTerminalCleanup, notifyActivityTimers, scheduleCompletionNotify } = sessionNotify;
-	/** 取会话标题：DSH sessions 服务；取不到退回「会话 · id末4位」。 */
+	/** 会话 id → 标题（session-watch 从事件里抓，优先用它）。 */
+	const sessionTitles = new Map();
+	/** 取会话标题：优先事件缓存，其次 DSH sessions 服务；取不到退回「会话 · id末4位」。 */
 	const sessionTitleOf = (id) => {
 		try {
 			const svc = typeof ctx?.get === "function" ? ctx.get("sessions") : void 0;
@@ -6467,7 +6483,7 @@ function apply(ctx) {
 			const tools = bucket ? Array.from(bucket.values()).slice(0, 3) : [];
 			rows.push({
 				id: e.sessionId,
-				title: sessionTitleOf(e.sessionId),
+				title: sessionTitles.get(e.sessionId) || sessionTitleOf(e.sessionId),
 				state: e.state,
 				tools,
 				seq: e.seq
@@ -6523,7 +6539,8 @@ function apply(ctx) {
 		terminalTimers,
 		toolsInFlight,
 		turnFlags,
-		workStatus
+		workStatus,
+		sessionTitles
 	});
 	registerTodoReminders({
 		ctx,

@@ -38,7 +38,6 @@ import type {
   StateLeaf,
 } from '../../shared/state.ts';
 import type { MenuMoreItem } from '../../shared/menu.ts';
-import type { PetCollisionSlot } from '../../shared/physics.ts';
 import type { WorkStatusSnapshot } from '../../shared/work-status.ts';
 import type { PetCardProps } from './card/props.ts';
 import type { PetRuntime, RuntimePet } from './types.ts';
@@ -67,7 +66,6 @@ export function createPetMulti(
     const [pets, setPets] = useState<Pet[]>([]);
     const [ready, setReady] = useState(false);
     // 碰撞站场：每只 PetCard 注册槽位，纯 ref 同步，不触发重渲染。
-    const arenaRef = useRef<{ slots: Record<string, PetCollisionSlot> }>({ slots: {} });
     // 余额状态：容器统一拉取，PetCard 共享；两个 tick 分别驱动动画与文字说明。
     const [balance, setBalance] = useState<BalanceState | null>(null);
     const [balanceTick, setBalanceTick] = useState(0);
@@ -341,7 +339,6 @@ export function createPetMulti(
             sleep: sleepRef.current[p.id],
             sleepTick,
             menuItemsRef,
-            arena: arenaRef,
           }),
         )
       : null;

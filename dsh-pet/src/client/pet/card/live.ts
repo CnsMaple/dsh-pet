@@ -7,9 +7,7 @@
 import type { OwnAnimation } from '../animation/animation.ts';
 import type { AnimationFlow } from './animation-flow.ts';
 import type { Drag } from '../motion/drag.ts';
-import type { Flight } from '../motion/flight.ts';
 import type { PositionFollow } from '../motion/position-follow.ts';
-import type { SquashDriver } from '../motion/squash.ts';
 import type { Walk } from '../motion/walk.ts';
 
 /** 装配根迟绑的驱动与服务：先创建的一方经它回调后创建的一方。 */
@@ -18,14 +16,10 @@ export interface CardLive {
   ownAnim: OwnAnimation;
   /** 走位。 */
   walk: Walk;
-  /** 抛掷飞行。 */
-  flight: Flight;
   /** 位置跟随。 */
   posFollow: PositionFollow;
   /** 指针拖拽。 */
   drag: Drag;
-  /** Q 弹挤压。 */
-  squash: SquashDriver;
   /** 动画流：指令处理之后创建，拖拽与本地解冻要经它恢复档位。 */
   flow: AnimationFlow | null;
   /** 当前宠物中心的视口坐标（含角落兜底）。 */

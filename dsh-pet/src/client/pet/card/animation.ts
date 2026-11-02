@@ -59,7 +59,7 @@ export function createCardAnimation(rt: CardAnimationRuntime) {
   const { useEffect, useRef } = rt;
 
   return function useCardAnimation(input: CardAnimationInput): OwnAnimation {
-    const { card, cfgRef, live, pendingSquash, petId, workStatusRef } = input;
+    const { card, cfgRef, live, petId, workStatusRef } = input;
 
     // 动画链只造一次（放进 ref）：它持有 A/B 槽位、世代号与 blob，跨渲染重建会把这些状态清空。
     const ownAnimRef = useRef<OwnAnimation | null>(null);
@@ -73,11 +73,6 @@ export function createCardAnimation(rt: CardAnimationRuntime) {
       report: input.report,
       clearCuePlayback: () => input.setCuePlayback(null),
       onFrontReady: (el) => {
-        // 点击 Q 弹要等新动画就位后才压，压的是新首帧。
-        if (pendingSquash.current) {
-          pendingSquash.current = false;
-          live.current.squash.start(el);
-        }
         if (live.current.walk.hasPending()) live.current.walk.start(el);
       },
       onEnded: (cue) => live.current.flow?.applyEndedCue(cue),
@@ -150,8 +145,6 @@ export function createCardAnimation(rt: CardAnimationRuntime) {
         ownAnim.dispose(); // 中断在途素材请求并释放 blob，之后本实例不可复用。
         services.stopMove();
         services.drag.stopFollow();
-        services.flight.stop();
-        services.squash.stop();
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps -- 挂载/卸载各跑一次：闭包读的是 refs 与稳定 props
     }, []);

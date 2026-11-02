@@ -151,7 +151,6 @@ export function createCardEntry(rt: CardEntryRuntime) {
       e.preventDefault();
       e.stopPropagation();
       if (drag.isActive() || drag.justDragged()) return;
-      motion.flight.stop();
       motion.stopMove();
       if (menuRef.current) menuRef.current.close();
       menuRef.current = mountContextMenu({

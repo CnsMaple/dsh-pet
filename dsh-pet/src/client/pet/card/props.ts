@@ -6,7 +6,6 @@
  */
 import type * as ReactNS from 'react';
 import type { BalanceState } from '../../../shared/balance/index.ts';
-import type { PetCollisionSlot } from '../../../shared/physics.ts';
 import type { LockState, PositionMode, SayCue, PetFacing, SleepState } from '../../../shared/state.ts';
 import type { MenuMoreItem } from '../../../shared/menu.ts';
 import type { WorkStatusSnapshot } from '../../../shared/work-status.ts';
@@ -50,6 +49,4 @@ export interface PetCardProps {
   sleepTick: number;
   /** 第三方菜单项快照；传 ref 是因为只在右键那一刻读。 */
   menuItemsRef: ReactNS.MutableRefObject<MenuMoreItem[]>;
-  /** 宠物间碰撞站场。 */
-  arena: ReactNS.MutableRefObject<{ slots: Record<string, PetCollisionSlot> }>;
 }

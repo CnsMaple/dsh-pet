@@ -61,7 +61,7 @@ export function createCardRuntime(rt: PetRuntime) {
   const useCardEntry = createCardEntry({ useEffect, useRef });
 
   return function useCardRuntime(props: PetCardProps): CardViewProps {
-    const { arena, balance, balanceManual, cfg, lock, lockTick, menuItemsRef, sleep, sleepTick, workStatus } = props;
+    const { balance, balanceManual, cfg, lock, lockTick, menuItemsRef, sleep, sleepTick, workStatus } = props;
 
     // 实际渲染宽度：百分比只在挂载与配置变更时按当次视口宽解析一次，拖窗口不跟随。
     // 物理、字号与 CSS 变量都吃这一个值——两处各算一次会让命中框与视觉错位。
@@ -145,7 +145,6 @@ export function createCardRuntime(rt: PetRuntime) {
     });
 
     const motion = useCardMotion({
-      arena,
       card,
       cfgRef,
       live: liveRef,
@@ -210,7 +209,7 @@ export function createCardRuntime(rt: PetRuntime) {
       sleepRefuseTexts: () => cfgRef.current.sleepRefuseTexts ?? [],
       sleeping: () => liveRef.current.flow?.sleeping() ?? false,
       stopMove: motion.stopMove,
-      stopThrow: () => motion.flight.stop(),
+      stopThrow: () => {},
       tryMove: motion.walk.tryMove,
       warn: (message) => console.warn(message),
     });
@@ -246,7 +245,6 @@ export function createCardRuntime(rt: PetRuntime) {
     // 共享运行时：状态容器、驱动与跨关注点动作拼成一份，指令处理按需取值。
     const hub: CardHub = {
       anims: () => cfgRef.current.animations,
-      applyThrow: motion.applyThrow,
       bubbles,
       card,
       cfg: () => cfgRef.current,
@@ -301,8 +299,6 @@ export function createCardRuntime(rt: PetRuntime) {
         // 真睡着（循环中或醒来过渡）：点一下 = 叫醒。挤压与音效照常，
         // 但不播点击回应动画——这一下的产物是「起来」。
         if (phase !== null && phase !== 'start') {
-          const front = ownAnim.frontVideo();
-          if (front) liveRef.current.squash.start(front);
           playClickSound();
           void postAction(ROUTE_PATH + '/wake?pet=' + encodeURIComponent(cfg.id));
           return;

@@ -514,7 +514,6 @@ function injectPetCss() {
 //#region src/shared/physics/constants.ts
 const SPRING_K = 200;
 const SPRING_C = 30;
-const MAX_THROW_SPEED = 3600;
 const GRAVITY = 1400;
 const RESTITUTION = .78;
 const GROUND_FRICTION = 2.5;
@@ -530,37 +529,6 @@ const DEFAULT_PHYSICS = {
 	shakeThrow: true
 };
 const DEFAULT_THROW_POWER = 1;
-const REST_NORMAL = 40;
-const REST_TANGENT = 15;
-const REST_NORMAL_EPS = 1;
-const MAX_STEP_DT = .05;
-const SQ_SQUASH = .55;
-const SQ_DURATION_MS = 220;
-const SQ_SOFT_SPEED = 300;
-const SQ_HARD_SPEED = 1500;
-const SQ_MAX_SQUASH = .55;
-const THROW_SPEED_ANCHOR = 1200;
-const SUBSTEP_PX = 8;
-const SUBSTEP_MAX = 64;
-const PET_BOUNCE_E = .995;
-
-//#endregion
-//#region src/shared/physics/squash.ts
-const landingSquash = (impactSpeed) => {
-	const t = Math.min(Math.max((Math.abs(impactSpeed) - SQ_SOFT_SPEED) / (SQ_HARD_SPEED - SQ_SOFT_SPEED), 0), 1);
-	return Math.min(.8, 1 - t * (1 - SQ_MAX_SQUASH));
-};
-const squashScale = (u, squash = SQ_SQUASH) => {
-	if (u < .45) {
-		const p$1 = u / .45;
-		return 1 - (1 - squash) * p$1 * p$1;
-	}
-	const p = (u - .45) / .55;
-	const c1 = 1.70158;
-	const c3 = c1 + 1;
-	const f = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2);
-	return Math.min(1.12, squash + (1 - squash) * Math.max(f, 0));
-};
 
 //#endregion
 //#region src/shared/displays.ts
@@ -573,165 +541,8 @@ const rectAtPoint = (rects, x, y) => {
 };
 
 //#endregion
-//#region src/shared/physics/contact.ts
-const CONTACT_NORMALS = {
-	left: {
-		nx: 1,
-		ny: 0
-	},
-	right: {
-		nx: -1,
-		ny: 0
-	},
-	ceiling: {
-		nx: 0,
-		ny: 1
-	},
-	floor: {
-		nx: 0,
-		ny: -1
-	}
-};
-const resolveContact = (speed, edge, physics, dt) => {
-	const { nx, ny } = CONTACT_NORMALS[edge];
-	const tx = -ny;
-	const ty = nx;
-	const vn = speed.vx * nx + speed.vy * ny;
-	const vt = speed.vx * tx + speed.vy * ty;
-	const normalSpeed = Math.abs(vn) < REST_NORMAL ? 0 : Math.abs(vn) * physics.restitution;
-	const tangentSpeed = vt * Math.max(0, 1 - physics.groundFriction * dt);
-	return {
-		vx: normalSpeed * nx + tangentSpeed * tx,
-		vy: normalSpeed * ny + tangentSpeed * ty,
-		normalSpeed,
-		tangentSpeed
-	};
-};
-const isRestingOnContacts = (edges, speed) => {
-	if (edges.length === 0) return false;
-	return edges.every((edge) => {
-		const { nx, ny } = CONTACT_NORMALS[edge];
-		const normal = Math.abs(speed.vx * nx + speed.vy * ny);
-		const tangent = Math.abs(speed.vx * -ny + speed.vy * nx);
-		return normal < REST_NORMAL_EPS && tangent < REST_TANGENT;
-	});
-};
-
-//#endregion
-//#region src/shared/physics/throw.ts
-const throwBounds = (o) => {
-	const h = o.size * 9 / 16;
-	return {
-		minX: -o.sideAllow,
-		minY: 0,
-		maxX: o.W - o.size + o.sideAllow,
-		maxY: o.H - h
-	};
-};
-const throwStep = (s, dtRaw, b, physics = DEFAULT_PHYSICS, gravity) => {
-	const dt = Math.min(Math.max(dtRaw, 0), MAX_STEP_DT);
-	const g = gravity ?? {
-		gx: 0,
-		gy: physics.gravity
-	};
-	let { x, y, vx, vy } = s;
-	vx += g.gx * dt;
-	vy += g.gy * dt;
-	x += vx * dt;
-	y += vy * dt;
-	let bounced = false;
-	let hit = null;
-	const contacts = [];
-	/** 同一步撞到两条边（角落）时 hit 留更重的那个（手感只按主撞击算），contacts 全量保留。 */
-	const record = (edge, speed) => {
-		contacts.push(edge);
-		if (hit === null || speed > hit.speed) hit = {
-			edge,
-			speed
-		};
-	};
-	if (x < b.minX) {
-		record("left", Math.abs(vx));
-		x = b.minX;
-		const out = resolveContact({
-			vx,
-			vy
-		}, "left", physics, dt);
-		vx = out.vx;
-		vy = out.vy;
-		bounced = true;
-	} else if (x > b.maxX) {
-		record("right", Math.abs(vx));
-		x = b.maxX;
-		const out = resolveContact({
-			vx,
-			vy
-		}, "right", physics, dt);
-		vx = out.vx;
-		vy = out.vy;
-		bounced = true;
-	}
-	if (y < b.minY) {
-		if (physics.ceilingBounce) {
-			record("ceiling", Math.abs(vy));
-			y = b.minY;
-			const out = resolveContact({
-				vx,
-				vy
-			}, "ceiling", physics, dt);
-			vx = out.vx;
-			vy = out.vy;
-			bounced = true;
-		}
-	} else if (y >= b.maxY) {
-		record("floor", Math.abs(vy));
-		y = b.maxY;
-		const out = resolveContact({
-			vx,
-			vy
-		}, "floor", physics, dt);
-		vx = out.vx;
-		vy = out.vy;
-		bounced = true;
-	}
-	return {
-		x,
-		y,
-		vx,
-		vy,
-		bounced,
-		atRest: isRestingOnContacts(contacts, {
-			vx,
-			vy
-		}),
-		hit,
-		contacts
-	};
-};
-const throwSubsteps = (vx, vy, dt) => {
-	const travel = Math.hypot(vx, vy) * Math.min(Math.max(dt, 0), MAX_STEP_DT);
-	if (!(travel > SUBSTEP_PX)) return 1;
-	return Math.min(SUBSTEP_MAX, Math.ceil(travel / SUBSTEP_PX));
-};
-
-//#endregion
 //#region src/shared/physics/spring.ts
 const springStep = (v, x, target, dt, power = DEFAULT_THROW_POWER) => v + ((target - x) * SPRING_K - v * SPRING_C) * power * dt;
-const softClampSpeed = (speed) => {
-	if (speed <= 0) return 0;
-	return MAX_THROW_SPEED * (1 - Math.exp(-speed / MAX_THROW_SPEED));
-};
-
-//#endregion
-//#region src/shared/physics/release.ts
-const throwVelocity = (angleDeg, power) => {
-	const speed = softClampSpeed(power * THROW_SPEED_ANCHOR);
-	const rad = angleDeg * Math.PI / 180;
-	return {
-		vx: Math.cos(rad) * speed,
-		vy: -Math.sin(rad) * speed
-	};
-};
 
 //#endregion
 //#region src/shared/physics/collide.ts
@@ -742,47 +553,6 @@ const bodyPixelBox = (o) => {
 		top: o.y + o.bottomPad + HIT_BOX.y0 / 360 * h,
 		right: o.x + HIT_BOX.x1 / 640 * o.size,
 		bottom: o.y + o.bottomPad + HIT_BOX.y1 / 360 * h
-	};
-};
-const rectsOverlap = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-const collidePet = (fly, hit) => {
-	const hf = fly.size * 9 / 16 / 2;
-	const hh = hit.size * 9 / 16 / 2;
-	const cx = hit.x + hit.size / 2 - (fly.x + fly.size / 2);
-	const cy = hit.y + hh - (fly.y + hf);
-	const dist = Math.hypot(cx, cy);
-	if (dist < 1e-6) return null;
-	const nx = cx / dist;
-	const ny = cy / dist;
-	const vrel = (fly.vx - hit.vx) * nx + (fly.vy - hit.vy) * ny;
-	if (vrel <= 0) return null;
-	const e = PET_BOUNCE_E;
-	const m1 = fly.size * fly.size;
-	const m2 = hit.size * hit.size;
-	const v1n = fly.vx * nx + fly.vy * ny;
-	const v2n = hit.vx * nx + hit.vy * ny;
-	const v1n2 = ((m1 - e * m2) * v1n + (1 + e) * m2 * v2n) / (m1 + m2);
-	const v2n2 = ((m2 - e * m1) * v2n + (1 + e) * m1 * v1n) / (m1 + m2);
-	return {
-		fvx: fly.vx - v1n * nx + v1n2 * nx,
-		fvy: fly.vy - v1n * ny + v1n2 * ny,
-		hvx: hit.vx - v2n * nx + v2n2 * nx,
-		hvy: hit.vy - v2n * ny + v2n2 * ny,
-		impactSpeed: vrel
-	};
-};
-const overlapPush = (a, b) => {
-	const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
-	const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
-	if (ox <= 0 || oy <= 0) return null;
-	const alongX = ox <= oy;
-	const sign = alongX ? (a.left + a.right) / 2 >= (b.left + b.right) / 2 ? 1 : -1 : (a.top + a.bottom) / 2 >= (b.top + b.bottom) / 2 ? 1 : -1;
-	return alongX ? {
-		dx: sign * ox / 2,
-		dy: 0
-	} : {
-		dx: 0,
-		dy: sign * oy / 2
 	};
 };
 
@@ -7994,7 +7764,7 @@ function readProgress(petId) {
 function createCardAnimation(rt) {
 	const { useEffect, useRef } = rt;
 	return function useCardAnimation(input) {
-		const { card, cfgRef, live, pendingSquash, petId, workStatusRef } = input;
+		const { card, cfgRef, live, petId, workStatusRef } = input;
 		const ownAnimRef = useRef(null);
 		ownAnimRef.current ?? (ownAnimRef.current = createOwnAnimation({
 			videoA: input.videoA,
@@ -8006,10 +7776,6 @@ function createCardAnimation(rt) {
 			report: input.report,
 			clearCuePlayback: () => input.setCuePlayback(null),
 			onFrontReady: (el) => {
-				if (pendingSquash.current) {
-					pendingSquash.current = false;
-					live.current.squash.start(el);
-				}
 				if (live.current.walk.hasPending()) live.current.walk.start(el);
 			},
 			onEnded: (cue) => live.current.flow?.applyEndedCue(cue),
@@ -8085,8 +7851,6 @@ function createCardAnimation(rt) {
 				ownAnim.dispose();
 				services.stopMove();
 				services.drag.stopFollow();
-				services.flight.stop();
-				services.squash.stop();
 			};
 		}, []);
 		return ownAnim;
@@ -8650,7 +8414,7 @@ function createDrag(card) {
 function createCardDrag(rt) {
 	const { useRef, useEffect } = rt;
 	return function useCardDrag(input) {
-		const { bumpSeq, card, cfgRef, live, motion, pendingSquash, root, setAnim, setCustomPos, setDragging } = input;
+		const { bumpSeq, card, cfgRef, live, motion, root, setAnim, setCustomPos, setDragging } = input;
 		const { setOnce, setTipOn, stage } = input;
 		const dragCard = () => {
 			const metrics = motion.metrics();
@@ -8668,17 +8432,15 @@ function createCardDrag(rt) {
 				setOnce: (on) => setOnce(on),
 				playAnim: (name) => setAnim(name),
 				bumpSeq: () => bumpSeq(),
-				markSquash: () => {
-					pendingSquash.current = true;
-				},
+				markSquash: () => {},
 				setDragging,
 				resumeWork: () => live.current.flow?.resumeWorkStatusAnim() ?? false,
 				stopAutonomy: () => motion.stopMove(),
-				stopFlight: () => motion.flight.stop(),
-				startFlight: motion.startThrow,
+				stopFlight: () => {},
+				startFlight: () => {},
 				isFrozen: () => live.current.ownAnim.isFrozen(),
 				releaseLock: () => live.current.releaseLock(),
-				grabVelocity: () => motion.flight.isFlying() ? motion.flight.velocity() : null,
+				grabVelocity: () => null,
 				playClickSound: () => playClickSound(),
 				tipOn: () => live.current.tipOn(),
 				placeTip: (x, y) => live.current.placeTip(x, y),
@@ -8829,7 +8591,6 @@ function createCardEntry(rt) {
 			e.preventDefault();
 			e.stopPropagation();
 			if (drag.isActive() || drag.justDragged()) return;
-			motion.flight.stop();
 			motion.stopMove();
 			if (menuRef.current) menuRef.current.close();
 			menuRef.current = mountContextMenu({
@@ -8856,275 +8617,6 @@ function createCardEntry(rt) {
 			openTodo,
 			placeTip
 		};
-	};
-}
-
-//#endregion
-//#region src/client/pet/motion/flight-integrate.ts
-function integrateFlight(state, dt, bounds, physics, gravity) {
-	const substeps = throwSubsteps(state.vx, state.vy, dt);
-	let res = throwStep(state, dt / substeps, bounds, physics, gravity);
-	/** 子步里只保留最重的一次撞击：一帧震一下就够了。 */
-	let hit = res.hit;
-	for (let i = 1; i < substeps && !res.atRest; i++) {
-		res = throwStep(res, dt / substeps, bounds, physics, gravity);
-		if (res.hit !== null && (hit === null || res.hit.speed > hit.speed)) hit = res.hit;
-	}
-	return {
-		...res,
-		hit
-	};
-}
-
-//#endregion
-//#region src/client/pet/motion/pet-collision.ts
-/**
-* 把重叠推开：{@link overlapPush} 给的是「各让一半」，这里取整段——
-* 对方若也在跑，它下一帧会从自己那侧再推一次，两边各推一次正好分开。
-*
-* @param state - 当前状态。
-* @param push - 半程位移；`null` = 没有重叠。
-* @returns 推开后的状态（速度不动）。
-*/
-const separate = (state, push) => push === null ? state : {
-	...state,
-	x: state.x + push.dx * 2,
-	y: state.y + push.dy * 2
-};
-function createPetCollision(deps) {
-	return (state, metrics) => {
-		const slots = deps.arena().slots;
-		const myBody = bodyPixelBox({
-			x: state.x,
-			y: state.y,
-			size: metrics.size,
-			bottomPad: metrics.bottomPad
-		});
-		for (const slotId of Object.keys(slots)) {
-			if (slotId === deps.petId) continue;
-			const slot = slots[slotId];
-			const otherBox = slot.getBox();
-			if (!otherBox) continue;
-			const otherBody = bodyPixelBox({
-				x: otherBox.x,
-				y: otherBox.y,
-				size: slot.size,
-				bottomPad: slot.bottomPad
-			});
-			if (!rectsOverlap(myBody, otherBody)) continue;
-			const separated = separate(state, overlapPush(myBody, otherBody));
-			const vel = slot.getVel();
-			const hit = collidePet({
-				x: state.x,
-				y: state.y,
-				vx: state.vx,
-				vy: state.vy,
-				size: metrics.size
-			}, {
-				x: otherBox.x,
-				y: otherBox.y,
-				vx: vel.vx,
-				vy: vel.vy,
-				size: slot.size
-			});
-			if (hit === null) return separated;
-			deps.onPetImpact(hit.impactSpeed);
-			slot.applyVelocity(hit.hvx, hit.hvy);
-			return {
-				...separated,
-				vx: hit.fvx,
-				vy: hit.fvy
-			};
-		}
-		return state;
-	};
-}
-
-//#endregion
-//#region src/client/pet/motion/flight.ts
-/** 常驻模式的速度上限（px/s）：传感器重力会持续加速，留一个硬天花板兜底。 */
-const MAX_HELD_SPEED = 6e3;
-function createFlight(deps) {
-	/** 在跑的 rAF；`null` = 没在跑。 */
-	let frame = null;
-	/** 世代号：起飞或停飞 +1，迟到的帧据此自弃。 */
-	let token = 0;
-	/** 最近一帧的状态；`null` = 没在跑。帧间它与帧内的 `current` 是同一个对象，改速度就是改下一刻的输入。 */
-	let state = null;
-	/** 是否体感常驻模式：重力逐帧由 {@link FlightDeps.gravity} 提供，落定改用静默计时。 */
-	let held = false;
-	/** 常驻模式的静默时长（ms）：重力为零且速度低时累计，到点停帧。 */
-	let quietMs = 0;
-	/** 互撞结算：规则在 pet-collision，这里只把撞击转成触觉回调。 */
-	const resolveCollisions = createPetCollision({
-		arena: deps.arena,
-		petId: deps.petId,
-		onPetImpact: (speed) => deps.onImpact?.({
-			kind: "pet",
-			speed
-		})
-	});
-	const stop = () => {
-		token++;
-		if (frame !== null) {
-			cancelAnimationFrame(frame);
-			frame = null;
-		}
-		state = null;
-		held = false;
-		quietMs = 0;
-	};
-	const start = (px, py, vx, vy) => {
-		held = false;
-		run(px, py, vx, vy);
-	};
-	/** 体感常驻模式：没有初速，重力逐帧由 {@link FlightDeps.gravity} 提供；已在常驻时无副作用。 */
-	const startHeld = () => {
-		if (frame !== null && held) return;
-		const el = deps.root();
-		const box = deps.box() ?? (el ? {
-			x: el.getBoundingClientRect().left,
-			y: el.getBoundingClientRect().top
-		} : null);
-		if (box === null) return;
-		held = true;
-		run(box.x, box.y, 0, 0);
-	};
-	/**
-	* 改写当前速度：碰撞结算给的是绝对速度，不是增量。
-	*
-	* @param vx - 水平速度（px/s）。
-	* @param vy - 竖直速度（px/s）。
-	*/
-	const setVelocity = (vx, vy) => {
-		if (state === null) return;
-		state.vx = vx;
-		state.vy = vy;
-	};
-	/**
-	* 叠加一个冲量（摇一摇）：只在已经在跑时有效——没在跑时由调用方按抛掷起飞。
-	*
-	* @param dvx - 横向冲量（px/s）。
-	* @param dvy - 纵向冲量（px/s）。
-	*/
-	const impulse = (dvx, dvy) => {
-		if (state === null) return;
-		state.vx += dvx;
-		state.vy += dvy;
-	};
-	const run = (px, py, vx, vy) => {
-		const metrics = deps.metrics();
-		const viewport = deps.viewport();
-		const physics = deps.physics();
-		const bounds = throwBounds({
-			W: viewport.width,
-			H: viewport.height,
-			size: metrics.size,
-			sideAllow: metrics.sideAllow
-		});
-		const own = ++token;
-		quietMs = 0;
-		let current$1 = {
-			x: px,
-			y: py,
-			vx,
-			vy
-		};
-		let last = performance.now();
-		let prevGrounded = false;
-		const rootEl = deps.root();
-		/** 写回本帧位置：DOM、包围盒与归一化中心（后者供重渲染时按它重排）。 */
-		const commitPose = (at) => {
-			if (rootEl) {
-				rootEl.style.left = at.x + "px";
-				rootEl.style.top = at.y + "px";
-				rootEl.style.right = "auto";
-				rootEl.style.bottom = "auto";
-			}
-			deps.setBox({
-				x: at.x,
-				y: at.y
-			});
-			const center = {
-				rx: (at.x + metrics.halfW) / viewport.width,
-				ry: (at.y + metrics.halfH) / viewport.height
-			};
-			deps.commitLive(center);
-			return center;
-		};
-		const step = () => {
-			if (token !== own) return;
-			const now = performance.now();
-			const dt = Math.min(.05, Math.max(0, (now - last) / 1e3));
-			last = now;
-			const fallingVy = current$1.vy;
-			const gravity = held ? deps.gravity?.() : void 0;
-			const res = integrateFlight(current$1, dt, bounds, physics, gravity);
-			if (res.hit !== null) deps.onImpact?.({
-				kind: res.hit.edge,
-				speed: res.hit.speed
-			});
-			const integrated = {
-				x: res.x,
-				y: res.y,
-				vx: res.vx,
-				vy: res.vy
-			};
-			current$1 = integrated;
-			if (physics.petCollision) current$1 = resolveCollisions(current$1, metrics);
-			const disturbed = current$1 !== integrated;
-			if (held) {
-				const speed = Math.hypot(current$1.vx, current$1.vy);
-				if (speed > MAX_HELD_SPEED) {
-					const k = MAX_HELD_SPEED / speed;
-					current$1 = {
-						...current$1,
-						vx: current$1.vx * k,
-						vy: current$1.vy * k
-					};
-				}
-			}
-			state = current$1;
-			const center = commitPose(current$1);
-			const grounded = current$1.y >= bounds.maxY - 1;
-			if (res.bounced && grounded && !prevGrounded) deps.onLanding(fallingVy);
-			prevGrounded = grounded;
-			if (held) {
-				const g = gravity ?? {
-					gx: 0,
-					gy: physics.gravity
-				};
-				const isStill = Math.hypot(g.gx, g.gy) < 1 && Math.hypot(current$1.vx, current$1.vy) < 20;
-				quietMs = isStill ? quietMs + dt * 1e3 : 0;
-				if (quietMs >= 300) {
-					deps.commitFinal(center);
-					stop();
-					return;
-				}
-			} else if (res.atRest && !disturbed) {
-				deps.commitFinal(center);
-				stop();
-				return;
-			}
-			frame = requestAnimationFrame(step);
-		};
-		frame = requestAnimationFrame(step);
-	};
-	return {
-		impulse,
-		isFlying: () => frame !== null,
-		isHeld: () => held,
-		setVelocity,
-		start,
-		startHeld,
-		stop,
-		velocity: () => frame !== null && state !== null ? {
-			vx: state.vx,
-			vy: state.vy
-		} : {
-			vx: 0,
-			vy: 0
-		}
 	};
 }
 
@@ -9226,49 +8718,6 @@ function createPositionFollow(deps) {
 	};
 	return {
 		apply,
-		stop
-	};
-}
-
-//#endregion
-//#region src/client/pet/motion/squash.ts
-function createSquashDriver(o) {
-	/** 进行中的 rAF；`null` = 没有挤压在跑。 */
-	let frame = null;
-	/** 世代号：每次开始或停止都 +1，迟到的帧据此自弃。 */
-	let token = 0;
-	const stop = () => {
-		token += 1;
-		if (frame !== null) {
-			cancelAnimationFrame(frame);
-			frame = null;
-		}
-	};
-	const start = (el, depth = SQ_SQUASH) => {
-		if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-		token += 1;
-		const current$1 = token;
-		if (frame !== null) cancelAnimationFrame(frame);
-		const origin = el.style.transformOrigin;
-		el.style.transformOrigin = "bottom";
-		const t0 = performance.now();
-		const step = () => {
-			if (token !== current$1) return;
-			const u = Math.min((performance.now() - t0) / SQ_DURATION_MS, 1);
-			const scale = squashScale(u, depth);
-			el.style.transform = (o.facing() === "right" ? "scaleX(-1) " : "") + "scaleY(" + scale + ")";
-			if (u < 1) {
-				frame = requestAnimationFrame(step);
-				return;
-			}
-			frame = null;
-			el.style.transformOrigin = origin;
-			el.style.transform = o.facing() === "right" ? "scaleX(-1)" : "";
-		};
-		frame = requestAnimationFrame(step);
-	};
-	return {
-		start,
 		stop
 	};
 }
@@ -9419,20 +8868,14 @@ function createWalk(deps) {
 //#endregion
 //#region src/client/pet/card/motion.ts
 function createCardMotion(rt) {
-	const { useEffect, useRef } = rt;
+	const { useRef } = rt;
 	return function useCardMotion(input) {
-		const { arena, card, cfgRef, live, metrics, moves, petId, root, setAnim, setOnce, setCustomPos } = input;
-		/** 当帧走位参数：走位驱动长期持有，每渲染就地更新，避免把尺寸与动画池闭包进旧实例。 */
+		const { card, cfgRef, live, metrics, moves, root, setAnim, setOnce, setCustomPos } = input;
 		const motionRef = useRef(metrics);
 		motionRef.current = metrics;
 		const movesRef = useRef(moves);
 		movesRef.current = moves;
-		/** 包围盒：与拖拽、飞行共享，谁动谁写回。 */
 		const boxRef = useRef(null);
-		const squashRef = useRef(null);
-		squashRef.current ?? (squashRef.current = createSquashDriver({ facing: () => card.facingRef.current }));
-		const squash = squashRef.current;
-		/** 当前宠物中心的视口 X 坐标。 */
 		const currentCenterX = () => {
 			const cp = card.customPosRef.current;
 			if (cp) return cp.rx * window.innerWidth;
@@ -9440,7 +8883,6 @@ function createCardMotion(rt) {
 			if (rootEl) return rootEl.getBoundingClientRect().left + motionRef.current.halfW;
 			return window.innerWidth - 24 - motionRef.current.halfW;
 		};
-		/** 当前宠物中心的视口 Y 坐标。 */
 		const currentCenterY = () => {
 			const cp = card.customPosRef.current;
 			if (cp) return cp.ry * window.innerHeight;
@@ -9448,94 +8890,6 @@ function createCardMotion(rt) {
 			if (rootEl) return rootEl.getBoundingClientRect().top + motionRef.current.halfH;
 			return window.innerHeight - 20 - motionRef.current.halfH;
 		};
-		const walkRef = useRef(null);
-		walkRef.current ?? (walkRef.current = createWalk({
-			root,
-			center: () => ({
-				x: currentCenterX(),
-				y: currentCenterY()
-			}),
-			metrics: () => motionRef.current,
-			moves: () => movesRef.current,
-			facing: () => card.facingRef.current,
-			viewport: () => ({
-				width: window.innerWidth,
-				height: window.innerHeight
-			}),
-			isFlying: () => flightRef.current?.isFlying() ?? false,
-			play: (name) => {
-				setOnce(true);
-				setAnim(name);
-			},
-			setBox: (box) => {
-				boxRef.current = box;
-			},
-			commit: setCustomPos
-		}));
-		const walk = walkRef.current;
-		/** 停止自主走位与位置跟随。 */
-		const stopMove = () => {
-			walkRef.current?.stop();
-			posFollowRef.current?.stop();
-		};
-		const flightRef = useRef(null);
-		flightRef.current ?? (flightRef.current = createFlight({
-			root,
-			metrics: () => motionRef.current,
-			viewport: () => ({
-				width: window.innerWidth,
-				height: window.innerHeight
-			}),
-			physics: () => cfgRef.current.physics,
-			arena: () => arena.current,
-			petId,
-			box: () => boxRef.current,
-			setBox: (box) => {
-				boxRef.current = box;
-			},
-			commitLive: (center$1) => {
-				card.customPosRef.current = center$1;
-			},
-			commitFinal: setCustomPos,
-			onLanding: (impactVy) => {
-				const frontEl = live.current.ownAnim.frontVideo();
-				if (frontEl) live.current.squash.start(frontEl, landingSquash(impactVy));
-			},
-			gravity: () => ({
-				gx: 0,
-				gy: cfgRef.current.physics?.gravity ?? 0
-			})
-		}));
-		const flight = flightRef.current;
-		/** 从给定左上角与初速起飞；先停弹簧跟随与走位，免得两套运动同时改位置。 */
-		const startThrow = (px, py, vx, vy) => {
-			live.current.drag.stopFollow();
-			stopMove();
-			flight.start(px, py, vx, vy);
-		};
-		/**
-		* 把速度落到这只宠物身上：在跑就按给定口径处理，没跑就从落点起飞。
-		*
-		* 没跑时一律起抛掷而不是起常驻——常驻只在倾斜开关开着时由姿态采样拉起，
-		* 否则重力非零时会留下一个永远停不下来的常驻循环。
-		*
-		* @param vx - 水平速度或冲量（px/s）。
-		* @param vy - 竖直速度或冲量（px/s）。
-		* @param mode - `set` = 结算后的绝对速度（碰撞）；`add` = 叠加冲量（摇一摇）。
-		*/
-		const applyVelocity = (vx, vy, mode) => {
-			if (flight.isFlying()) {
-				if (mode === "set") flight.setVelocity(vx, vy);
-				else flight.impulse(vx, vy);
-				return;
-			}
-			const at = boxRef.current ?? root()?.getBoundingClientRect() ?? null;
-			if (at === null) return;
-			startThrow(at.x, at.y, vx, vy);
-		};
-		/** 最新的 applyVelocity 引用，供碰撞槽与传感器回调转发，避免陈旧闭包。 */
-		const applyVelocityRef = useRef(() => {});
-		applyVelocityRef.current = applyVelocity;
 		const posFollowRef = useRef(null);
 		posFollowRef.current ?? (posFollowRef.current = createPositionFollow({
 			root,
@@ -9555,72 +8909,56 @@ function createCardMotion(rt) {
 			spring: () => cfgRef.current.physics.throwPower,
 			isDragging: () => live.current.drag.isActive(),
 			takeOver: () => {
-				flightRef.current?.stop();
 				walkRef.current?.stop();
 				posFollowRef.current?.stop();
 			}
 		}));
 		const posFollow = posFollowRef.current;
-		/** 执行抛掷指令：角度（度，0 为正右，逆时针为正）与力度倍率换算成初速度，交给 startThrow。
-		*  下游物理全部复用，不设死区。
-		*/
-		const applyThrow = (angleDeg, power) => {
-			if (live.current.drag.isActive()) return;
-			const { vx, vy } = throwVelocity(angleDeg, power);
-			const box = boxRef.current ?? {
-				x: currentCenterX() - motionRef.current.halfW,
-				y: currentCenterY() - motionRef.current.halfH
-			};
-			startThrow(box.x, box.y, vx, vy);
+		const walkRef = useRef(null);
+		walkRef.current ?? (walkRef.current = createWalk({
+			root,
+			center: () => ({
+				x: currentCenterX(),
+				y: currentCenterY()
+			}),
+			metrics: () => motionRef.current,
+			moves: () => movesRef.current,
+			facing: () => card.facingRef.current,
+			viewport: () => ({
+				width: window.innerWidth,
+				height: window.innerHeight
+			}),
+			isFlying: () => false,
+			play: (name) => {
+				setOnce(true);
+				setAnim(name);
+			},
+			setBox: (box) => {
+				boxRef.current = box;
+			},
+			commit: setCustomPos
+		}));
+		const walk = walkRef.current;
+		const stopMove = () => {
+			walkRef.current?.stop();
+			posFollowRef.current?.stop();
 		};
-		const { size, bottomPad } = metrics;
-		useEffect(() => {
-			const arenaSlots = arena.current.slots;
-			arenaSlots[petId] = {
-				size,
-				bottomPad,
-				getBox: () => {
-					if (boxRef.current) return boxRef.current;
-					const r = root()?.getBoundingClientRect();
-					return r ? {
-						x: r.left,
-						y: r.top
-					} : null;
-				},
-				getVel: () => flight.velocity(),
-				applyVelocity: (vx, vy) => applyVelocityRef.current(vx, vy, "set")
-			};
-			return () => {
-				delete arenaSlots[petId];
-			};
-		}, [
-			petId,
-			size,
-			bottomPad,
-			arena
-		]);
 		const center = () => ({
 			x: currentCenterX(),
 			y: currentCenterY()
 		});
 		live.current.walk = walk;
-		live.current.flight = flight;
 		live.current.posFollow = posFollow;
-		live.current.squash = squash;
 		live.current.center = center;
 		live.current.stopMove = stopMove;
 		return {
-			applyThrow,
 			box: () => boxRef.current,
 			center,
-			flight,
 			metrics: () => motionRef.current,
 			posFollow,
 			setBox: (box) => {
 				boxRef.current = box;
 			},
-			squash,
-			startThrow,
 			stopMove,
 			walk
 		};
@@ -9955,7 +9293,7 @@ function createCardRuntime(rt) {
 		useRef
 	});
 	return function useCardRuntime(props) {
-		const { arena, balance, balanceManual, cfg, lock, lockTick, menuItemsRef, sleep: sleep$1, sleepTick, workStatus } = props;
+		const { balance, balanceManual, cfg, lock, lockTick, menuItemsRef, sleep: sleep$1, sleepTick, workStatus } = props;
 		const effectiveSizePx = resolvePetSizePx(cfg.size, cfg.sizePercent, window.innerWidth);
 		const card = useCardState({
 			anim: cfg.animations.idle[0] ?? "",
@@ -10022,7 +9360,6 @@ function createCardRuntime(rt) {
 			workStatusRef
 		});
 		const motion = useCardMotion({
-			arena,
 			card,
 			cfgRef,
 			live: liveRef,
@@ -10087,7 +9424,7 @@ function createCardRuntime(rt) {
 			sleepRefuseTexts: () => cfgRef.current.sleepRefuseTexts ?? [],
 			sleeping: () => liveRef.current.flow?.sleeping() ?? false,
 			stopMove: motion.stopMove,
-			stopThrow: () => motion.flight.stop(),
+			stopThrow: () => {},
 			tryMove: motion.walk.tryMove,
 			warn: (message) => console.warn(message)
 		}));
@@ -10115,7 +9452,6 @@ function createCardRuntime(rt) {
 		};
 		const hub = {
 			anims: () => cfgRef.current.animations,
-			applyThrow: motion.applyThrow,
 			bubbles,
 			card,
 			cfg: () => cfgRef.current,
@@ -10159,8 +9495,6 @@ function createCardRuntime(rt) {
 				if (drag.justDragged() || drag.isActive()) return;
 				const phase = liveRef.current.flow?.sleepPhase() ?? null;
 				if (phase !== null && phase !== "start") {
-					const front = ownAnim.frontVideo();
-					if (front) liveRef.current.squash.start(front);
 					playClickSound();
 					postAction(ROUTE_PATH + "/wake?pet=" + encodeURIComponent(cfg.id));
 					return;
@@ -10253,7 +9587,6 @@ function createPetMulti(rt, Card) {
 	return function PetMulti() {
 		const [pets, setPets] = useState([]);
 		const [ready, setReady] = useState(false);
-		const arenaRef = useRef({ slots: {} });
 		const [balance, setBalance] = useState(null);
 		const [balanceTick, setBalanceTick] = useState(0);
 		const [balanceNoticeTick, setBalanceNoticeTick] = useState(0);
@@ -10478,8 +9811,7 @@ function createPetMulti(rt, Card) {
 			lockTick,
 			sleep: sleepRef.current[p.id],
 			sleepTick,
-			menuItemsRef,
-			arena: arenaRef
+			menuItemsRef
 		})) : null;
 	};
 }

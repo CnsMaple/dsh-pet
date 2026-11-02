@@ -61,7 +61,7 @@ export function createCardDrag(rt: CardDragRuntime) {
   const { useRef, useEffect } = rt;
 
   return function useCardDrag(input: CardDragInput): Drag {
-    const { bumpSeq, card, cfgRef, live, motion, pendingSquash, root, setAnim, setCustomPos, setDragging } = input;
+    const { bumpSeq, card, cfgRef, live, motion, root, setAnim, setCustomPos, setDragging } = input;
     const { setOnce, setTipOn, stage } = input;
 
     // 拖拽驱动每次事件取的当帧能力：逐渲染重建，驱动长期持有这个 getter。
@@ -83,17 +83,15 @@ export function createCardDrag(rt: CardDragRuntime) {
         setOnce: (on) => setOnce(on),
         playAnim: (name) => setAnim(name),
         bumpSeq: () => bumpSeq(),
-        markSquash: () => {
-          pendingSquash.current = true;
-        },
+        markSquash: () => {},
         setDragging,
         resumeWork: () => live.current.flow?.resumeWorkStatusAnim() ?? false,
         stopAutonomy: () => motion.stopMove(),
-        stopFlight: () => motion.flight.stop(),
-        startFlight: motion.startThrow,
+        stopFlight: () => {},
+        startFlight: () => {},
         isFrozen: () => live.current.ownAnim.isFrozen(),
         releaseLock: () => live.current.releaseLock(),
-        grabVelocity: () => (motion.flight.isFlying() ? motion.flight.velocity() : null),
+        grabVelocity: () => null,
         playClickSound: () => playClickSound(),
         tipOn: () => live.current.tipOn(),
         placeTip: (x, y) => live.current.placeTip(x, y),

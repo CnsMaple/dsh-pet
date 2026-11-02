@@ -33,8 +33,6 @@ export interface CardHub {
     isDragging(): boolean;
     /** 停走位与位置跟随。 */
     stopMotion(): void;
-    /** 抛掷指令：角度（度，0 为正右、逆时针为正）与力度倍率。 */
-    applyThrow(angleDeg: number, power: number): void;
     /** 试发起一次自主走位：占用中返回 true，无法移动返回 false，成功返回动作名。 */
     tryWalk(): boolean | string;
     /** 依据名点播。 */

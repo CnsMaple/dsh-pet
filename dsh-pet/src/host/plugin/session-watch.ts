@@ -177,6 +177,11 @@ export function registerSessionWatch(deps: SessionWatchInput): void {
       );
       const title = sessionTitleFrom(session);
       if (title) sessionTitles.set(sessionId, title);
+      // 标题是投影：DSH 写 title 时发 session/title 事件（data.title）。直接缓存最新标题。
+      if (type === 'session/title') {
+        const t = (event as { data?: { title?: unknown } })?.data?.title;
+        if (typeof t === 'string' && t.trim() !== '') sessionTitles.set(sessionId, t.trim());
+      }
       if (type === 'todo/write') {
         // 任务详情文案只写该会话的条目（state/task 同源，不可能串会话）。会话没有活动条目
         // （已空闲/已清理）→ 不动：不会被展示，写进去只会成为一条幽灵文案。

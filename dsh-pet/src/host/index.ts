@@ -75,15 +75,38 @@ export function apply(ctx: any): void {
 
   /** 取会话标题：优先事件缓存，其次 DSH sessions 服务；取不到退回「会话 · id末4位」。 */
   const sessionTitleOf = (id: string): string => {
+    const cached = sessionTitles.get(id);
+    if (cached !== undefined) return cached;
+    // ① 宿主服务：sessions.get(id) + sessionProjections.snapshot(['title'])['title']（title 是投影）
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DSH 注入 ctx 无静态类型
+      const anyCtx: any = ctx;
+      const session = typeof anyCtx?.sessions?.get === 'function' ? anyCtx.sessions.get(id) : undefined;
+      if (session && typeof anyCtx?.sessionProjections?.snapshot === 'function') {
+        const snap = anyCtx.sessionProjections.snapshot(session, ['title']);
+        const t = snap && snap.values ? snap.values.title : undefined;
+        if (typeof t === 'string' && t.trim() !== '') {
+          sessionTitles.set(id, t.trim());
+          return t.trim();
+        }
+      }
+    } catch {
+      /* 服务不可用：继续尝试别的来源 */
+    }
+    // ② 兼容客户端式服务（部分环境只有这一个）
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DSH 注入 ctx 无静态类型
       const svc: any = typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined;
       const meta = svc?.list?.getSnapshot?.()?.byId?.[id] ?? svc?.byId?.[id];
-      const title = typeof meta?.title === 'string' ? meta.title.trim() : '';
-      return title || '会话 · ' + id.slice(-4);
+      const t = typeof meta?.title === 'string' ? meta.title.trim() : '';
+      if (t !== '') {
+        sessionTitles.set(id, t);
+        return t;
+      }
     } catch {
-      return '会话 · ' + id.slice(-4);
+      /* ignore */
     }
+    return '会话 · ' + id.slice(-4);
   };
 
   /** 写 sections.sessions：所有进行中的会话（thinking/working/result/waiting）及在途工具细节。 */
@@ -104,7 +127,7 @@ export function apply(ctx: any): void {
       const last = lastTools.get(e.sessionId);
       rows.push({
         id: e.sessionId,
-        title: sessionTitles.get(e.sessionId) || sessionTitleOf(e.sessionId),
+        title: sessionTitleOf(e.sessionId),
         state: e.state,
         tools,
         tool: last?.name,

@@ -4806,6 +4806,10 @@ function registerSessionWatch(deps) {
 			const sessionId = String(session?.header?.id ?? session?.id ?? "unknown");
 			const title = sessionTitleFrom(session);
 			if (title) sessionTitles.set(sessionId, title);
+			if (type === "session/title") {
+				const t = event?.data?.title;
+				if (typeof t === "string" && t.trim() !== "") sessionTitles.set(sessionId, t.trim());
+			}
 			if (type === "todo/write") {
 				const text = currentTaskFromTodo(event);
 				lastTodoText.set(sessionId, text);
@@ -6474,14 +6478,30 @@ function apply(ctx) {
 	const lastTools = new Map();
 	/** 取会话标题：优先事件缓存，其次 DSH sessions 服务；取不到退回「会话 · id末4位」。 */
 	const sessionTitleOf = (id) => {
+		const cached = sessionTitles.get(id);
+		if (cached !== void 0) return cached;
+		try {
+			const anyCtx = ctx;
+			const session = typeof anyCtx?.sessions?.get === "function" ? anyCtx.sessions.get(id) : void 0;
+			if (session && typeof anyCtx?.sessionProjections?.snapshot === "function") {
+				const snap = anyCtx.sessionProjections.snapshot(session, ["title"]);
+				const t = snap && snap.values ? snap.values.title : void 0;
+				if (typeof t === "string" && t.trim() !== "") {
+					sessionTitles.set(id, t.trim());
+					return t.trim();
+				}
+			}
+		} catch {}
 		try {
 			const svc = typeof ctx?.get === "function" ? ctx.get("sessions") : void 0;
 			const meta = svc?.list?.getSnapshot?.()?.byId?.[id] ?? svc?.byId?.[id];
-			const title = typeof meta?.title === "string" ? meta.title.trim() : "";
-			return title || "会话 · " + id.slice(-4);
-		} catch {
-			return "会话 · " + id.slice(-4);
-		}
+			const t = typeof meta?.title === "string" ? meta.title.trim() : "";
+			if (t !== "") {
+				sessionTitles.set(id, t);
+				return t;
+			}
+		} catch {}
+		return "会话 · " + id.slice(-4);
 	};
 	/** 写 sections.sessions：所有进行中的会话（thinking/working/result/waiting）及在途工具细节。 */
 	const publishSessions = () => {
@@ -6493,7 +6513,7 @@ function apply(ctx) {
 			const last = lastTools.get(e.sessionId);
 			rows.push({
 				id: e.sessionId,
-				title: sessionTitles.get(e.sessionId) || sessionTitleOf(e.sessionId),
+				title: sessionTitleOf(e.sessionId),
 				state: e.state,
 				tools,
 				tool: last?.name,

@@ -2486,7 +2486,6 @@ function readMainConfig(merged) {
 		...pet,
 		position: { ...pet.position }
 	})) };
-	if (typeof main.whisperPrompt === "string") patch.entryPrompt = main.whisperPrompt;
 	if (typeof main.notificationsEnabled === "boolean") patch.notificationsEnabled = main.notificationsEnabled;
 	if (typeof main.clickSoundEnabled === "boolean") patch.clickSoundEnabled = main.clickSoundEnabled;
 	if (typeof main.whisperImageEnabled === "boolean") patch.whisperImageEnabled = main.whisperImageEnabled;
@@ -2531,7 +2530,6 @@ function readConfigEntries(merged) {
 		out.push({
 			key,
 			kind: key === "main" ? "main" : "pack",
-			...typeof conf?.whisperPrompt === "string" ? { entryPrompt: conf.whisperPrompt } : {},
 			pets: pets.map((pet) => ({
 				...pet,
 				position: { ...pet.position },
@@ -2680,8 +2678,7 @@ function fingerprint(pet) {
 		pet.display,
 		pet.position.corner,
 		pet.position.marginX,
-		pet.position.marginY,
-		pet.whisperPrompt ?? ""
+		pet.position.marginY
 	]);
 }
 function diffPackWrites(loaded, current$1) {
@@ -3880,7 +3877,6 @@ function usePetList(rt, requestDialog) {
 		if (first) setSelId(first.id);
 	};
 	const current$1 = pets.find((pet) => pet.id === selId);
-	const entryPrompt = loadedRef.current.find((item) => item.key === kind)?.entryPrompt ?? "";
 	const requestRemove = () => {
 		if (!current$1) return;
 		const entry = current$1.assetRoot ?? "main";
@@ -3898,7 +3894,6 @@ function usePetList(rt, requestDialog) {
 		kind,
 		visiblePets: pets.filter((pet) => (pet.assetRoot ?? "main") === kind),
 		selId,
-		entryPrompt,
 		select: setSelId,
 		selectKind,
 		update,

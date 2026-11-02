@@ -51,8 +51,6 @@ export interface PetList {
     visiblePets: Pet[];
     /** 当前选中的宠物 id。 */
     selId: string;
-    /** 当前宠物所属条目的人设正文，作为实例人设「留空时跟随什么」的预览。 */
-    entryPrompt: string;
     /** 切到另一只宠物。 */
     select: (id: string) => void;
     /** 切到另一个种类，并选中它的第一只。 */

@@ -66,13 +66,6 @@ export function saveUserConfig(
     const marginX = Number(pos.marginX);
     const marginY = Number(pos.marginY);
     if (!Number.isFinite(marginX) || !Number.isFinite(marginY)) return null;
-    // 实例级人设（可选）：非空字符串才落盘（trim 后写）；空串/纯空白 = 不写该键——
-    // 落盘结果是「这只宠物没有自己的覆盖」，读取侧（./persona 的 petPersona）自动回落到所属条目。
-    // 也就是说：清空输入框 + 保存 = 删除覆盖，而不是写一个空人设。
-    // 非字符串（且非 undefined/null）与其他字段同口径：整包 400，不静默丢用户输入。
-    const rawPersona = pp.whisperPrompt;
-    if (rawPersona !== undefined && rawPersona !== null && typeof rawPersona !== 'string') return null;
-    const persona = typeof rawPersona === 'string' ? rawPersona.trim() : '';
     const pet: Record<string, unknown> = {
       id,
       name,
@@ -84,7 +77,6 @@ export function saveUserConfig(
       display,
       position: { corner, marginX, marginY },
     };
-    if (persona) pet.whisperPrompt = persona;
     if (sizePercent !== undefined && sizePercent !== null) pet.sizePercent = sizePercent;
     out.push(pet);
   }

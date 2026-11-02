@@ -434,7 +434,6 @@ function workStatusTextsValid(value) {
 }
 function topFieldValid(key, value) {
 	switch (key) {
-		case "whisperPrompt": return typeof value === "string" && value.length > 0;
 		case "chatMemoryRounds": {
 			const n = Number(value);
 			return Number.isFinite(n) && n >= 0;
@@ -597,18 +596,8 @@ function mergePet(base, raw, label, seenIds) {
 			corner: petEnum(ownPos.corner, CORNER_SET, basePos.corner, label, "position.corner", id),
 			marginX: petNumber(ownPos.marginX, basePos.marginX, -Infinity, label, "position.marginX", id),
 			marginY: petNumber(ownPos.marginY, basePos.marginY, -Infinity, label, "position.marginY", id)
-		},
-		...petPersonaField(p.whisperPrompt, label, id)
+		}
 	};
-}
-/**
-* 实例级 whisperPrompt 的合并：写了非空字符串 → 原样带出；否则返回空对象（该键不出现）。
-* 显式写了非字符串（数字/对象/布尔）才算配置错误 → 告警一次并忽略（回落条目），与 petNumber 同口径。
-*/
-function petPersonaField(own$2, label, id) {
-	if (typeof own$2 === "string") return own$2.trim() === "" ? {} : { whisperPrompt: own$2 };
-	if (own$2 !== void 0 && own$2 !== null) warnOnce(`${label}:whisperPrompt:${id}`, `宠物「${id}」的 whisperPrompt 非法，已忽略（回落所属条目人设）`);
-	return {};
 }
 
 //#endregion
@@ -722,9 +711,6 @@ function saveUserConfig(raw, existing) {
 		const marginX = Number(pos.marginX);
 		const marginY = Number(pos.marginY);
 		if (!Number.isFinite(marginX) || !Number.isFinite(marginY)) return null;
-		const rawPersona = pp.whisperPrompt;
-		if (rawPersona !== void 0 && rawPersona !== null && typeof rawPersona !== "string") return null;
-		const persona = typeof rawPersona === "string" ? rawPersona.trim() : "";
 		const pet = {
 			id,
 			name,
@@ -740,7 +726,6 @@ function saveUserConfig(raw, existing) {
 				marginY
 			}
 		};
-		if (persona) pet.whisperPrompt = persona;
 		if (sizePercent !== void 0 && sizePercent !== null) pet.sizePercent = sizePercent;
 		out.push(pet);
 	}

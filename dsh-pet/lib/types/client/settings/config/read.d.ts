@@ -5,8 +5,6 @@ export type MergedConfig = Record<string, Record<string, unknown>>;
 export interface MainConfigPatch {
     /** main 条目的宠物列表（已深拷贝位置，可直接进编辑列表）。 */
     pets?: Pet[];
-    /** 条目级人设正文，作为实例人设「留空时跟随什么」的预览。 */
-    entryPrompt?: string;
     notificationsEnabled?: boolean;
     clickSoundEnabled?: boolean;
     whisperImageEnabled?: boolean;
@@ -55,8 +53,6 @@ export interface ConfigEntry {
     readonly key: string;
     /** `main` 由设置页连同全局字段整包写；`pack` 单独写回自己的配置文件。 */
     readonly kind: 'main' | 'pack';
-    /** 条目级人设正文：实例人设留空时跟随的就是它（pack 各自一份，不共用 main 的）。 */
-    readonly entryPrompt?: string;
     /** 该条目的实例；位置已深拷贝，`assetRoot` 即条目名。 */
     readonly pets: Pet[];
 }

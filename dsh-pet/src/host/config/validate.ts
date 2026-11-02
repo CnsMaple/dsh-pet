@@ -149,8 +149,6 @@ function workStatusTextsValid(value: unknown): boolean {
 /** 顶层标量字段的合法性（非法与缺失同处理：取默认值 + 告警） */
 export function topFieldValid(key: string, value: unknown): boolean {
   switch (key) {
-    case 'whisperPrompt':
-      return typeof value === 'string' && value.length > 0;
     case 'chatMemoryRounds': {
       const n = Number(value);
       return Number.isFinite(n) && n >= 0;

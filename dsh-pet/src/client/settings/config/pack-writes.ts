@@ -30,7 +30,6 @@ function fingerprint(pet: Pet): string {
     pet.position.corner,
     pet.position.marginX,
     pet.position.marginY,
-    pet.whisperPrompt ?? '',
   ]);
 }
 

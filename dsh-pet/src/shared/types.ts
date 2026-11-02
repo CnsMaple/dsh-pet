@@ -105,10 +105,6 @@ export interface Pet {
   /** 显示位置（必填）：缺失即配置错误，代码不做兜底 */
   display: PetDisplay;
   position: { corner: Corner; marginX: number; marginY: number };
-  /** 实例级人设（pets[].whisperPrompt）：碎碎念与对话共用的系统提示词正文。
-   *  写了就取代所属条目顶层那一份（替换而非拼接），没写或空串则回落条目——回落发生在宿主半侧，不是错误。
-   *  只写正文：名字与时间背景由宿主无条件追加，不要在这里重复写。 */
-  whisperPrompt?: string;
   animations?: Animations;
   animationWeights?: Weights;
   extra?: boolean;

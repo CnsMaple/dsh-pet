@@ -279,6 +279,7 @@ export function registerSessionWatch(deps: SessionWatchInput): void {
             /* 参数不是 JSON：忽略 */
           }
         }
+        if (detailText === '这工具是干嘛的') detailText = '';
         if (toolName) lastTools.set(sessionId, { name: toolName, detail: detailText });
       }
       const outcome = trackToolEvent(toolsInFlight, sessionId, {

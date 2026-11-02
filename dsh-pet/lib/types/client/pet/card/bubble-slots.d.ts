@@ -21,6 +21,7 @@ export declare function decideBubbleSlot(input: BubbleSlotInput): BubbleSlot;
 export type TextBubbleComponent = (props: {
     text: string;
     on: boolean;
+    small?: boolean;
 }) => ReactNode;
 /** 待办面板气泡组件。 */
 export type TodoBubbleComponent = (props: {

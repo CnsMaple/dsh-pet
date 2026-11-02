@@ -186,7 +186,11 @@ function shouldNotify(frame: NotifyFrame): boolean {
   return false;
 }
 
+/** 网页端通知总开关：彻底关闭（桌面 Electron 宠物窗口负责原生通知，网页不再弹 Web 通知/提示音）。 */
+const WEB_NOTIFY_DISABLED = true;
+
 function toastFrame(frame: NotifyFrame): void {
+  if (WEB_NOTIFY_DISABLED) return;
   if (!shouldNotify(frame)) return;
   const sessionId = typeof frame.sessionId === 'string' ? frame.sessionId : undefined;
   const t = frameToToast(frame, sessionTitleFrom(sessionNavigator, sessionId));

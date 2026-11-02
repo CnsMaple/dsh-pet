@@ -4886,6 +4886,7 @@ function registerSessionWatch(deps) {
 						if (typeof hint === "string" && hint.trim() !== "") detailText = Array.from(hint.trim()).slice(0, 40).join("");
 					} catch {}
 				}
+				if (detailText === "这工具是干嘛的") detailText = "";
 				if (toolName) lastTools.set(sessionId, {
 					name: toolName,
 					detail: detailText

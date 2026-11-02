@@ -14,6 +14,7 @@ export declare function makeTextBubble(rt: {
 }): (props: {
     text: string;
     on: boolean;
+    small?: boolean;
 }) => ReactNode;
 /** 制造“会话状态气泡”组件：宠物上方向上堆叠，all=false 只显示最新一个。 */
 export declare function makeSessionBubbles(rt: {

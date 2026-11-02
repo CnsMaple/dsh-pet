@@ -65,11 +65,15 @@ export function injectBubbleCss(): void {
 }
 
 /** 制造文本气泡组件（工厂）；say 与 work 共用，仅文本。 */
-export function makeTextBubble(rt: { h: typeof jsx }): (props: { text: string; on: boolean }) => ReactNode {
+export function makeTextBubble(rt: {
+  h: typeof jsx;
+}): (props: { text: string; on: boolean; small?: boolean }) => ReactNode {
   const { h } = rt;
   injectBubbleCss();
-  return function TextBubble({ text, on }: { text: string; on: boolean }) {
-    return h('div', { className: 'dsh-pet-bubble dsh-pet-whisper' + (on ? ' is-on' : ''), children: text });
+  return function TextBubble({ text, on, small }: { text: string; on: boolean; small?: boolean }) {
+    // small !== false 时用 whisper 小字号（说话气泡）；完成/失败气泡传 small:false，与普通气泡同字号。
+    const cls = 'dsh-pet-bubble' + (small === false ? '' : ' dsh-pet-whisper') + (on ? ' is-on' : '');
+    return h('div', { className: cls, children: text });
   };
 }
 
@@ -92,14 +96,10 @@ export function makeSessionBubbles(rt: {
           : word
             ? h('div', { className: 'dss', children: word })
             : null;
-        const extra = (it.tools ?? [])
-          .filter((t) => t !== it.detail)
-          .slice(0, 2)
-          .map((t, i) => h('div', { key: 'x' + i, className: 'dsk', children: '· ' + t }));
         return h('div', {
           key: it.id,
           className: 'dsh-pet-session-bubble',
-          children: [h('div', { className: 'dst', children: it.title }), main, ...extra].filter((x) => x !== null),
+          children: [h('div', { className: 'dst', children: it.title }), main].filter((x) => x !== null),
         });
       }),
     });

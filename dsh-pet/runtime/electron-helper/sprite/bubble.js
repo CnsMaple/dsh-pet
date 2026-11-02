@@ -80,13 +80,6 @@ Object.assign(PetSprite.prototype, {
         s.textContent = STATE_WORD[it.state];
         b.appendChild(s);
       }
-      const extra = (Array.isArray(it.tools) ? it.tools : []).filter((x) => x !== it.detail).slice(0, 2);
-      for (const tool of extra) {
-        const k = document.createElement('div');
-        k.className = 'dsk';
-        k.textContent = '· ' + tool;
-        b.appendChild(k);
-      }
       box.appendChild(b);
     }
     box.classList.add('is-on');
@@ -116,7 +109,8 @@ Object.assign(PetSprite.prototype, {
     // 工作状态气泡只保留终态（完成/失败）那个；非终态不再弹工作气泡（交给会话气泡）。
     const workOn = !!(this.workOn && this.workText && workTerminal);
     const slot = workOn ? 'work' : sayOn ? 'say' : 'none';
-    this.bubble.classList.toggle('is-whisper', slot === 'work' || slot === 'say');
+    // 仅说话气泡用小字号；完成/失败气泡与普通气泡同字号（不偏小）。
+    this.bubble.classList.toggle('is-whisper', slot === 'say');
     this.bubble.classList.remove('is-clickable', 'is-expanded');
     if (slot === 'none') {
       this.bubble.classList.remove('is-on');

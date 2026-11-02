@@ -1042,9 +1042,10 @@ function injectBubbleCss() {
 function makeTextBubble(rt) {
 	const { h } = rt;
 	injectBubbleCss();
-	return function TextBubble({ text, on }) {
+	return function TextBubble({ text, on, small }) {
+		const cls = "dsh-pet-bubble" + (small === false ? "" : " dsh-pet-whisper") + (on ? " is-on" : "");
 		return h("div", {
-			className: "dsh-pet-bubble dsh-pet-whisper" + (on ? " is-on" : ""),
+			className: cls,
 			children: text
 		});
 	};
@@ -1066,22 +1067,13 @@ function makeSessionBubbles(rt) {
 					className: "dss",
 					children: word
 				}) : null;
-				const extra = (it.tools ?? []).filter((t) => t !== it.detail).slice(0, 2).map((t, i) => h("div", {
-					key: "x" + i,
-					className: "dsk",
-					children: "· " + t
-				}));
 				return h("div", {
 					key: it.id,
 					className: "dsh-pet-session-bubble",
-					children: [
-						h("div", {
-							className: "dst",
-							children: it.title
-						}),
-						main,
-						...extra
-					].filter((x) => x !== null)
+					children: [h("div", {
+						className: "dst",
+						children: it.title
+					}), main].filter((x) => x !== null)
 				});
 			})
 		});
@@ -2147,7 +2139,10 @@ function shouldNotify(frame) {
 	}
 	return false;
 }
+/** 网页端通知总开关：彻底关闭（桌面 Electron 宠物窗口负责原生通知，网页不再弹 Web 通知/提示音）。 */
+const WEB_NOTIFY_DISABLED = true;
 function toastFrame(frame) {
+	if (WEB_NOTIFY_DISABLED) return;
 	if (!shouldNotify(frame)) return;
 	const sessionId = typeof frame.sessionId === "string" ? frame.sessionId : void 0;
 	const t = frameToToast(frame, sessionTitleFrom(sessionNavigator, sessionId));
@@ -6413,7 +6408,8 @@ function createBubbleSlots(rt, components) {
 			});
 			if (slot === "work" || slot === "work-terminal") return workText === null ? null : h(TextBubble, {
 				text: workText,
-				on: workOn
+				on: workOn,
+				small: false
 			});
 			return null;
 		};

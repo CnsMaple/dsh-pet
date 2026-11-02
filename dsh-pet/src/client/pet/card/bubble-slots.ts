@@ -36,7 +36,7 @@ export function decideBubbleSlot(input: BubbleSlotInput): BubbleSlot {
 }
 
 /** 文本气泡组件。 */
-export type TextBubbleComponent = (props: { text: string; on: boolean }) => ReactNode;
+export type TextBubbleComponent = (props: { text: string; on: boolean; small?: boolean }) => ReactNode;
 /** 待办面板气泡组件。 */
 export type TodoBubbleComponent = (props: { on: boolean; onClose: () => void }) => ReactNode;
 
@@ -157,7 +157,8 @@ export function createBubbleSlots(rt: BubbleSlotsRuntime, components: BubbleComp
       if (slot === 'todo') return h(TodoBubble, { on: todoOn, onClose: hideTodo });
       if (slot === 'say') return sayText === null ? null : h(TextBubble, { text: sayText, on: sayOn });
       if (slot === 'work' || slot === 'work-terminal') {
-        return workText === null ? null : h(TextBubble, { text: workText, on: workOn });
+        // 完成/失败气泡用普通字号（small:false），不再比其它气泡小。
+        return workText === null ? null : h(TextBubble, { text: workText, on: workOn, small: false });
       }
       return null;
     };

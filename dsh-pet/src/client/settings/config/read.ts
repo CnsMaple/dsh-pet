@@ -43,6 +43,14 @@ export interface MainConfigPatch {
   chatModel?: ModelSelection;
   chatMemoryRounds?: number;
   chatImageLimit?: number;
+  /** 回合完成通知时机。 */
+  notificationTurnEnd?: 'never' | 'unfocused' | 'always';
+  /** 审批申请是否弹通知。 */
+  notificationApproval?: boolean;
+  /** 模型提问是否弹通知。 */
+  notificationQuestion?: boolean;
+  /** 提示音。 */
+  notificationSound?: 'default' | 'classic' | 'none';
 }
 
 /** 非负有限数才算合法；其余（`NaN`、负数、字符串）一律当作没写。 */
@@ -98,6 +106,16 @@ export function readMainConfig(merged: MergedConfig): MainConfigPatch | null {
   if (rounds !== undefined) patch.chatMemoryRounds = rounds;
   const limit = nonNegative(main.chatImageLimit);
   if (limit !== undefined) patch.chatImageLimit = limit;
+  if (
+    main.notificationTurnEnd === 'never' ||
+    main.notificationTurnEnd === 'unfocused' ||
+    main.notificationTurnEnd === 'always'
+  )
+    patch.notificationTurnEnd = main.notificationTurnEnd;
+  if (typeof main.notificationApproval === 'boolean') patch.notificationApproval = main.notificationApproval;
+  if (typeof main.notificationQuestion === 'boolean') patch.notificationQuestion = main.notificationQuestion;
+  if (main.notificationSound === 'default' || main.notificationSound === 'classic' || main.notificationSound === 'none')
+    patch.notificationSound = main.notificationSound;
   // 上界在宿主侧已经把关，这里补一次跨进程读回的判定：脏值只影响显示，不让它流到播放端
   const volume = nonNegative(main.voiceVolume);
   if (volume !== undefined && volume <= 1) patch.voiceVolume = volume;

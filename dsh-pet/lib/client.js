@@ -2524,6 +2524,10 @@ function readMainConfig(merged) {
 	if (rounds !== void 0) patch.chatMemoryRounds = rounds;
 	const limit = nonNegative(main.chatImageLimit);
 	if (limit !== void 0) patch.chatImageLimit = limit;
+	if (main.notificationTurnEnd === "never" || main.notificationTurnEnd === "unfocused" || main.notificationTurnEnd === "always") patch.notificationTurnEnd = main.notificationTurnEnd;
+	if (typeof main.notificationApproval === "boolean") patch.notificationApproval = main.notificationApproval;
+	if (typeof main.notificationQuestion === "boolean") patch.notificationQuestion = main.notificationQuestion;
+	if (main.notificationSound === "default" || main.notificationSound === "classic" || main.notificationSound === "none") patch.notificationSound = main.notificationSound;
 	const volume = nonNegative(main.voiceVolume);
 	if (volume !== void 0 && volume <= 1) patch.voiceVolume = volume;
 	return patch;
@@ -2570,7 +2574,11 @@ function buildSaveBody(fields) {
 		chatModel: fields.chatModel,
 		chatMemoryRounds: fields.chatMemoryRounds,
 		chatImageLimit: fields.chatImageLimit,
-		font: fields.font
+		font: fields.font,
+		notificationTurnEnd: fields.notificationTurnEnd,
+		notificationApproval: fields.notificationApproval,
+		notificationQuestion: fields.notificationQuestion,
+		notificationSound: fields.notificationSound
 	};
 }
 async function loadConfig(signal) {
@@ -5650,6 +5658,10 @@ function makePetConfigSection(rt) {
 		});
 		const [chatMemory, setChatMemory] = useState(10);
 		const [chatImageLimit, setChatImageLimit] = useState(20);
+		const [notificationTurnEnd, setNotificationTurnEnd] = useState("unfocused");
+		const [notificationApproval, setNotificationApproval] = useState(true);
+		const [notificationQuestion, setNotificationQuestion] = useState(true);
+		const [notificationSound, setNotificationSound] = useState("default");
 		const applyConfig = useCallback((merged) => {
 			const entries = readConfigEntries(merged);
 			const patch = readMainConfig(merged);
@@ -5673,6 +5685,10 @@ function makePetConfigSection(rt) {
 			if (patch.chatModel !== void 0) setChatModel(patch.chatModel);
 			if (patch.chatMemoryRounds !== void 0) setChatMemory(patch.chatMemoryRounds);
 			if (patch.chatImageLimit !== void 0) setChatImageLimit(patch.chatImageLimit);
+			if (patch.notificationTurnEnd !== void 0) setNotificationTurnEnd(patch.notificationTurnEnd);
+			if (patch.notificationApproval !== void 0) setNotificationApproval(patch.notificationApproval);
+			if (patch.notificationQuestion !== void 0) setNotificationQuestion(patch.notificationQuestion);
+			if (patch.notificationSound !== void 0) setNotificationSound(patch.notificationSound);
 		}, [replace]);
 		const { loadState, retry } = useConfigLoad(rt, applyConfig);
 		const busy = saving || loadState !== "ready";
@@ -5722,7 +5738,11 @@ function makePetConfigSection(rt) {
 				chatModel,
 				chatMemoryRounds: chatMemory,
 				chatImageLimit,
-				font
+				font,
+				notificationTurnEnd,
+				notificationApproval,
+				notificationQuestion,
+				notificationSound
 			}),
 			busy: () => busy,
 			setBusy,

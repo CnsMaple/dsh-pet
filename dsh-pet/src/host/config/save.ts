@@ -146,6 +146,15 @@ export function saveUserConfig(
   // 与 chatMemoryRounds 同一套语义——传了就校验后进白名单，没传则走下面的透传保留。
   const cil = o.chatImageLimit;
   if (cil !== undefined && !topFieldValid('chatImageLimit', cil)) return null;
+  // 通知行为 4 字段：回合完成三档 / 审批开关 / 问题开关 / 提示音；校验走 topFieldValid，读写同一份规则。
+  const nte = o.notificationTurnEnd;
+  if (nte !== undefined && !topFieldValid('notificationTurnEnd', nte)) return null;
+  const nap = o.notificationApproval;
+  if (nap !== undefined && !topFieldValid('notificationApproval', nap)) return null;
+  const nqu = o.notificationQuestion;
+  if (nqu !== undefined && !topFieldValid('notificationQuestion', nqu)) return null;
+  const nso = o.notificationSound;
+  if (nso !== undefined && !topFieldValid('notificationSound', nso)) return null;
   const cleanModel = (v: Record<string, unknown>): { provider: string; model: string } => ({
     provider: String(v.provider).trim(),
     model: String(v.model).trim(),
@@ -172,6 +181,10 @@ export function saveUserConfig(
   // 数值归一化落盘：请求体传 "9" 也存成 9（与读取侧 topFieldValid 的 Number() 口径一致）
   if (cmr !== undefined) outConfig.chatMemoryRounds = Number(cmr);
   if (cil !== undefined) outConfig.chatImageLimit = Number(cil);
+  if (nte !== undefined) outConfig.notificationTurnEnd = nte;
+  if (nap !== undefined) outConfig.notificationApproval = nap;
+  if (nqu !== undefined) outConfig.notificationQuestion = nqu;
+  if (nso !== undefined) outConfig.notificationSound = nso;
   // 透传保留：请求体未携带的顶层字段，从 existing（磁盘现有用户文件）原样带回——
   // 设置页只提交 pets(+全局开关+physics+模型+对话历史条数)，手改的 whisperPrompt/memes/... 借此保住。
   // 白名单字段只在「请求体传了」时才算白名单（已由上方写入）；未传时走这里透传磁盘旧值——
@@ -195,6 +208,10 @@ export function saveUserConfig(
   if (cm !== undefined) bodyOwned.add('chatModel');
   if (cmr !== undefined) bodyOwned.add('chatMemoryRounds');
   if (cil !== undefined) bodyOwned.add('chatImageLimit');
+  if (nte !== undefined) bodyOwned.add('notificationTurnEnd');
+  if (nap !== undefined) bodyOwned.add('notificationApproval');
+  if (nqu !== undefined) bodyOwned.add('notificationQuestion');
+  if (nso !== undefined) bodyOwned.add('notificationSound');
   if (existing && typeof existing === 'object') {
     for (const key of Object.keys(existing)) {
       if (bodyOwned.has(key)) continue; // 白名单字段由请求体决定

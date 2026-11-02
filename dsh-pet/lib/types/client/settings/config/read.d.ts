@@ -33,6 +33,14 @@ export interface MainConfigPatch {
     chatModel?: ModelSelection;
     chatMemoryRounds?: number;
     chatImageLimit?: number;
+    /** 回合完成通知时机。 */
+    notificationTurnEnd?: 'never' | 'unfocused' | 'always';
+    /** 审批申请是否弹通知。 */
+    notificationApproval?: boolean;
+    /** 模型提问是否弹通知。 */
+    notificationQuestion?: boolean;
+    /** 提示音。 */
+    notificationSound?: 'default' | 'classic' | 'none';
 }
 /**
  * 从成品聚合里读出 main 条目的表单补丁。

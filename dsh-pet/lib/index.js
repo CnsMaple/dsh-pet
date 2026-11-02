@@ -747,6 +747,14 @@ function saveUserConfig(raw, existing) {
 	if (cmr !== void 0 && !topFieldValid("chatMemoryRounds", cmr)) return null;
 	const cil = o.chatImageLimit;
 	if (cil !== void 0 && !topFieldValid("chatImageLimit", cil)) return null;
+	const nte = o.notificationTurnEnd;
+	if (nte !== void 0 && !topFieldValid("notificationTurnEnd", nte)) return null;
+	const nap = o.notificationApproval;
+	if (nap !== void 0 && !topFieldValid("notificationApproval", nap)) return null;
+	const nqu = o.notificationQuestion;
+	if (nqu !== void 0 && !topFieldValid("notificationQuestion", nqu)) return null;
+	const nso = o.notificationSound;
+	if (nso !== void 0 && !topFieldValid("notificationSound", nso)) return null;
 	const cleanModel = (v) => ({
 		provider: String(v.provider).trim(),
 		model: String(v.model).trim()
@@ -770,6 +778,10 @@ function saveUserConfig(raw, existing) {
 	if (cm !== void 0) outConfig.chatModel = cleanModel(cm);
 	if (cmr !== void 0) outConfig.chatMemoryRounds = Number(cmr);
 	if (cil !== void 0) outConfig.chatImageLimit = Number(cil);
+	if (nte !== void 0) outConfig.notificationTurnEnd = nte;
+	if (nap !== void 0) outConfig.notificationApproval = nap;
+	if (nqu !== void 0) outConfig.notificationQuestion = nqu;
+	if (nso !== void 0) outConfig.notificationSound = nso;
 	const bodyOwned = new Set(["pets"]);
 	if (ne !== void 0) bodyOwned.add("notificationsEnabled");
 	if (cse !== void 0) bodyOwned.add("clickSoundEnabled");
@@ -789,6 +801,10 @@ function saveUserConfig(raw, existing) {
 	if (cm !== void 0) bodyOwned.add("chatModel");
 	if (cmr !== void 0) bodyOwned.add("chatMemoryRounds");
 	if (cil !== void 0) bodyOwned.add("chatImageLimit");
+	if (nte !== void 0) bodyOwned.add("notificationTurnEnd");
+	if (nap !== void 0) bodyOwned.add("notificationApproval");
+	if (nqu !== void 0) bodyOwned.add("notificationQuestion");
+	if (nso !== void 0) bodyOwned.add("notificationSound");
 	if (existing && typeof existing === "object") for (const key of Object.keys(existing)) {
 		if (bodyOwned.has(key)) continue;
 		outConfig[key] = existing[key];

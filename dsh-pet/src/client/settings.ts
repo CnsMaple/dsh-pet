@@ -84,6 +84,10 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
     const [chatModel, setChatModel] = useState<ModelSelection>({ provider: '', model: '' });
     const [chatMemory, setChatMemory] = useState(10);
     const [chatImageLimit, setChatImageLimit] = useState(20);
+    const [notificationTurnEnd, setNotificationTurnEnd] = useState<'never' | 'unfocused' | 'always'>('unfocused');
+    const [notificationApproval, setNotificationApproval] = useState(true);
+    const [notificationQuestion, setNotificationQuestion] = useState(true);
+    const [notificationSound, setNotificationSound] = useState<'default' | 'classic' | 'none'>('default');
 
     const applyConfig = useCallback(
       (merged: MergedConfig) => {
@@ -109,6 +113,10 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
         if (patch.chatModel !== undefined) setChatModel(patch.chatModel);
         if (patch.chatMemoryRounds !== undefined) setChatMemory(patch.chatMemoryRounds);
         if (patch.chatImageLimit !== undefined) setChatImageLimit(patch.chatImageLimit);
+        if (patch.notificationTurnEnd !== undefined) setNotificationTurnEnd(patch.notificationTurnEnd);
+        if (patch.notificationApproval !== undefined) setNotificationApproval(patch.notificationApproval);
+        if (patch.notificationQuestion !== undefined) setNotificationQuestion(patch.notificationQuestion);
+        if (patch.notificationSound !== undefined) setNotificationSound(patch.notificationSound);
       },
       [replace],
     );
@@ -161,6 +169,10 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
         chatMemoryRounds: chatMemory,
         chatImageLimit,
         font,
+        notificationTurnEnd,
+        notificationApproval,
+        notificationQuestion,
+        notificationSound,
       }),
       busy: () => busy,
       setBusy,

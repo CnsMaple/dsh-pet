@@ -48,6 +48,10 @@ export interface SaveFields {
     chatMemoryRounds: number;
     chatImageLimit: number;
     font: FontConfig;
+    notificationTurnEnd: 'never' | 'unfocused' | 'always';
+    notificationApproval: boolean;
+    notificationQuestion: boolean;
+    notificationSound: 'default' | 'classic' | 'none';
 }
 /** 保存结果：调用方按 `kind` 分支，不再猜 HTTP 细节。 */
 export type SaveOutcome = {

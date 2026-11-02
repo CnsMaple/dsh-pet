@@ -5,7 +5,7 @@
  * @module dsh-pet/src/client/settings/config/http
  */
 import { ROUTE_PATH } from '../../../shared/constants.ts';
-import type { FontConfig, Pet, PhysicsParams } from '../../../shared/types.ts';
+import type { FontConfig, Pet } from '../../../shared/types.ts';
 import type { ModelCatalogGroup } from '../picker/index.ts';
 import type { MergedConfig } from './read.ts';
 
@@ -33,7 +33,6 @@ export interface SaveFields {
   clickSoundEnabled: boolean;
   confineToScreen: boolean;
   trayEnabled: boolean;
-  physics: PhysicsParams;
   font: FontConfig;
   notificationTurnEnd: 'never' | 'unfocused' | 'always';
   notificationApproval: boolean;
@@ -61,7 +60,6 @@ export function buildSaveBody(fields: SaveFields): Record<string, unknown> {
     clickSoundEnabled: fields.clickSoundEnabled,
     confineToScreen: fields.confineToScreen,
     trayEnabled: fields.trayEnabled,
-    physics: fields.physics,
     font: fields.font,
     notificationTurnEnd: fields.notificationTurnEnd,
     notificationApproval: fields.notificationApproval,

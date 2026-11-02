@@ -5,7 +5,7 @@
  * 不变量：同一时刻最多一条跟随在跑；瞄准与停走都会让迟到的帧自弃。
  * @module dsh-pet/src/client/pet/motion/drag-follow
  */
-import { springStep } from '../../../shared/physics.ts';
+import { DEFAULT_THROW_POWER, springStep } from '../../../shared/physics.ts';
 import type { BoxPoint } from './geometry.ts';
 
 /** 跟随驱动每次起跑取的当帧能力：起跑时取一次快照，一次拖拽内盒与弹簧参数不变。 */
@@ -16,8 +16,6 @@ export interface DragFollowDeps {
     box(): BoxPoint | null;
     /** 写回包围盒位置（每帧调用）。 */
     setBox(box: BoxPoint): void;
-    /** 该宠物的物理参数，只取弹簧刚度。 */
-    physics: { throwPower: number };
   };
 }
 
@@ -66,7 +64,7 @@ export function createDragFollow(deps: DragFollowDeps): DragFollow {
   const start = (rootEl: HTMLDivElement): void => {
     if (frame !== null) return;
     const current = deps.card();
-    const spring = current.physics.throwPower;
+    const spring = DEFAULT_THROW_POWER;
     const own = ++token;
     last = performance.now();
     const step = (): void => {

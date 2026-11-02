@@ -29,7 +29,6 @@ import type { Pet } from './types.ts';
 const ENTRY_FIELDS: Array<keyof Pet> = [
   'animations',
   'animationWeights',
-  'physics',
   'confineToScreen',
   'workStatusTexts',
   'memes',
@@ -53,9 +52,6 @@ describe('flattenConfigPets —— 成品 → 渲染列表的唯一填充点', (
         for (const field of ENTRY_FIELDS) {
           assert.ok(p[field] !== undefined, `宠物「${String(p.id)}」缺条目级字段 ${field}`);
         }
-        // 拖拽跟手第一帧读的就是它；缺失即 TypeError（本文件存在的直接原因）
-        const physics = p.physics as { throwPower?: unknown };
-        assert.equal(typeof physics.throwPower, 'number', 'physics.throwPower 必须是数字');
         // animations 是 { idle/turn/drag/clicks/moves/categories/events } 段：待机池必须非空
         const animations = p.animations as { idle?: unknown };
         assert.ok(Array.isArray(animations.idle) && animations.idle.length > 0, 'animations.idle 应为非空待机动画池');
@@ -68,13 +64,11 @@ describe('flattenConfigPets —— 成品 → 渲染列表的唯一填充点', (
   test('条目级字段的来源是「条目」而非实例：实例写同名值也不生效（唯一来源 = conf）', () => {
     const merged = {
       main: {
-        physics: { throwPower: 7 },
         animations: ['a.webm'],
-        pets: [{ id: 'x', physics: { throwPower: 1 } }],
+        pets: [{ id: 'x', animations: ['b.webm'] }],
       },
     };
     const [pet] = flattenConfigPets(merged as Record<string, Record<string, unknown>>);
-    assert.deepEqual(pet.physics, { throwPower: 7 });
     assert.deepEqual(pet.animations, ['a.webm']);
   });
 

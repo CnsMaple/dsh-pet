@@ -62,7 +62,6 @@ export function createWriteFlow(deps: WriteFlowDeps): WriteFlow {
     const fields = deps.fields();
     const invalid = validateForm({
       pets: fields.pets,
-      physics: fields.physics,
       font: fields.font,
     });
     if (invalid !== null) {

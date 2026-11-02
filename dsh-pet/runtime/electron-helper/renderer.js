@@ -42,8 +42,6 @@ async function loadConfig() {
   if (merged && merged.ok === false) throw new Error('config ' + String(merged.reason ?? 'failed'));
   return {
     pets: S.flattenConfigPets(merged),
-    // 拖拽抛掷物理参数（顶层全局，所有宠物共用；合并器已填内置默认）
-    physics: (merged && merged.main && merged.main.physics) || S.DEFAULT_PHYSICS,
     // 抛掷锁定在当前屏幕（根字段；合并器已填内置默认 false）
     confineToScreen: (merged && merged.main && merged.main.confineToScreen) === true,
     // 点击音效开关（全局一份，只读 main 条目；合并器已填内置默认 false = 静音）

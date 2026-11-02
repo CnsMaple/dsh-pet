@@ -256,7 +256,6 @@ function flattenConfigPets(merged) {
 			...p,
 			animations: conf.animations,
 			animationWeights: conf.animationWeights,
-			physics: conf.physics,
 			font: conf.font,
 			confineToScreen: conf.confineToScreen,
 			workStatusTexts: conf.workStatusTexts,
@@ -821,17 +820,6 @@ const MAX_THROW_SPEED = 3600;
 const GRAVITY = 1400;
 const RESTITUTION = .78;
 const GROUND_FRICTION = 2.5;
-const DEFAULT_PHYSICS = {
-	gravity: GRAVITY,
-	restitution: RESTITUTION,
-	groundFriction: GROUND_FRICTION,
-	ceilingBounce: true,
-	throwPower: 1,
-	petCollision: true,
-	hapticEnabled: true,
-	tiltGravity: true,
-	shakeThrow: true
-};
 const DEFAULT_THROW_POWER = 1;
 const SQ_SQUASH = .55;
 const SQ_DURATION_MS = 220;
@@ -2219,7 +2207,6 @@ exports.BUBBLE_OVERLAP_RATIO = BUBBLE_OVERLAP_RATIO
 exports.CANVAS_H = CANVAS_H
 exports.DEFAULT_FONT = DEFAULT_FONT
 exports.DEFAULT_FONT_STACK = DEFAULT_FONT_STACK
-exports.DEFAULT_PHYSICS = DEFAULT_PHYSICS
 exports.DEFAULT_THROW_POWER = DEFAULT_THROW_POWER
 exports.DISPLAY_HOTKEY_HINTS = DISPLAY_HOTKEY_HINTS
 exports.DISPLAY_ORDER = DISPLAY_ORDER

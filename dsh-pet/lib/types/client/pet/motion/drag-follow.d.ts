@@ -7,10 +7,6 @@ export interface DragFollowDeps {
         box(): BoxPoint | null;
         /** 写回包围盒位置（每帧调用）。 */
         setBox(box: BoxPoint): void;
-        /** 该宠物的物理参数，只取弹簧刚度。 */
-        physics: {
-            throwPower: number;
-        };
     };
 }
 /** 弹簧跟随驱动：一个宠物一个实例。 */

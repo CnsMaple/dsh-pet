@@ -2,7 +2,7 @@
  * 宠物页的共享类型：注入的 react 能力与拍平后的成品宠物实例。
  * @module dsh-pet/src/client/pet/types
  */
-import type { Animations, Pet, PhysicsParams, Weights } from '../../shared/types.ts';
+import type { Animations, Pet, Weights } from '../../shared/types.ts';
 import type * as ReactNS from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { jsx } from 'react/jsx-runtime';
@@ -10,7 +10,6 @@ import type { jsx } from 'react/jsx-runtime';
 export type RuntimePet = Pet & {
     animations: Animations;
     animationWeights: Weights;
-    physics: PhysicsParams;
 };
 /** 注入的 react 能力：由模块工厂提供，本目录不直接 import react 运行时。 */
 export interface PetRuntime {

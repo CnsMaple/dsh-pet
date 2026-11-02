@@ -6,15 +6,14 @@
  */
 import { FONT_SIZE_MAX, FONT_SIZE_MIN } from '../../../shared/fonts.ts';
 import { isValidSizePercent } from '../../../shared/pet-size.ts';
-import type { FontConfig, Pet, PhysicsParams } from '../../../shared/types.ts';
+import type { FontConfig, Pet } from '../../../shared/types.ts';
 
 /** 校验失败时返回的文案键。 */
-export type InvalidKey = 'invalid' | 'invalidPhysics' | 'invalidFont';
+export type InvalidKey = 'invalid' | 'invalidFont';
 
 /** 保存前要校验的全部表单值。 */
 export interface FormValues {
   pets: readonly Pet[];
-  physics: PhysicsParams;
   font: FontConfig;
 }
 
@@ -25,18 +24,6 @@ const petValid = (pet: Pet): boolean =>
   (pet.sizePercent === undefined || isValidSizePercent(pet.sizePercent)) &&
   Number.isFinite(pet.position.marginX) &&
   Number.isFinite(pet.position.marginY);
-
-/** 物理参数：与宿主 `physicsValid` 同名规则，客户端只覆盖数值字段（布尔项由宿主兜底）。 */
-const physicsValid = (physics: PhysicsParams): boolean =>
-  Number.isFinite(physics.gravity) &&
-  physics.gravity >= 0 &&
-  Number.isFinite(physics.restitution) &&
-  physics.restitution >= 0 &&
-  physics.restitution <= 1 &&
-  Number.isFinite(physics.groundFriction) &&
-  physics.groundFriction >= 0 &&
-  Number.isFinite(physics.throwPower) &&
-  physics.throwPower > 0;
 
 /** 字体：种类必须在预设白名单内，字号在闭区间内。 */
 const fontValid = (font: FontConfig): boolean =>
@@ -54,7 +41,6 @@ const fontValid = (font: FontConfig): boolean =>
  */
 export function validateForm(values: FormValues): InvalidKey | null {
   if (!values.pets.every(petValid)) return 'invalid';
-  if (!physicsValid(values.physics)) return 'invalidPhysics';
   if (!fontValid(values.font)) return 'invalidFont';
   return null;
 }

@@ -186,11 +186,7 @@ function isValidPetId(value) {
 	if (value === "." || value === "..") return false;
 	return value !== "" && value.length <= MAX_PET_ID_LENGTH && !ID_FORBIDDEN.test(value);
 }
-const GLOBAL_DEFAULT_KEYS = [
-	"physics",
-	"font",
-	"confineToScreen"
-];
+const GLOBAL_DEFAULT_KEYS = ["font", "confineToScreen"];
 /** 已告警过的 文件:字段（进程内去重：同一问题只告警一次，避免每请求刷屏；重启重置） */
 const warnedKeys = new Set();
 function warnOnce(key, message) {
@@ -354,15 +350,6 @@ function weightsValid(w) {
 	}
 	return true;
 }
-function physicsValid(value) {
-	if (!value || typeof value !== "object") return false;
-	const p = value;
-	const g = Number(p.gravity);
-	const r = Number(p.restitution);
-	const f = Number(p.groundFriction);
-	const tp = Number(p.throwPower);
-	return Number.isFinite(g) && g >= 0 && Number.isFinite(r) && r >= 0 && r <= 1 && Number.isFinite(f) && f >= 0 && typeof p.ceilingBounce === "boolean" && Number.isFinite(tp) && tp > 0 && typeof p.petCollision === "boolean" && (p.hapticEnabled === void 0 || typeof p.hapticEnabled === "boolean") && (p.tiltGravity === void 0 || typeof p.tiltGravity === "boolean") && (p.shakeThrow === void 0 || typeof p.shakeThrow === "boolean");
-}
 function fontValid(value) {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
 	const f = value;
@@ -392,7 +379,6 @@ function topFieldValid(key, value) {
 		case "trayEnabled": return typeof value === "boolean";
 		case "animations": return animationsValid(value);
 		case "animationWeights": return weightsValid(value);
-		case "physics": return physicsValid(value);
 		case "font": return fontValid(value);
 		case "workStatusTexts": return workStatusTextsValid(value);
 		case "sleepRefuseTexts":
@@ -646,8 +632,6 @@ function saveUserConfig(raw, existing) {
 	if (cts !== void 0 && typeof cts !== "boolean") return null;
 	const te = o.trayEnabled;
 	if (te !== void 0 && typeof te !== "boolean") return null;
-	const ph = o.physics;
-	if (ph !== void 0 && !physicsValid(ph)) return null;
 	const fo = o.font;
 	if (fo !== void 0 && !fontValid(fo)) return null;
 	const nte = o.notificationTurnEnd;
@@ -663,7 +647,6 @@ function saveUserConfig(raw, existing) {
 	if (cse !== void 0) outConfig.clickSoundEnabled = cse;
 	if (cts !== void 0) outConfig.confineToScreen = cts;
 	if (te !== void 0) outConfig.trayEnabled = te;
-	if (ph !== void 0) outConfig.physics = ph;
 	if (fo !== void 0) outConfig.font = fo;
 	if (nte !== void 0) outConfig.notificationTurnEnd = nte;
 	if (nap !== void 0) outConfig.notificationApproval = nap;
@@ -674,7 +657,6 @@ function saveUserConfig(raw, existing) {
 	if (cse !== void 0) bodyOwned.add("clickSoundEnabled");
 	if (cts !== void 0) bodyOwned.add("confineToScreen");
 	if (te !== void 0) bodyOwned.add("trayEnabled");
-	if (ph !== void 0) bodyOwned.add("physics");
 	if (fo !== void 0) bodyOwned.add("font");
 	if (nte !== void 0) bodyOwned.add("notificationTurnEnd");
 	if (nap !== void 0) bodyOwned.add("notificationApproval");

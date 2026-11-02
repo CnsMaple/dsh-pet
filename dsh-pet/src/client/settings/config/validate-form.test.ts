@@ -11,7 +11,6 @@ import assert from 'node:assert/strict';
 
 import { validateForm, type FormValues } from './validate-form.ts';
 import { DEFAULT_FONT, FONT_SIZE_MAX } from '../../../shared/fonts.ts';
-import { DEFAULT_PHYSICS } from '../../../shared/physics.ts';
 import type { Pet } from '../../../shared/types.ts';
 
 const pet = (extra: Record<string, unknown> = {}): Pet =>
@@ -26,7 +25,6 @@ const pet = (extra: Record<string, unknown> = {}): Pet =>
 /** 一份处处合法的表单；用例只改自己关心的那一项。 */
 const valid = (overrides: Partial<FormValues> = {}): FormValues => ({
   pets: [pet()],
-  physics: { ...DEFAULT_PHYSICS },
   font: { ...DEFAULT_FONT },
   ...overrides,
 });
@@ -53,24 +51,13 @@ describe('validateForm —— 保存前校验', () => {
     assert.equal(validateForm(valid({ pets: [pet()] })), null, '缺省 = 只用 px，合法');
   });
 
-  test('物理参数：区间与正负都按宿主规则卡住', () => {
-    assert.equal(validateForm(valid({ physics: { ...DEFAULT_PHYSICS, gravity: -1 } })), 'invalidPhysics');
-    assert.equal(validateForm(valid({ physics: { ...DEFAULT_PHYSICS, restitution: 1.5 } })), 'invalidPhysics');
-    assert.equal(validateForm(valid({ physics: { ...DEFAULT_PHYSICS, throwPower: 0 } })), 'invalidPhysics');
-    assert.equal(
-      validateForm(valid({ physics: { ...DEFAULT_PHYSICS, gravity: 0, restitution: 0, throwPower: 0.01 } })),
-      null,
-      '0 是合法边界（重力为零、完全弹性都没有下限限制误伤）',
-    );
-  });
-
   test('字体：种类必须在白名单里，字号在闭区间内', () => {
     assert.equal(validateForm(valid({ font: { ...DEFAULT_FONT, size: FONT_SIZE_MAX + 1 } })), 'invalidFont');
     assert.equal(validateForm(valid({ font: { ...DEFAULT_FONT, family: 'not-a-font' as never } })), 'invalidFont');
   });
 
-  test('顺序即优先级：宠物不合格时不再报后面的物理参数', () => {
-    const values = valid({ pets: [pet({ size: 0 })], physics: { ...DEFAULT_PHYSICS, gravity: -1 } });
+  test('顺序即优先级：宠物不合格时先报宠物', () => {
+    const values = valid({ pets: [pet({ size: 0 })] });
     assert.equal(validateForm(values), 'invalid');
   });
 });

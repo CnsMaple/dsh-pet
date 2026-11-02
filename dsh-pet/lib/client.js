@@ -514,20 +514,6 @@ function injectPetCss() {
 //#region src/shared/physics/constants.ts
 const SPRING_K = 200;
 const SPRING_C = 30;
-const GRAVITY = 1400;
-const RESTITUTION = .78;
-const GROUND_FRICTION = 2.5;
-const DEFAULT_PHYSICS = {
-	gravity: GRAVITY,
-	restitution: RESTITUTION,
-	groundFriction: GROUND_FRICTION,
-	ceilingBounce: true,
-	throwPower: 1,
-	petCollision: true,
-	hapticEnabled: true,
-	tiltGravity: true,
-	shakeThrow: true
-};
 const DEFAULT_THROW_POWER = 1;
 
 //#endregion
@@ -2475,10 +2461,6 @@ function readMainConfig(merged) {
 	if (typeof main.clickSoundEnabled === "boolean") patch.clickSoundEnabled = main.clickSoundEnabled;
 	if (typeof main.confineToScreen === "boolean") patch.confineToScreen = main.confineToScreen;
 	if (typeof main.trayEnabled === "boolean") patch.trayEnabled = main.trayEnabled;
-	if (main.physics && typeof main.physics === "object") patch.physics = {
-		...DEFAULT_PHYSICS,
-		...main.physics
-	};
 	if (main.font && typeof main.font === "object") patch.font = {
 		...DEFAULT_FONT,
 		...main.font
@@ -2517,7 +2499,6 @@ function buildSaveBody(fields) {
 		clickSoundEnabled: fields.clickSoundEnabled,
 		confineToScreen: fields.confineToScreen,
 		trayEnabled: fields.trayEnabled,
-		physics: fields.physics,
 		font: fields.font,
 		notificationTurnEnd: fields.notificationTurnEnd,
 		notificationApproval: fields.notificationApproval,
@@ -2691,13 +2672,10 @@ async function syncSettings() {
 //#region src/client/settings/config/validate-form.ts
 /** 宠物：宽度必须为正数、百分比缺省或是不小于 1 的数字、两个偏移必须是有限数（负数合法，宠物可以压出屏外）。 */
 const petValid = (pet) => Number.isFinite(pet.size) && pet.size > 0 && (pet.sizePercent === void 0 || isValidSizePercent(pet.sizePercent)) && Number.isFinite(pet.position.marginX) && Number.isFinite(pet.position.marginY);
-/** 物理参数：与宿主 `physicsValid` 同名规则，客户端只覆盖数值字段（布尔项由宿主兜底）。 */
-const physicsValid = (physics) => Number.isFinite(physics.gravity) && physics.gravity >= 0 && Number.isFinite(physics.restitution) && physics.restitution >= 0 && physics.restitution <= 1 && Number.isFinite(physics.groundFriction) && physics.groundFriction >= 0 && Number.isFinite(physics.throwPower) && physics.throwPower > 0;
 /** 字体：种类必须在预设白名单内，字号在闭区间内。 */
 const fontValid = (font) => typeof font.family === "string" && font.family.length <= 200 && Number.isFinite(font.size) && font.size >= FONT_SIZE_MIN && font.size <= FONT_SIZE_MAX;
 function validateForm(values) {
 	if (!values.pets.every(petValid)) return "invalid";
-	if (!physicsValid(values.physics)) return "invalidPhysics";
 	if (!fontValid(values.font)) return "invalidFont";
 	return null;
 }
@@ -2711,7 +2689,6 @@ function createWriteFlow(deps) {
 		const fields = deps.fields();
 		const invalid = validateForm({
 			pets: fields.pets,
-			physics: fields.physics,
 			font: fields.font
 		});
 		if (invalid !== null) {
@@ -3228,7 +3205,6 @@ function flattenConfigPets(merged) {
 			...p,
 			animations: conf.animations,
 			animationWeights: conf.animationWeights,
-			physics: conf.physics,
 			font: conf.font,
 			confineToScreen: conf.confineToScreen,
 			workStatusTexts: conf.workStatusTexts,
@@ -5738,7 +5714,6 @@ function makePetConfigSection(rt) {
 		const [clickSound, setClickSound] = useState(true);
 		const [confineScreen, setConfineScreen] = useState(false);
 		const [trayEnabled, setTrayEnabled] = useState(true);
-		const [physics, setPhysics] = useState({ ...DEFAULT_PHYSICS });
 		const [font, setFont] = useState({ ...DEFAULT_FONT });
 		const [notificationTurnEnd, setNotificationTurnEnd] = useState("unfocused");
 		const [notificationApproval, setNotificationApproval] = useState(true);
@@ -5753,7 +5728,6 @@ function makePetConfigSection(rt) {
 			if (patch.clickSoundEnabled !== void 0) setClickSound(patch.clickSoundEnabled);
 			if (patch.confineToScreen !== void 0) setConfineScreen(patch.confineToScreen);
 			if (patch.trayEnabled !== void 0) setTrayEnabled(patch.trayEnabled);
-			if (patch.physics !== void 0) setPhysics(patch.physics);
 			if (patch.font !== void 0) setFont(patch.font);
 			if (patch.notificationTurnEnd !== void 0) setNotificationTurnEnd(patch.notificationTurnEnd);
 			if (patch.notificationApproval !== void 0) setNotificationApproval(patch.notificationApproval);
@@ -5807,7 +5781,6 @@ function makePetConfigSection(rt) {
 				clickSoundEnabled: clickSound,
 				confineToScreen: confineScreen,
 				trayEnabled,
-				physics,
 				font,
 				notificationTurnEnd,
 				notificationApproval,
@@ -6996,7 +6969,7 @@ function createDragFollow(deps) {
 	const start = (rootEl) => {
 		if (frame !== null) return;
 		const current$1 = deps.card();
-		const spring = current$1.physics.throwPower;
+		const spring = DEFAULT_THROW_POWER;
 		const own = ++token;
 		last = performance.now();
 		const step = () => {
@@ -7371,7 +7344,6 @@ function createCardDrag(rt) {
 				halfW: metrics.halfW,
 				halfH: metrics.halfH,
 				bottomPad: metrics.bottomPad,
-				physics: cfgRef.current.physics,
 				dragAnims: live.current.flow?.sleeping() ?? false ? [] : cfgRef.current.animations.drag,
 				clickAnims: cfgRef.current.animations.clicks,
 				idleAnims: live.current.flow?.sleeping() ?? false ? [] : cfgRef.current.animations.idle,
@@ -7827,7 +7799,7 @@ function createWalk(deps) {
 function createCardMotion(rt) {
 	const { useRef } = rt;
 	return function useCardMotion(input) {
-		const { card, cfgRef, live, metrics, moves, root, setAnim, setOnce, setCustomPos } = input;
+		const { card, live, metrics, moves, root, setAnim, setOnce, setCustomPos } = input;
 		const motionRef = useRef(metrics);
 		motionRef.current = metrics;
 		const movesRef = useRef(moves);
@@ -7863,7 +7835,7 @@ function createCardMotion(rt) {
 				w: motionRef.current.halfW,
 				h: motionRef.current.halfH
 			}),
-			spring: () => cfgRef.current.physics.throwPower,
+			spring: () => DEFAULT_THROW_POWER,
 			isDragging: () => live.current.drag.isActive(),
 			takeOver: () => {
 				walkRef.current?.stop();

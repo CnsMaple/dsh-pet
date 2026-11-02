@@ -80,8 +80,6 @@ class PetSprite {
     this.pos = { x: 0, y: 0 };
 
     // 配置派生字段：拍平的实例优先，其次全局，最后内置默认。
-    // 拖拽抛掷物理参数
-    this.physics = pet.physics || config.physics || S.DEFAULT_PHYSICS;
     // 字体：字号按本宠物尺寸算；字体族由 renderer.js 注入 documentElement（fontConf 见上，上边距用的是同一份）
     this.font = fontConf;
     // 抛掷锁定在当前屏幕：true = 只在松手时所在那块屏内弹（屏缝当墙），false = 照常跨屏飞行

@@ -95,8 +95,6 @@ export interface Pet {
     animationWeights?: Weights;
     extra?: boolean;
     assetRoot?: string;
-    /** 全局默认：拖拽抛掷物理参数（用户写一次即对所有宠物生效，含 pet pack；种类文件顶层写了则用自己那份） */
-    physics?: PhysicsParams;
     /** 全局默认：是否锁定在当前屏幕——抛掷与自主漫游都只在当前所在那块屏内活动 */
     confineToScreen?: boolean;
     /** 条目级：睡觉期间被手动打扰时弹的拒绝台词（非空字符串数组，随机挑一句）。 */
@@ -121,33 +119,6 @@ export interface ModelSelection {
     provider: string;
     /** 该服务商下的模型 id */
     model: string;
-}
-/** config.jsonc 的 physics 段：拖拽抛掷手感参数（全局，所有宠物共用）。
- *  默认值见 {@link DEFAULT_PHYSICS}，内置配置与代码两侧保持一致。 */
-export interface PhysicsParams {
-    /** 重力加速度（px/s²）：越大落得越快；0 = 无重力（合法，均匀直线飞行） */
-    gravity: number;
-    /** 碰壁反弹恢复系数 0~1（1 = 完全弹性，0 = 撞上即停；墙与地共用） */
-    restitution: number;
-    /** 接触面切向摩擦（/s）：撞墙、落地、撞顶后沿接触面方向的速度衰减率，0 = 四面都像冰面 */
-    groundFriction: number;
-    /** 顶部是否反弹：false = 顶部无边界，抛掷可飞出屏幕顶部（重力仍会拉回落） */
-    ceilingBounce: boolean;
-    /** 总力度（拖拽与抛掷的输出增益）：弹簧 K/C、甩抛初速与软上限整体 ×p（1.0 = 现状，必须 > 0） */
-    throwPower: number;
-    /** 多宠物互相碰撞开关：true（默认）= 飞行中的宠物撞到其它宠物时按动量守恒弹开；false = 互相穿过 */
-    petCollision: boolean;
-    /** 倾斜控制重力：true（默认）= 手机倾斜方向代替固定向下的重力方向（大小仍由 gravity 决定，竖直时取满值；
-     *  gravity 为 0 时倾斜没有可用的量，等同关闭）；false = 重力恒竖直向下。
-     *  仅浏览器半侧生效，且传感器只在安全上下文（HTTPS / localhost）可用；缺键按 true。 */
-    tiltGravity?: boolean;
-    /** 摇一摇抛出：true（默认）= 摇一摇沿甩动方向把宠物甩出去（力度 = 基准 × throwPower），与重力大小无关，
-     *  所以 gravity 为 0 时也能用；false = 不读加速度计。同样只在安全上下文可用。缺键按 true。 */
-    shakeThrow?: boolean;
-    /** 碰撞触觉反馈：true（默认）时撞墙 / 落地 / 撞顶与宠物互撞各震一下。
-     *  仅浏览器半侧生效，且要求环境有 Vibration API——iOS 与桌面端没有，静默跳过。
-     *  缺省按 true；旧配置里没有这个键也算开。 */
-    hapticEnabled?: boolean;
 }
 /** config.jsonc 的 font 段：字体（全局一份，所有宠物共用）。
  *  默认值 = shared/fonts.ts 的 DEFAULT_FONT（family='' 跟随 DSH 字体 / 21 / false）。
@@ -186,6 +157,4 @@ export interface ClientConfig {
     pets: Pet[];
     animations: Animations;
     animationWeights: Weights;
-    /** 拖拽抛掷物理参数（全局，所有宠物共用；合并器已填默认） */
-    physics: PhysicsParams;
 }

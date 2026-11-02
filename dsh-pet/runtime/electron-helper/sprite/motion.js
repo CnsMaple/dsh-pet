@@ -79,8 +79,8 @@ Object.assign(PetSprite.prototype, {
       const vel = this.dragVel;
       let x = this.pos.x;
       let y = this.pos.y;
-      vel.vx = S.springStep(vel.vx, x, target.x, dt, this.physics.throwPower);
-      vel.vy = S.springStep(vel.vy, y, target.y, dt, this.physics.throwPower);
+      vel.vx = S.springStep(vel.vx, x, target.x, dt, S.DEFAULT_THROW_POWER);
+      vel.vy = S.springStep(vel.vy, y, target.y, dt, S.DEFAULT_THROW_POWER);
       x += vel.vx * dt;
       y += vel.vy * dt;
       this.sendBounds(x, y); // 移动的是窗口（this.pos 实时更新）；sprite 在本窗口内不动
@@ -175,8 +175,8 @@ Object.assign(PetSprite.prototype, {
       last = now;
       let x = this.pos.x;
       let y = this.pos.y;
-      vel.vx = S.springStep(vel.vx, x, px, dt, this.physics.throwPower);
-      vel.vy = S.springStep(vel.vy, y, py, dt, this.physics.throwPower);
+      vel.vx = S.springStep(vel.vx, x, px, dt, S.DEFAULT_THROW_POWER);
+      vel.vy = S.springStep(vel.vy, y, py, dt, S.DEFAULT_THROW_POWER);
       x += vel.vx * dt;
       y += vel.vy * dt;
       this.sendBounds(x, y);

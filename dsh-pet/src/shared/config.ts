@@ -5,7 +5,7 @@
  * 条目级字段必须吹进每只实例：多实例共享所属条目的同一份值。
  * @module dsh-pet/src/shared/config
  */
-import type { Animations, FontConfig, Pet, PetDisplay, PhysicsParams, Weights } from './types.ts';
+import type { Animations, FontConfig, Pet, PetDisplay, Weights } from './types.ts';
 
 /** 显示位置白名单。 */
 export const PET_DISPLAYS: PetDisplay[] = ['web', 'desktop', 'both', 'none'];
@@ -28,7 +28,6 @@ export function flattenConfigPets(merged: Record<string, Record<string, unknown>
         ...p,
         animations: conf.animations as Animations | undefined,
         animationWeights: conf.animationWeights as Weights | undefined,
-        physics: conf.physics as PhysicsParams | undefined,
         font: conf.font as FontConfig | undefined,
         confineToScreen: conf.confineToScreen as boolean | undefined,
         workStatusTexts: conf.workStatusTexts as string[][] | undefined,

@@ -5,7 +5,6 @@
  * 必须始终成立：与包内 config.jsonc 的 physics 段保持一致，改一处须同步另一处。
  * @module dsh-pet/src/shared/physics/constants
  */
-import { type PhysicsParams } from '../types.ts';
 /** 拖拽弹簧刚度：越大跟手越紧。 */
 export declare const SPRING_K = 200;
 /** 拖拽弹簧阻尼：ζ = c/(2√k) ≈ 1.06，过阻尼，不 overshoot。 */
@@ -36,8 +35,6 @@ export declare const GRAVITY = 1400;
 export declare const RESTITUTION = 0.78;
 /** 接触面切向摩擦（/s）：撞墙、落地、撞顶后沿接触面方向的速度衰减率；0 = 四面都像冰面。 */
 export declare const GROUND_FRICTION = 2.5;
-/** 抛掷物理的默认参数（与内置配置一致；仅作配置缺失时的兜底）。 */
-export declare const DEFAULT_PHYSICS: PhysicsParams;
 /** 总力度默认量（throwPower=1 即现状）。 */
 export declare const DEFAULT_THROW_POWER = 1;
 /** 接触面法向速度低于它就贴住（px/s）：否则重力持续压向同一面时每帧都被反弹，表现为贴面抖动。 */

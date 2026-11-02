@@ -6,7 +6,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { DEFAULT_PHYSICS } from '../../../shared/physics/constants.ts';
 import { createDrag, type DragCard } from './drag.ts';
 
 /** 假根元素：只留拖拽用到的几个方法。 */
@@ -142,7 +141,6 @@ function harness(extra: Partial<DragCard> = {}) {
     halfW: 100,
     halfH: 56.25,
     bottomPad: 10,
-    physics: DEFAULT_PHYSICS,
     dragAnims: ['drag1'],
     clickAnims: ['click1'],
     idleAnims: ['idle1'],

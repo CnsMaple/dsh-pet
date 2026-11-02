@@ -3,7 +3,6 @@
  * @module dsh-pet/src/shared/physics
  */
 export {
-  DEFAULT_PHYSICS,
   DEFAULT_THROW_POWER,
   GRAVITY,
   GROUND_FRICTION,

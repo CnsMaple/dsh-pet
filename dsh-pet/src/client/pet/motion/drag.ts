@@ -12,7 +12,6 @@ import { DRAG_THRESHOLD, SLINGSHOT_DOUBLE_MS } from '../../../shared/constants.t
 import { createDragFollow } from './drag-follow.ts';
 import { createTouchPress } from './touch-press.ts';
 import type { BoxPoint } from './geometry.ts';
-import type { PhysicsParams } from '../../../shared/types.ts';
 import type * as ReactNS from 'react';
 
 /** 指针按下的状态：阈值判定、弹弓与长按各占几个字段。 */
@@ -59,8 +58,6 @@ export interface DragCard {
   halfH: number;
   /** 舞台脚底垫高（px）。 */
   bottomPad: number;
-  /** 该宠物的物理参数。 */
-  physics: PhysicsParams;
   /** 拖拽动画池。 */
   dragAnims: string[];
   /** 点击动画池。 */

@@ -1,5 +1,4 @@
 import type { BoxPoint } from './geometry.ts';
-import type { PhysicsParams } from '../../../shared/types.ts';
 import type * as ReactNS from 'react';
 /** 拖拽驱动每次处理事件时取的当帧能力。 */
 export interface DragCard {
@@ -13,8 +12,6 @@ export interface DragCard {
     halfH: number;
     /** 舞台脚底垫高（px）。 */
     bottomPad: number;
-    /** 该宠物的物理参数。 */
-    physics: PhysicsParams;
     /** 拖拽动画池。 */
     dragAnims: string[];
     /** 点击动画池。 */

@@ -5,6 +5,7 @@
  */
 import { createPositionFollow, type PositionFollow } from '../motion/position-follow.ts';
 import { createWalk, type Walk } from '../motion/walk.ts';
+import { DEFAULT_THROW_POWER } from '../../../shared/physics.ts';
 import type { CardLive } from './live.ts';
 import type { CardStateApi } from './state.ts';
 import type { MovesConfig } from '../../../shared/types.ts';
@@ -60,7 +61,7 @@ export function createCardMotion(rt: CardMotionRuntime) {
   const { useRef } = rt;
 
   return function useCardMotion(input: CardMotionInput): CardMotion {
-    const { card, cfgRef, live, metrics, moves, root, setAnim, setOnce, setCustomPos } = input;
+    const { card, live, metrics, moves, root, setAnim, setOnce, setCustomPos } = input;
 
     const motionRef = useRef<MotionMetrics>(metrics);
     motionRef.current = metrics;
@@ -94,7 +95,7 @@ export function createCardMotion(rt: CardMotionRuntime) {
       commit: setCustomPos,
       viewport: () => ({ width: window.innerWidth, height: window.innerHeight }),
       half: () => ({ w: motionRef.current.halfW, h: motionRef.current.halfH }),
-      spring: () => cfgRef.current.physics.throwPower,
+      spring: () => DEFAULT_THROW_POWER,
       isDragging: () => live.current.drag.isActive(),
       takeOver: () => {
         walkRef.current?.stop();

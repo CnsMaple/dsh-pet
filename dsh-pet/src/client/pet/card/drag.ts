@@ -73,7 +73,6 @@ export function createCardDrag(rt: CardDragRuntime) {
         halfW: metrics.halfW,
         halfH: metrics.halfH,
         bottomPad: metrics.bottomPad,
-        physics: cfgRef.current.physics,
         // 睡着时不给拖拽动画：可以拖、位置跟手，但保持睡姿（空池 = 驱动退化为只拖不换源）
         dragAnims: (live.current.flow?.sleeping() ?? false) ? [] : cfgRef.current.animations.drag,
         clickAnims: cfgRef.current.animations.clicks,

@@ -11,7 +11,7 @@ import { dirname } from 'node:path';
 import { CORNER_SET, isValidPetId, PET_DISPLAY_SET } from './constants.ts';
 import { isValidSizePercent } from '../../shared/pet-size.ts';
 import type { ConfigPaths } from './constants.ts';
-import { fontValid, physicsValid, topFieldValid } from './validate.ts';
+import { fontValid, topFieldValid } from './validate.ts';
 
 /**
  * 保存用户层（PUT /config）：接受 pets + 全局开关 + physics / font / 两个模型 / 对话参数。
@@ -84,11 +84,6 @@ export function saveUserConfig(
   // 系统托盘开关（全局，仅桌面模式）：与上面几个全局布尔同语义——传了必须是布尔，没传走透传保留。
   const te = o.trayEnabled;
   if (te !== undefined && typeof te !== 'boolean') return null;
-  // physics（拖拽抛掷手感，设置页「物理」区可图形化编辑）：整段校验——physicsValid 与读取侧
-  // 是同一份规则（gravity/groundFriction ≥ 0、restitution ∈ [0,1]、throwPower > 0、两个布尔）。
-  // 传了就按白名单写入；没传则走下面的透传保留（用户手改的值原样不动）。
-  const ph = o.physics;
-  if (ph !== undefined && !physicsValid(ph)) return null;
   // font（字体种类 / 字号 / 是否随宠物缩放；设置页「外观与字体」区写的就是它）：与 physics
   // 同一套语义——传了就整段校验后进白名单，没传则走下面的透传保留。
   // 校验直接复用读取侧的 fontValid（family 白名单 / size 4~200 / followPet 布尔），读写同一份规则。
@@ -110,7 +105,6 @@ export function saveUserConfig(
   if (cse !== undefined) outConfig.clickSoundEnabled = cse;
   if (cts !== undefined) outConfig.confineToScreen = cts;
   if (te !== undefined) outConfig.trayEnabled = te;
-  if (ph !== undefined) outConfig.physics = ph;
   if (fo !== undefined) outConfig.font = fo;
   // 数值归一化落盘：请求体传 "9" 也存成 9（与读取侧 topFieldValid 的 Number() 口径一致）
   if (nte !== undefined) outConfig.notificationTurnEnd = nte;
@@ -126,7 +120,6 @@ export function saveUserConfig(
   if (cse !== undefined) bodyOwned.add('clickSoundEnabled');
   if (cts !== undefined) bodyOwned.add('confineToScreen');
   if (te !== undefined) bodyOwned.add('trayEnabled');
-  if (ph !== undefined) bodyOwned.add('physics');
   if (fo !== undefined) bodyOwned.add('font');
   if (nte !== undefined) bodyOwned.add('notificationTurnEnd');
   if (nap !== undefined) bodyOwned.add('notificationApproval');

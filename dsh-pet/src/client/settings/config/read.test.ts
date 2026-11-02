@@ -10,7 +10,6 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { readConfigEntries, readMainConfig } from './read.ts';
-import { DEFAULT_PHYSICS } from '../../../shared/physics.ts';
 import { DEFAULT_FONT } from '../../../shared/fonts.ts';
 
 describe('readMainConfig —— 成品聚合 → 表单补丁', () => {
@@ -30,9 +29,8 @@ describe('readMainConfig —— 成品聚合 → 表单补丁', () => {
     assert.equal(merged.main.pets[0].position.marginX, 1, '不允许共享同一份 position 对象');
   });
 
-  test('物理参数与字体：成品缺子键时用内置默认补满', () => {
-    const patch = readMainConfig({ main: { pets: [], physics: { gravity: 3 }, font: { size: 20 } } });
-    assert.deepEqual(patch?.physics, { ...DEFAULT_PHYSICS, gravity: 3 });
+  test('字体：成品缺子键时用内置默认补满', () => {
+    const patch = readMainConfig({ main: { pets: [], font: { size: 20 } } });
     assert.deepEqual(patch?.font, { ...DEFAULT_FONT, size: 20 });
   });
 

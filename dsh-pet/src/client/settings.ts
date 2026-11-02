@@ -5,8 +5,7 @@
  * @module dsh-pet/src/client/settings
  */
 import { DEFAULT_FONT } from '../shared/fonts.ts';
-import { DEFAULT_PHYSICS } from '../shared/physics.ts';
-import type { FontConfig, PhysicsParams } from '../shared/types.ts';
+import type { FontConfig } from '../shared/types.ts';
 import type { FunctionComponent } from 'react';
 import { requestNotificationPermission } from './notify.ts';
 import { injectSettingsCss } from './settings/css.ts';
@@ -70,7 +69,6 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
     const [confineScreen, setConfineScreen] = useState(false);
     const [trayEnabled, setTrayEnabled] = useState(true);
     // 以下字段保留在写盘载荷里（配置 schema 尚未裁剪），但设置页已无对应控件，默认值随加载覆盖。
-    const [physics, setPhysics] = useState<PhysicsParams>({ ...DEFAULT_PHYSICS });
     const [font, setFont] = useState<FontConfig>({ ...DEFAULT_FONT });
     const [notificationTurnEnd, setNotificationTurnEnd] = useState<'never' | 'unfocused' | 'always'>('unfocused');
     const [notificationApproval, setNotificationApproval] = useState(true);
@@ -87,7 +85,6 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
         if (patch.clickSoundEnabled !== undefined) setClickSound(patch.clickSoundEnabled);
         if (patch.confineToScreen !== undefined) setConfineScreen(patch.confineToScreen);
         if (patch.trayEnabled !== undefined) setTrayEnabled(patch.trayEnabled);
-        if (patch.physics !== undefined) setPhysics(patch.physics);
         if (patch.font !== undefined) setFont(patch.font);
         if (patch.notificationTurnEnd !== undefined) setNotificationTurnEnd(patch.notificationTurnEnd);
         if (patch.notificationApproval !== undefined) setNotificationApproval(patch.notificationApproval);
@@ -143,7 +140,6 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
         clickSoundEnabled: clickSound,
         confineToScreen: confineScreen,
         trayEnabled,
-        physics,
         font,
         notificationTurnEnd,
         notificationApproval,

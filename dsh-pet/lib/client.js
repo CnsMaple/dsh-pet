@@ -2493,10 +2493,6 @@ function readMainConfig(merged) {
 	if (typeof main.chatAnimationEnabled === "boolean") patch.chatAnimationEnabled = main.chatAnimationEnabled;
 	if (typeof main.confineToScreen === "boolean") patch.confineToScreen = main.confineToScreen;
 	if (typeof main.trayEnabled === "boolean") patch.trayEnabled = main.trayEnabled;
-	if (typeof main.voiceEnabled === "boolean") patch.voiceEnabled = main.voiceEnabled;
-	if (typeof main.voiceName === "string") patch.voiceName = main.voiceName;
-	if (typeof main.voiceWhisperEnabled === "boolean") patch.voiceWhisperEnabled = main.voiceWhisperEnabled;
-	if (typeof main.voiceTodoEnabled === "boolean") patch.voiceTodoEnabled = main.voiceTodoEnabled;
 	if (main.physics && typeof main.physics === "object") patch.physics = {
 		...DEFAULT_PHYSICS,
 		...main.physics
@@ -2517,8 +2513,6 @@ function readMainConfig(merged) {
 	if (typeof main.notificationApproval === "boolean") patch.notificationApproval = main.notificationApproval;
 	if (typeof main.notificationQuestion === "boolean") patch.notificationQuestion = main.notificationQuestion;
 	if (main.notificationSound === "default" || main.notificationSound === "classic" || main.notificationSound === "none") patch.notificationSound = main.notificationSound;
-	const volume = nonNegative(main.voiceVolume);
-	if (volume !== void 0 && volume <= 1) patch.voiceVolume = volume;
 	return patch;
 }
 function readConfigEntries(merged) {
@@ -2552,11 +2546,6 @@ function buildSaveBody(fields) {
 		chatAnimationEnabled: fields.chatAnimationEnabled,
 		confineToScreen: fields.confineToScreen,
 		trayEnabled: fields.trayEnabled,
-		voiceEnabled: fields.voiceEnabled,
-		voiceName: fields.voiceName,
-		voiceVolume: fields.voiceVolume,
-		voiceWhisperEnabled: fields.voiceWhisperEnabled,
-		voiceTodoEnabled: fields.voiceTodoEnabled,
 		physics: fields.physics,
 		whisperModel: fields.whisperModel,
 		chatModel: fields.chatModel,
@@ -5803,11 +5792,6 @@ function makePetConfigSection(rt) {
 		const [whisperImage, setWhisperImage] = useState(false);
 		const [chatImage, setChatImage] = useState(false);
 		const [chatAnimation, setChatAnimation] = useState(true);
-		const [voiceEnabled, setVoiceEnabled] = useState(false);
-		const [voiceName, setVoiceName] = useState("zh-CN-XiaoyiNeural");
-		const [voiceVolume, setVoiceVolume] = useState(1);
-		const [voiceWhisperEnabled, setVoiceWhisperEnabled] = useState(false);
-		const [voiceTodoEnabled, setVoiceTodoEnabled] = useState(false);
 		const [physics, setPhysics] = useState({ ...DEFAULT_PHYSICS });
 		const [font, setFont] = useState({ ...DEFAULT_FONT });
 		const [whisperModel, setWhisperModel] = useState({
@@ -5836,11 +5820,6 @@ function makePetConfigSection(rt) {
 			if (patch.chatAnimationEnabled !== void 0) setChatAnimation(patch.chatAnimationEnabled);
 			if (patch.confineToScreen !== void 0) setConfineScreen(patch.confineToScreen);
 			if (patch.trayEnabled !== void 0) setTrayEnabled(patch.trayEnabled);
-			if (patch.voiceEnabled !== void 0) setVoiceEnabled(patch.voiceEnabled);
-			if (patch.voiceName !== void 0) setVoiceName(patch.voiceName);
-			if (patch.voiceVolume !== void 0) setVoiceVolume(patch.voiceVolume);
-			if (patch.voiceWhisperEnabled !== void 0) setVoiceWhisperEnabled(patch.voiceWhisperEnabled);
-			if (patch.voiceTodoEnabled !== void 0) setVoiceTodoEnabled(patch.voiceTodoEnabled);
 			if (patch.physics !== void 0) setPhysics(patch.physics);
 			if (patch.font !== void 0) setFont(patch.font);
 			if (patch.whisperModel !== void 0) setWhisperModel(patch.whisperModel);
@@ -5902,11 +5881,6 @@ function makePetConfigSection(rt) {
 				chatAnimationEnabled: chatAnimation,
 				confineToScreen: confineScreen,
 				trayEnabled,
-				voiceEnabled,
-				voiceName,
-				voiceVolume,
-				voiceWhisperEnabled,
-				voiceTodoEnabled,
 				physics,
 				whisperModel,
 				chatModel,

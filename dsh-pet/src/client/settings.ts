@@ -73,11 +73,6 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
     const [whisperImage, setWhisperImage] = useState(false);
     const [chatImage, setChatImage] = useState(false);
     const [chatAnimation, setChatAnimation] = useState(true);
-    const [voiceEnabled, setVoiceEnabled] = useState(false);
-    const [voiceName, setVoiceName] = useState('zh-CN-XiaoyiNeural');
-    const [voiceVolume, setVoiceVolume] = useState(1);
-    const [voiceWhisperEnabled, setVoiceWhisperEnabled] = useState(false);
-    const [voiceTodoEnabled, setVoiceTodoEnabled] = useState(false);
     const [physics, setPhysics] = useState<PhysicsParams>({ ...DEFAULT_PHYSICS });
     const [font, setFont] = useState<FontConfig>({ ...DEFAULT_FONT });
     const [whisperModel, setWhisperModel] = useState<ModelSelection>({ provider: '', model: '' });
@@ -102,11 +97,6 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
         if (patch.chatAnimationEnabled !== undefined) setChatAnimation(patch.chatAnimationEnabled);
         if (patch.confineToScreen !== undefined) setConfineScreen(patch.confineToScreen);
         if (patch.trayEnabled !== undefined) setTrayEnabled(patch.trayEnabled);
-        if (patch.voiceEnabled !== undefined) setVoiceEnabled(patch.voiceEnabled);
-        if (patch.voiceName !== undefined) setVoiceName(patch.voiceName);
-        if (patch.voiceVolume !== undefined) setVoiceVolume(patch.voiceVolume);
-        if (patch.voiceWhisperEnabled !== undefined) setVoiceWhisperEnabled(patch.voiceWhisperEnabled);
-        if (patch.voiceTodoEnabled !== undefined) setVoiceTodoEnabled(patch.voiceTodoEnabled);
         if (patch.physics !== undefined) setPhysics(patch.physics);
         if (patch.font !== undefined) setFont(patch.font);
         if (patch.whisperModel !== undefined) setWhisperModel(patch.whisperModel);
@@ -170,11 +160,6 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
         chatAnimationEnabled: chatAnimation,
         confineToScreen: confineScreen,
         trayEnabled,
-        voiceEnabled,
-        voiceName,
-        voiceVolume,
-        voiceWhisperEnabled,
-        voiceTodoEnabled,
         physics,
         whisperModel,
         chatModel,

@@ -23,16 +23,6 @@ export interface MainConfigPatch {
   chatAnimationEnabled?: boolean;
   confineToScreen?: boolean;
   trayEnabled?: boolean;
-  /** 语音播报总开关；缺省表示这次响应里没有可信值。 */
-  voiceEnabled?: boolean;
-  /** 语音音色 id（宿主已按白名单校验，客户端原样展示）。 */
-  voiceName?: string;
-  /** 播放音量系数（0–1）；缺省表示这次响应里没有可信值。 */
-  voiceVolume?: number;
-  /** 周期碎碎念的语音开关；缺省表示这次响应里没有可信值。 */
-  voiceWhisperEnabled?: boolean;
-  /** 待办提醒的语音开关；缺省表示这次响应里没有可信值。 */
-  voiceTodoEnabled?: boolean;
   /** 物理参数：成品已按「内置默认 ← 用户层」填满，缺子键再用内置默认兜底一次。 */
   physics?: PhysicsParams;
   /** 字体：同物理参数。 */
@@ -85,10 +75,6 @@ export function readMainConfig(merged: MergedConfig): MainConfigPatch | null {
   if (typeof main.chatAnimationEnabled === 'boolean') patch.chatAnimationEnabled = main.chatAnimationEnabled;
   if (typeof main.confineToScreen === 'boolean') patch.confineToScreen = main.confineToScreen;
   if (typeof main.trayEnabled === 'boolean') patch.trayEnabled = main.trayEnabled;
-  if (typeof main.voiceEnabled === 'boolean') patch.voiceEnabled = main.voiceEnabled;
-  if (typeof main.voiceName === 'string') patch.voiceName = main.voiceName;
-  if (typeof main.voiceWhisperEnabled === 'boolean') patch.voiceWhisperEnabled = main.voiceWhisperEnabled;
-  if (typeof main.voiceTodoEnabled === 'boolean') patch.voiceTodoEnabled = main.voiceTodoEnabled;
   if (main.physics && typeof main.physics === 'object') {
     patch.physics = { ...DEFAULT_PHYSICS, ...(main.physics as PhysicsParams) };
   }
@@ -113,9 +99,6 @@ export function readMainConfig(merged: MergedConfig): MainConfigPatch | null {
   if (typeof main.notificationQuestion === 'boolean') patch.notificationQuestion = main.notificationQuestion;
   if (main.notificationSound === 'default' || main.notificationSound === 'classic' || main.notificationSound === 'none')
     patch.notificationSound = main.notificationSound;
-  // 上界在宿主侧已经把关，这里补一次跨进程读回的判定：脏值只影响显示，不让它流到播放端
-  const volume = nonNegative(main.voiceVolume);
-  if (volume !== undefined && volume <= 1) patch.voiceVolume = volume;
   return patch;
 }
 

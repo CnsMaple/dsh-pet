@@ -194,11 +194,6 @@ const GLOBAL_DEFAULT_KEYS = [
 	"physics",
 	"font",
 	"confineToScreen",
-	"voiceEnabled",
-	"voiceName",
-	"voiceVolume",
-	"voiceWhisperEnabled",
-	"voiceTodoEnabled",
 	"whisperImageEnabled",
 	"chatImageEnabled",
 	"chatAnimationEnabled",
@@ -420,11 +415,6 @@ function topFieldValid(key, value) {
 		case "notificationSound": return value === "default" || value === "classic" || value === "none";
 		case "clickSoundEnabled": return typeof value === "boolean";
 		case "whisperImageEnabled": return typeof value === "boolean";
-		case "voiceEnabled": return typeof value === "boolean";
-		case "voiceName": return typeof value === "string";
-		case "voiceVolume": return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
-		case "voiceWhisperEnabled": return typeof value === "boolean";
-		case "voiceTodoEnabled": return typeof value === "boolean";
 		case "chatImageEnabled": return typeof value === "boolean";
 		case "chatAnimationEnabled": return typeof value === "boolean";
 		case "confineToScreen": return typeof value === "boolean";
@@ -712,16 +702,6 @@ function saveUserConfig(raw, existing) {
 	if (cae !== void 0 && typeof cae !== "boolean") return null;
 	const cts = o.confineToScreen;
 	if (cts !== void 0 && typeof cts !== "boolean") return null;
-	const ve = o.voiceEnabled;
-	if (ve !== void 0 && typeof ve !== "boolean") return null;
-	const vn = o.voiceName;
-	if (vn !== void 0 && !topFieldValid("voiceName", vn)) return null;
-	const vv = o.voiceVolume;
-	if (vv !== void 0 && !topFieldValid("voiceVolume", vv)) return null;
-	const vwe = o.voiceWhisperEnabled;
-	if (vwe !== void 0 && !topFieldValid("voiceWhisperEnabled", vwe)) return null;
-	const vte = o.voiceTodoEnabled;
-	if (vte !== void 0 && !topFieldValid("voiceTodoEnabled", vte)) return null;
 	const te = o.trayEnabled;
 	if (te !== void 0 && typeof te !== "boolean") return null;
 	const ph = o.physics;
@@ -755,11 +735,6 @@ function saveUserConfig(raw, existing) {
 	if (cie !== void 0) outConfig.chatImageEnabled = cie;
 	if (cae !== void 0) outConfig.chatAnimationEnabled = cae;
 	if (cts !== void 0) outConfig.confineToScreen = cts;
-	if (ve !== void 0) outConfig.voiceEnabled = ve;
-	if (vn !== void 0) outConfig.voiceName = vn;
-	if (vv !== void 0) outConfig.voiceVolume = vv;
-	if (vwe !== void 0) outConfig.voiceWhisperEnabled = vwe;
-	if (vte !== void 0) outConfig.voiceTodoEnabled = vte;
 	if (te !== void 0) outConfig.trayEnabled = te;
 	if (ph !== void 0) outConfig.physics = ph;
 	if (fo !== void 0) outConfig.font = fo;
@@ -778,11 +753,6 @@ function saveUserConfig(raw, existing) {
 	if (cie !== void 0) bodyOwned.add("chatImageEnabled");
 	if (cae !== void 0) bodyOwned.add("chatAnimationEnabled");
 	if (cts !== void 0) bodyOwned.add("confineToScreen");
-	if (ve !== void 0) bodyOwned.add("voiceEnabled");
-	if (vn !== void 0) bodyOwned.add("voiceName");
-	if (vv !== void 0) bodyOwned.add("voiceVolume");
-	if (vwe !== void 0) bodyOwned.add("voiceWhisperEnabled");
-	if (vte !== void 0) bodyOwned.add("voiceTodoEnabled");
 	if (te !== void 0) bodyOwned.add("trayEnabled");
 	if (ph !== void 0) bodyOwned.add("physics");
 	if (fo !== void 0) bodyOwned.add("font");

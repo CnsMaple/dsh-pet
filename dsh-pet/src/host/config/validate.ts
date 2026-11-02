@@ -172,20 +172,6 @@ export function topFieldValid(key: string, value: unknown): boolean {
       return typeof value === 'boolean';
     case 'whisperImageEnabled':
       return typeof value === 'boolean';
-    case 'voiceEnabled':
-      // 语音播报开关（全局布尔）：只决定念不念，不影响气泡与记忆
-      return typeof value === 'boolean';
-    case 'voiceName':
-      return typeof value === 'string';
-    case 'voiceVolume':
-      // 播放音量系数：0–1 的有限数，与 Audio.volume 同量纲；越界即非法（不夹取，读取侧回落默认）
-      return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
-    case 'voiceWhisperEnabled':
-      // 周期碎碎念的语音开关（全局布尔）：只决定念不念，不影响气泡与记忆
-      return typeof value === 'boolean';
-    case 'voiceTodoEnabled':
-      // 待办提醒的语音开关（全局布尔）：同上
-      return typeof value === 'boolean';
     case 'chatImageEnabled':
       return typeof value === 'boolean';
     case 'chatAnimationEnabled':

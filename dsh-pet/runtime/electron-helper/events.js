@@ -355,14 +355,8 @@ function applyPositionLeaf(petId, leaf) {
   }
 }
 
-/** 抛掷指令叶子 → 按角度/力度飞出去；初速换算在 shared，下游全是既有抛掷物理。 */
-function applyThrowLeaf(petId, leaf) {
-  const hit = S.readThrow(leaf);
-  if (!hit) return;
-  for (const s of sprites) {
-    if (s.pet.id === petId) s.throwWith(hit.angle, hit.power);
-  }
-}
+/** 抛掷指令已移除：宿主不再提供 /throw，桌面端纯跟手，这里留空实现防御旧状态。 */
+function applyThrowLeaf() {}
 
 /** 占用锁叶子 → 对应宠物冻结/解冻。它不是指令而是状态：sprite 自己按 expiresAt 定时解除，
  *  因为宿主侧过期是懒判的、不会推「锁没了」。 */
@@ -462,9 +456,6 @@ async function pollStateOnce() {
       } else if (change.path.startsWith('pets.') && change.path.endsWith('.position')) {
         // 位置指令：同样按前缀/后缀切片，绝不 split('.')
         applyPositionLeaf(change.path.slice('pets.'.length, -'.position'.length), change.leaf);
-      } else if (change.path.startsWith('pets.') && change.path.endsWith('.throw')) {
-        // 抛掷指令：同上
-        applyThrowLeaf(change.path.slice('pets.'.length, -'.throw'.length), change.leaf);
       } else if (change.path.startsWith('pets.') && change.path.endsWith('.lock')) {
         // 占用锁：同上切片，绝不 split('.')。它是状态而不是指令（见 applyLockLeaf）
         applyLockLeaf(change.path.slice('pets.'.length, -'.lock'.length), change.leaf);

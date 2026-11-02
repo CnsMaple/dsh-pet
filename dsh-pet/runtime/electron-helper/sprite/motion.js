@@ -196,10 +196,8 @@ Object.assign(PetSprite.prototype, {
    * 抛掷指令：角度（度，0 = 正右，逆时针为正）+ 力度倍率 → 初速度，交给 startThrow；
    * 下游的重力/反弹/摩擦/落地 Q 弹/跨窗碰撞全是既有行为。
    */
-  throwWith(angleDeg, power) {
-    if (this.dragState.active) return; // 用户交互优先
-    const v = S.throwVelocity(angleDeg, power);
-    this.startThrow(this.pos.x, this.pos.y, v.vx, v.vy);
+  throwWith() {
+    /* 抛掷已移除：桌面端为纯跟手，点播 /throw 指令不再产生飞行。 */
   },
 
   /** 被撞回调（跨窗碰撞 broker 转发）：停当前动作，从落点以新初速抛出去（全复用现有物理） */

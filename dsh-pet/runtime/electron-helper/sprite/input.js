@@ -124,10 +124,7 @@ Object.assign(PetSprite.prototype, {
       }
       this.syncInputBusy(); // 拖拽成立：主进程兜底通道闭嘴（见 inputBusy）
     }
-    // 记录指针轨迹（screenX/Y 采样，速度一致；初速估算用；÷scale 进 CSS 系）
-    const now = performance.now();
-    this.dragTrail.push({ t: now, x: toLocal(e.screenX), y: toLocal(e.screenY) });
-    this.dragTrail = S.trimTrail(this.dragTrail, now);
+    // 纯跟手：不再记录轨迹/初速（抛掷已移除）。
     // 弹簧目标 = 按下时的宠物位置 + 指针屏幕增量（窗口怎么动都不影响坐标），由 rAF 逐帧追赶
     this.dragTarget = { x: d.petX + dx, y: d.petY + dy };
     this.startDragFollow();
@@ -178,59 +175,12 @@ Object.assign(PetSprite.prototype, {
       if (!this.sleeping && !this.resumeWorkStatusAnim()) {
         if (this.animations.idle.length) this.playOnce(S.pick(this.animations.idle, this.anim));
       }
-      // 释放位置 = 弹簧跟随后的实际包围盒左上角（不是指针目标：滞后时落点应跟随宠物实际位置）
+      // 纯跟手：松手即停在当前包围盒位置（无抛掷/弹弓/惯性）。
       const px = this.pos.x;
       const py = this.pos.y;
-      if (d.sling) {
-        // 弹弓：力度 = 拉距（与手速无关），方向 = 拉的反方向；拉向量用宠物实际中心算
-        // （弹簧有滞后，用户看到的是宠物被拉出去多远）。之后与甩抛走同一条 startThrow。
-        const pullX = px + this.halfW - d.anchorX;
-        const pullY = py + this.halfH - d.anchorY;
-        const dist = Math.hypot(pullX, pullY);
-        const rawPower = S.slingshotPower(dist, this.size);
-        const v = S.slingshotVelocity(S.pullAngle(pullX, pullY), rawPower, this.physics.throwPower);
-        this.dragTrail = [];
-        console.log(
-          '[dsh-pet] ' +
-            new Date().toTimeString().slice(0, 8) +
-            ' pet=' +
-            this.pet.id +
-            ' sling dist=' +
-            Math.round(dist) +
-            ' power=' +
-            rawPower.toFixed(2) +
-            ' vx=' +
-            Math.round(v.vx) +
-            ' vy=' +
-            Math.round(v.vy),
-        );
-        this.startThrow(px, py, v.vx, v.vy);
-      } else {
-        // 初速估算：够快就抛掷，否则原地放下
-        const vel = S.estimateReleaseVelocity(this.dragTrail, performance.now(), this.physics);
-        this.dragTrail = [];
-        if (vel) {
-          console.log(
-            '[dsh-pet] ' +
-              new Date().toTimeString().slice(0, 8) +
-              ' pet=' +
-              this.pet.id +
-              ' release vx=' +
-              Math.round(vel.vx) +
-              ' vy=' +
-              Math.round(vel.vy) +
-              ' |v|=' +
-              Math.round(Math.hypot(vel.vx, vel.vy)),
-          );
-          this.startThrow(px, py, vel.vx, vel.vy);
-        } else {
-          // customPos 语义 = 宠物中心的比例（position() 用 rx*W - halfW 还原左上角），松手无边界夹取
-          this.customPos = { rx: (px + this.halfW) / VIEW.w, ry: (py + this.halfH) / VIEW.h };
-          this.position();
-          // 释放后的最终窗口位置：冒烟断言「释放不位移」用
-          window.__dshPetDebug.lastDragRelease = { x: this.pos.x, y: this.pos.y };
-        }
-      }
+      this.customPos = { rx: (px + this.halfW) / VIEW.w, ry: (py + this.halfH) / VIEW.h };
+      this.position();
+      window.__dshPetDebug.lastDragRelease = { x: this.pos.x, y: this.pos.y };
     }
   },
 

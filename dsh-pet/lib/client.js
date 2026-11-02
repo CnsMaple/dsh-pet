@@ -531,16 +531,6 @@ const DEFAULT_PHYSICS = {
 const DEFAULT_THROW_POWER = 1;
 
 //#endregion
-//#region src/shared/displays.ts
-const rectRight = (r) => r.x + r.width;
-const rectBottom = (r) => r.y + r.height;
-const pointInRect = (r, x, y) => x >= r.x && x < rectRight(r) && y >= r.y && y < rectBottom(r);
-const rectAtPoint = (rects, x, y) => {
-	for (const r of rects) if (pointInRect(r, x, y)) return r;
-	return null;
-};
-
-//#endregion
 //#region src/shared/physics/spring.ts
 const springStep = (v, x, target, dt, power = DEFAULT_THROW_POWER) => v + ((target - x) * SPRING_K - v * SPRING_C) * power * dt;
 
@@ -7787,6 +7777,16 @@ function createPositionFollow(deps) {
 		stop
 	};
 }
+
+//#endregion
+//#region src/shared/displays.ts
+const rectRight = (r) => r.x + r.width;
+const rectBottom = (r) => r.y + r.height;
+const pointInRect = (r, x, y) => x >= r.x && x < rectRight(r) && y >= r.y && y < rectBottom(r);
+const rectAtPoint = (rects, x, y) => {
+	for (const r of rects) if (pointInRect(r, x, y)) return r;
+	return null;
+};
 
 //#endregion
 //#region src/shared/motion.ts

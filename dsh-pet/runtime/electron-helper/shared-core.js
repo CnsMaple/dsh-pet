@@ -823,16 +823,7 @@ function mountContextMenu(opts) {
 //#region src/shared/physics/constants.ts
 const SPRING_K = 200;
 const SPRING_C = 30;
-const TRAIL_KEEP_MS = 200;
-const RELEASE_WINDOW_MS = 150;
-const RELEASE_STALE_MS = 150;
-const MIN_SPAN_MS = 20;
-const SEG_MIN_DT_MS = 8;
-const DEAD_ZONE_SPEED = 500;
 const MAX_THROW_SPEED = 3600;
-const PEAK_WEIGHT = .5;
-const ACCEL_REF = 8e3;
-const ACCEL_GAIN_MAX = .6;
 const GRAVITY = 1400;
 const RESTITUTION = .78;
 const GROUND_FRICTION = 2.5;
@@ -848,20 +839,32 @@ const DEFAULT_PHYSICS = {
 	shakeThrow: true
 };
 const DEFAULT_THROW_POWER = 1;
-const REST_NORMAL = 40;
-const REST_TANGENT = 15;
-const REST_NORMAL_EPS = 1;
-const MAX_STEP_DT = .05;
 const SQ_SQUASH = .55;
 const SQ_DURATION_MS = 220;
 const SQ_SOFT_SPEED = 300;
 const SQ_HARD_SPEED = 1500;
 const SQ_MAX_SQUASH = .55;
 const THROW_SPEED_ANCHOR = 1200;
-const SLINGSHOT_REF_RATIO = .6;
-const SUBSTEP_PX = 8;
-const SUBSTEP_MAX = 64;
-const PET_BOUNCE_E = .995;
+
+//#endregion
+//#region src/shared/physics/spring.ts
+const springStep = (v, x, target, dt, power = DEFAULT_THROW_POWER) => v + ((target - x) * SPRING_K - v * SPRING_C) * power * dt;
+const softClampSpeed = (speed) => {
+	if (speed <= 0) return 0;
+	return MAX_THROW_SPEED * (1 - Math.exp(-speed / MAX_THROW_SPEED));
+};
+
+//#endregion
+//#region src/shared/physics/collide.ts
+const bodyPixelBox = (o) => {
+	const h = o.size * 9 / 16;
+	return {
+		left: o.x + HIT_BOX.x0 / 640 * o.size,
+		top: o.y + o.bottomPad + HIT_BOX.y0 / 360 * h,
+		right: o.x + HIT_BOX.x1 / 640 * o.size,
+		bottom: o.y + o.bottomPad + HIT_BOX.y1 / 360 * h
+	};
+};
 
 //#endregion
 //#region src/shared/physics/squash.ts
@@ -879,429 +882,6 @@ const squashScale = (u, squash = SQ_SQUASH) => {
 	const c3 = c1 + 1;
 	const f = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2);
 	return Math.min(1.12, squash + (1 - squash) * Math.max(f, 0));
-};
-
-//#endregion
-//#region src/shared/physics/contact.ts
-const CONTACT_NORMALS = {
-	left: {
-		nx: 1,
-		ny: 0
-	},
-	right: {
-		nx: -1,
-		ny: 0
-	},
-	ceiling: {
-		nx: 0,
-		ny: 1
-	},
-	floor: {
-		nx: 0,
-		ny: -1
-	}
-};
-const resolveContact = (speed, edge, physics, dt) => {
-	const { nx, ny } = CONTACT_NORMALS[edge];
-	const tx = -ny;
-	const ty = nx;
-	const vn = speed.vx * nx + speed.vy * ny;
-	const vt = speed.vx * tx + speed.vy * ty;
-	const normalSpeed = Math.abs(vn) < REST_NORMAL ? 0 : Math.abs(vn) * physics.restitution;
-	const tangentSpeed = vt * Math.max(0, 1 - physics.groundFriction * dt);
-	return {
-		vx: normalSpeed * nx + tangentSpeed * tx,
-		vy: normalSpeed * ny + tangentSpeed * ty,
-		normalSpeed,
-		tangentSpeed
-	};
-};
-const isRestingOnContacts = (edges, speed) => {
-	if (edges.length === 0) return false;
-	return edges.every((edge) => {
-		const { nx, ny } = CONTACT_NORMALS[edge];
-		const normal = Math.abs(speed.vx * nx + speed.vy * ny);
-		const tangent = Math.abs(speed.vx * -ny + speed.vy * nx);
-		return normal < REST_NORMAL_EPS && tangent < REST_TANGENT;
-	});
-};
-
-//#endregion
-//#region src/shared/physics/throw.ts
-const throwBounds = (o) => {
-	const h = o.size * 9 / 16;
-	return {
-		minX: -o.sideAllow,
-		minY: 0,
-		maxX: o.W - o.size + o.sideAllow,
-		maxY: o.H - h
-	};
-};
-const throwBoundsIn = (area, size, sideAllow) => {
-	const h = size * 9 / 16;
-	return {
-		minX: area.x - sideAllow,
-		minY: area.y,
-		maxX: rectRight(area) - size + sideAllow,
-		maxY: rectBottom(area) - h
-	};
-};
-const throwSpace = (o) => ({
-	bounds: o.areas.map((a) => throwBoundsIn(a, o.size, o.sideAllow)),
-	areas: o.areas,
-	panels: o.panels && o.panels.length === o.areas.length ? o.panels : o.areas,
-	size: o.size,
-	sideAllow: o.sideAllow
-});
-const screenOfBox = (space, x, y) => {
-	const cx = x + space.size / 2;
-	const cy = y + space.size * 9 / 16 / 2;
-	const hit = indexAtPoint(space.areas, cx, cy);
-	return hit >= 0 ? hit : nearestIndex(space.areas, cx, cy);
-};
-const throwStep = (s, dtRaw, b, physics = DEFAULT_PHYSICS, gravity) => {
-	const dt = Math.min(Math.max(dtRaw, 0), MAX_STEP_DT);
-	const g = gravity ?? {
-		gx: 0,
-		gy: physics.gravity
-	};
-	let { x, y, vx, vy } = s;
-	vx += g.gx * dt;
-	vy += g.gy * dt;
-	x += vx * dt;
-	y += vy * dt;
-	let bounced = false;
-	let hit = null;
-	const contacts = [];
-	/** 同一步撞到两条边（角落）时 hit 留更重的那个（手感只按主撞击算），contacts 全量保留。 */
-	const record = (edge, speed) => {
-		contacts.push(edge);
-		if (hit === null || speed > hit.speed) hit = {
-			edge,
-			speed
-		};
-	};
-	if (x < b.minX) {
-		record("left", Math.abs(vx));
-		x = b.minX;
-		const out = resolveContact({
-			vx,
-			vy
-		}, "left", physics, dt);
-		vx = out.vx;
-		vy = out.vy;
-		bounced = true;
-	} else if (x > b.maxX) {
-		record("right", Math.abs(vx));
-		x = b.maxX;
-		const out = resolveContact({
-			vx,
-			vy
-		}, "right", physics, dt);
-		vx = out.vx;
-		vy = out.vy;
-		bounced = true;
-	}
-	if (y < b.minY) {
-		if (physics.ceilingBounce) {
-			record("ceiling", Math.abs(vy));
-			y = b.minY;
-			const out = resolveContact({
-				vx,
-				vy
-			}, "ceiling", physics, dt);
-			vx = out.vx;
-			vy = out.vy;
-			bounced = true;
-		}
-	} else if (y >= b.maxY) {
-		record("floor", Math.abs(vy));
-		y = b.maxY;
-		const out = resolveContact({
-			vx,
-			vy
-		}, "floor", physics, dt);
-		vx = out.vx;
-		vy = out.vy;
-		bounced = true;
-	}
-	return {
-		x,
-		y,
-		vx,
-		vy,
-		bounced,
-		atRest: isRestingOnContacts(contacts, {
-			vx,
-			vy
-		}),
-		hit,
-		contacts
-	};
-};
-const throwStepRegion = (s, dtRaw, space, physics = DEFAULT_PHYSICS, lockScreen = -1, gravity) => {
-	const dt = Math.min(Math.max(dtRaw, 0), MAX_STEP_DT);
-	const g = gravity ?? {
-		gx: 0,
-		gy: physics.gravity
-	};
-	let { x, y, vx, vy } = s;
-	vx += g.gx * dt;
-	vy += g.gy * dt;
-	x += vx * dt;
-	y += vy * dt;
-	if (space.areas.length === 0) return {
-		x,
-		y,
-		vx,
-		vy,
-		screen: -1,
-		bounced: false,
-		atRest: false,
-		hit: null,
-		contacts: []
-	};
-	const h = space.size * 9 / 16;
-	let bounced = false;
-	let hit = null;
-	const contacts = [];
-	/** 同一步撞到两条边时 hit 留更重的那个，与 {@link throwStep} 同口径；contacts 全量保留。 */
-	const record = (edge, speed) => {
-		contacts.push(edge);
-		if (hit === null || speed > hit.speed) hit = {
-			edge,
-			speed
-		};
-	};
-	const locked = Number.isInteger(lockScreen) && lockScreen >= 0 && lockScreen < space.areas.length;
-	/** 该用哪块屏的 AABB / 工作区 / 面板：锁定时恒为锁定屏，否则取身体中心所在屏 */
-	const pick$1 = (i) => locked ? lockScreen : i;
-	let cur = screenOfBox(space, x, y);
-	let b = space.bounds[pick$1(cur)];
-	let a = space.areas[pick$1(cur)];
-	const pa = space.panels[pick$1(cur)] || a;
-	const cy = y + h / 2;
-	if (x < b.minX) {
-		if (locked || indexAtPoint(space.panels, pa.x - 1, cy) < 0) {
-			record("left", Math.abs(vx));
-			x = b.minX;
-			const out = resolveContact({
-				vx,
-				vy
-			}, "left", physics, dt);
-			vx = out.vx;
-			vy = out.vy;
-			bounced = true;
-		}
-	} else if (x > b.maxX) {
-		if (locked || indexAtPoint(space.panels, rectRight(pa), cy) < 0) {
-			record("right", Math.abs(vx));
-			x = b.maxX;
-			const out = resolveContact({
-				vx,
-				vy
-			}, "right", physics, dt);
-			vx = out.vx;
-			vy = out.vy;
-			bounced = true;
-		}
-	}
-	cur = screenOfBox(space, x, y);
-	b = space.bounds[pick$1(cur)];
-	a = space.areas[pick$1(cur)];
-	const pa2 = space.panels[pick$1(cur)] || a;
-	const cx = x + space.size / 2;
-	if (y < b.minY) {
-		if (physics.ceilingBounce && (locked || indexAtPoint(space.panels, cx, pa2.y - 1) < 0)) {
-			record("ceiling", Math.abs(vy));
-			y = b.minY;
-			const out = resolveContact({
-				vx,
-				vy
-			}, "ceiling", physics, dt);
-			vx = out.vx;
-			vy = out.vy;
-			bounced = true;
-		}
-	} else if (y >= b.maxY) {
-		if (locked || indexAtPoint(space.panels, cx, rectBottom(pa2)) < 0) {
-			record("floor", Math.abs(vy));
-			y = b.maxY;
-			const out = resolveContact({
-				vx,
-				vy
-			}, "floor", physics, dt);
-			vx = out.vx;
-			vy = out.vy;
-			bounced = true;
-		}
-	}
-	cur = pick$1(screenOfBox(space, x, y));
-	return {
-		x,
-		y,
-		vx,
-		vy,
-		screen: cur,
-		bounced,
-		atRest: isRestingOnContacts(contacts, {
-			vx,
-			vy
-		}),
-		hit,
-		contacts
-	};
-};
-const throwSubsteps = (vx, vy, dt) => {
-	const travel = Math.hypot(vx, vy) * Math.min(Math.max(dt, 0), MAX_STEP_DT);
-	if (!(travel > SUBSTEP_PX)) return 1;
-	return Math.min(SUBSTEP_MAX, Math.ceil(travel / SUBSTEP_PX));
-};
-
-//#endregion
-//#region src/shared/physics/spring.ts
-const springStep = (v, x, target, dt, power = DEFAULT_THROW_POWER) => v + ((target - x) * SPRING_K - v * SPRING_C) * power * dt;
-const softClampSpeed = (speed) => {
-	if (speed <= 0) return 0;
-	return MAX_THROW_SPEED * (1 - Math.exp(-speed / MAX_THROW_SPEED));
-};
-
-//#endregion
-//#region src/shared/physics/release.ts
-const trimTrail = (trail, now) => {
-	const cutoff = now - TRAIL_KEEP_MS;
-	let i = 0;
-	while (i < trail.length && trail[i].t < cutoff) i++;
-	return i === 0 ? trail : trail.slice(i);
-};
-const throwVelocity = (angleDeg, power) => {
-	const speed = softClampSpeed(power * THROW_SPEED_ANCHOR);
-	const rad = angleDeg * Math.PI / 180;
-	return {
-		vx: Math.cos(rad) * speed,
-		vy: -Math.sin(rad) * speed
-	};
-};
-const slingshotRefDist = (size) => size > 0 ? size * SLINGSHOT_REF_RATIO : 0;
-const slingshotPower = (dist, size) => {
-	const ref = slingshotRefDist(size);
-	if (!(ref > 0) || !(dist > 0) || !Number.isFinite(dist)) return 0;
-	return dist / ref;
-};
-const pullAngle = (pullX, pullY) => Math.atan2(pullY, -pullX) * 180 / Math.PI;
-const slingshotVelocity = (angleDeg, power, throwPower = DEFAULT_THROW_POWER) => {
-	const speed = THROW_SPEED_ANCHOR * Math.max(0, power) * Math.max(0, throwPower);
-	if (speed === 0) return {
-		vx: 0,
-		vy: 0
-	};
-	const rad = angleDeg * Math.PI / 180;
-	return {
-		vx: Math.cos(rad) * speed,
-		vy: -Math.sin(rad) * speed
-	};
-};
-const estimateReleaseVelocity = (trail, now, physics = DEFAULT_PHYSICS) => {
-	if (trail.length === 0) return null;
-	const last = trail[trail.length - 1];
-	if (now - last.t > RELEASE_STALE_MS) return null;
-	const win = trail.filter((s) => now - s.t <= RELEASE_WINDOW_MS);
-	if (win.length < 2) return null;
-	const t0 = win[0].t;
-	const x0 = win[0].x;
-	const y0 = win[0].y;
-	const t1 = win[win.length - 1].t;
-	const x1 = win[win.length - 1].x;
-	const y1 = win[win.length - 1].y;
-	const spanMs = t1 - t0;
-	if (spanMs < MIN_SPAN_MS) return null;
-	const baseVx = (x1 - x0) / spanMs * 1e3;
-	const baseVy = (y1 - y0) / spanMs * 1e3;
-	const baseSpeed = Math.hypot(baseVx, baseVy);
-	if (baseSpeed < 1e-6) return null;
-	const segSpeeds = [];
-	let px = x0;
-	let py = y0;
-	let pt = t0;
-	for (const s of win.slice(1)) {
-		const dt = s.t - pt;
-		if (dt >= SEG_MIN_DT_MS) {
-			segSpeeds.push({
-				speed: Math.hypot(s.x - px, s.y - py) / dt * 1e3,
-				tEnd: s.t
-			});
-			px = s.x;
-			py = s.y;
-			pt = s.t;
-		}
-	}
-	const peakSpeed = segSpeeds.length ? Math.max(...segSpeeds.map((v) => v.speed)) : baseSpeed;
-	let accel = 0;
-	if (segSpeeds.length >= 2) {
-		const lastSeg = segSpeeds[segSpeeds.length - 1];
-		const firstSeg = segSpeeds[0];
-		accel = (lastSeg.speed - firstSeg.speed) / Math.max((lastSeg.tEnd - firstSeg.tEnd) / 1e3, MIN_SPAN_MS / 1e3);
-	}
-	const speedBeforeClamp = ((1 - PEAK_WEIGHT) * baseSpeed + PEAK_WEIGHT * peakSpeed) * (1 + Math.min(Math.max(accel, 0) / ACCEL_REF, 1) * ACCEL_GAIN_MAX);
-	const speed = softClampSpeed(speedBeforeClamp) * physics.throwPower;
-	if (speed < DEAD_ZONE_SPEED) return null;
-	return {
-		vx: baseVx / baseSpeed * speed,
-		vy: baseVy / baseSpeed * speed
-	};
-};
-
-//#endregion
-//#region src/shared/physics/collide.ts
-const bodyPixelBox = (o) => {
-	const h = o.size * 9 / 16;
-	return {
-		left: o.x + HIT_BOX.x0 / 640 * o.size,
-		top: o.y + o.bottomPad + HIT_BOX.y0 / 360 * h,
-		right: o.x + HIT_BOX.x1 / 640 * o.size,
-		bottom: o.y + o.bottomPad + HIT_BOX.y1 / 360 * h
-	};
-};
-const rectsOverlap = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-const collidePet = (fly, hit) => {
-	const hf = fly.size * 9 / 16 / 2;
-	const hh = hit.size * 9 / 16 / 2;
-	const cx = hit.x + hit.size / 2 - (fly.x + fly.size / 2);
-	const cy = hit.y + hh - (fly.y + hf);
-	const dist = Math.hypot(cx, cy);
-	if (dist < 1e-6) return null;
-	const nx = cx / dist;
-	const ny = cy / dist;
-	const vrel = (fly.vx - hit.vx) * nx + (fly.vy - hit.vy) * ny;
-	if (vrel <= 0) return null;
-	const e = PET_BOUNCE_E;
-	const m1 = fly.size * fly.size;
-	const m2 = hit.size * hit.size;
-	const v1n = fly.vx * nx + fly.vy * ny;
-	const v2n = hit.vx * nx + hit.vy * ny;
-	const v1n2 = ((m1 - e * m2) * v1n + (1 + e) * m2 * v2n) / (m1 + m2);
-	const v2n2 = ((m2 - e * m1) * v2n + (1 + e) * m1 * v1n) / (m1 + m2);
-	return {
-		fvx: fly.vx - v1n * nx + v1n2 * nx,
-		fvy: fly.vy - v1n * ny + v1n2 * ny,
-		hvx: hit.vx - v2n * nx + v2n2 * nx,
-		hvy: hit.vy - v2n * ny + v2n2 * ny,
-		impactSpeed: vrel
-	};
-};
-const overlapPush = (a, b) => {
-	const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
-	const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
-	if (ox <= 0 || oy <= 0) return null;
-	const alongX = ox <= oy;
-	const sign = alongX ? (a.left + a.right) / 2 >= (b.left + b.right) / 2 ? 1 : -1 : (a.top + a.bottom) / 2 >= (b.top + b.bottom) / 2 ? 1 : -1;
-	return alongX ? {
-		dx: sign * ox / 2,
-		dy: 0
-	} : {
-		dx: 0,
-		dy: sign * oy / 2
-	};
 };
 
 //#endregion
@@ -2635,8 +2215,6 @@ const TOOLTIP_CSS = [
 ].join("");
 
 //#endregion
-exports.ACCEL_GAIN_MAX = ACCEL_GAIN_MAX
-exports.ACCEL_REF = ACCEL_REF
 exports.ANIMATION_EXT = ANIMATION_EXT
 exports.BUBBLE_FONT_BASE_PX = BUBBLE_FONT_BASE_PX
 exports.BUBBLE_HOLD_IDLE = BUBBLE_HOLD_IDLE
@@ -2645,7 +2223,6 @@ exports.BUBBLE_HOLD_TAIL_MS = BUBBLE_HOLD_TAIL_MS
 exports.BUBBLE_METRICS = BUBBLE_METRICS
 exports.BUBBLE_OVERLAP_RATIO = BUBBLE_OVERLAP_RATIO
 exports.CANVAS_H = CANVAS_H
-exports.DEAD_ZONE_SPEED = DEAD_ZONE_SPEED
 exports.DEFAULT_FONT = DEFAULT_FONT
 exports.DEFAULT_FONT_STACK = DEFAULT_FONT_STACK
 exports.DEFAULT_PHYSICS = DEFAULT_PHYSICS
@@ -2661,31 +2238,20 @@ exports.GRAVITY = GRAVITY
 exports.GROUND_FRICTION = GROUND_FRICTION
 exports.HIT_BOX = HIT_BOX
 exports.MAX_BODY = MAX_BODY
-exports.MAX_STEP_DT = MAX_STEP_DT
 exports.MAX_THROW_SPEED = MAX_THROW_SPEED
 exports.MENU_CSS = MENU_CSS
-exports.MIN_SPAN_MS = MIN_SPAN_MS
 exports.MORE_MENU_LABEL = MORE_MENU_LABEL
 exports.NOTIFY_ICONS = NOTIFY_ICONS
-exports.PEAK_WEIGHT = PEAK_WEIGHT
-exports.PET_BOUNCE_E = PET_BOUNCE_E
 exports.PET_DISPLAYS = PET_DISPLAYS
 exports.PET_REF_WIDTH = PET_REF_WIDTH
-exports.RELEASE_STALE_MS = RELEASE_STALE_MS
-exports.RELEASE_WINDOW_MS = RELEASE_WINDOW_MS
 exports.RESTITUTION = RESTITUTION
-exports.REST_NORMAL = REST_NORMAL
-exports.REST_NORMAL_EPS = REST_NORMAL_EPS
-exports.REST_TANGENT = REST_TANGENT
 exports.ROUTE_PATH = ROUTE_PATH
 exports.ROUTE_SEGMENT = ROUTE_SEGMENT
 exports.SCORE_MIN_SPEED = SCORE_MIN_SPEED
 exports.SCORE_POPUP_CSS = SCORE_POPUP_CSS
 exports.SCORE_POPUP_DURATION_MS = SCORE_POPUP_DURATION_MS
-exports.SEG_MIN_DT_MS = SEG_MIN_DT_MS
 exports.SLEEP_HOTKEY_HINT = SLEEP_HOTKEY_HINT
 exports.SLINGSHOT_DOUBLE_MS = SLINGSHOT_DOUBLE_MS
-exports.SLINGSHOT_REF_RATIO = SLINGSHOT_REF_RATIO
 exports.SPRING_C = SPRING_C
 exports.SPRING_K = SPRING_K
 exports.SQ_DURATION_MS = SQ_DURATION_MS
@@ -2693,8 +2259,6 @@ exports.SQ_HARD_SPEED = SQ_HARD_SPEED
 exports.SQ_MAX_SQUASH = SQ_MAX_SQUASH
 exports.SQ_SOFT_SPEED = SQ_SOFT_SPEED
 exports.SQ_SQUASH = SQ_SQUASH
-exports.SUBSTEP_MAX = SUBSTEP_MAX
-exports.SUBSTEP_PX = SUBSTEP_PX
 exports.THROW_SPEED_ANCHOR = THROW_SPEED_ANCHOR
 exports.TIP_FONT_BASE_PX = TIP_FONT_BASE_PX
 exports.TODOS_PATH = TODOS_PATH
@@ -2702,7 +2266,6 @@ exports.TODO_HOTKEY_HINT = TODO_HOTKEY_HINT
 exports.TOOLTIP_CLASS = TOOLTIP_CLASS
 exports.TOOLTIP_CSS = TOOLTIP_CSS
 exports.TOOLTIP_GAP_RATIO = TOOLTIP_GAP_RATIO
-exports.TRAIL_KEEP_MS = TRAIL_KEEP_MS
 exports.WORK_STATUS_INDEX = WORK_STATUS_INDEX
 exports.WORK_STATUS_STATES = WORK_STATUS_STATES
 exports.addTodo = addTodo
@@ -2716,13 +2279,11 @@ exports.buildMoreBranch = buildMoreBranch
 exports.clampPointInRect = clampPointInRect
 exports.clampPointToRegion = clampPointToRegion
 exports.clickScore = clickScore
-exports.collidePet = collidePet
 exports.createTodoPanel = createTodoPanel
 exports.displayMenuBranch = displayMenuBranch
 exports.displayOfHotkey = displayOfHotkey
 exports.distToRectSq = distToRectSq
 exports.dueLabel = dueLabel
-exports.estimateReleaseVelocity = estimateReleaseVelocity
 exports.fetchState = fetchState
 exports.flattenConfigPets = flattenConfigPets
 exports.flattenCounters = flattenCounters
@@ -2745,7 +2306,6 @@ exports.mountPrefixOf = mountPrefixOf
 exports.mountScorePopup = mountScorePopup
 exports.nearestIndex = nearestIndex
 exports.nextWorkStatusAnim = nextWorkStatusAnim
-exports.overlapPush = overlapPush
 exports.parseDateTimeLocal = parseDateTimeLocal
 exports.parseTodoItem = parseTodoItem
 exports.parseTodoList = parseTodoList
@@ -2759,7 +2319,6 @@ exports.planMove = planMove
 exports.pointInRect = pointInRect
 exports.poolIncludes = poolIncludes
 exports.postAction = postAction
-exports.pullAngle = pullAngle
 exports.randomBetween = randomBetween
 exports.readAnim = readAnim
 exports.readLock = readLock
@@ -2772,7 +2331,6 @@ exports.rebaseCenter = rebaseCenter
 exports.rectAtPoint = rectAtPoint
 exports.rectBottom = rectBottom
 exports.rectRight = rectRight
-exports.rectsOverlap = rectsOverlap
 exports.reduceBubbleHold = reduceBubbleHold
 exports.regionArea = regionArea
 exports.regionHoleRatio = regionHoleRatio
@@ -2783,10 +2341,6 @@ exports.resolveLeafPath = resolveLeafPath
 exports.resolveRect = resolveRect
 exports.rollKind = rollKind
 exports.routePathOf = routePathOf
-exports.screenOfBox = screenOfBox
-exports.slingshotPower = slingshotPower
-exports.slingshotRefDist = slingshotRefDist
-exports.slingshotVelocity = slingshotVelocity
 exports.slotIncludes = slotIncludes
 exports.softClampSpeed = softClampSpeed
 exports.sortTodoItems = sortTodoItems
@@ -2795,19 +2349,11 @@ exports.spawnScoreBurst = spawnScoreBurst
 exports.springStep = springStep
 exports.squashScale = squashScale
 exports.takeChanged = takeChanged
-exports.throwBounds = throwBounds
-exports.throwBoundsIn = throwBoundsIn
-exports.throwSpace = throwSpace
-exports.throwStep = throwStep
-exports.throwStepRegion = throwStepRegion
-exports.throwSubsteps = throwSubsteps
-exports.throwVelocity = throwVelocity
 exports.toWorkStatus = toWorkStatus
 exports.todoPanelTopMarginPx = todoPanelTopMarginPx
 exports.todoUrgency = todoUrgency
 exports.tooltipPlacement = tooltipPlacement
 exports.translateRects = translateRects
-exports.trimTrail = trimTrail
 exports.truncate = truncate
 return exports;
 })({});

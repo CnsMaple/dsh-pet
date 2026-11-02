@@ -218,15 +218,6 @@ class PetSprite {
     this.sendBounds(x, y);
   }
 
-  /** 抛掷空间（逐屏 AABB）。AREAS/PANELS 变化时由 relayout() 置空重建——飞行中每帧重算太浪费 */
-  throwSpaceOf() {
-    if (!this.space || this.space.areas !== AREAS || this.space.panels !== PANELS) {
-      this.space = S.throwSpace({ areas: AREAS, panels: PANELS, size: this.size, sideAllow: this.sideAllow });
-      for (const b of this.space.bounds) b.minY -= this.size * CONFIG.topInsetRatio;
-    }
-    return this.space;
-  }
-
   /**
    * 显示器几何变化后就地重挂：抛掷空间作废，并把宠物从可能变成空洞的位置拉回可见区。
    * 拖拽中不动它（用户正握着），飞行中也不动（下一帧物理会按新边界夹取）。

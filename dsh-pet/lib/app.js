@@ -404,12 +404,6 @@ function fontValid(value) {
 	if (!Number.isFinite(size) || size < FONT_SIZE_MIN || size > FONT_SIZE_MAX) return false;
 	return typeof f.followPet === "boolean";
 }
-function modelSelectionValid(value) {
-	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-	const m = value;
-	if (typeof m.provider !== "string" || typeof m.model !== "string") return false;
-	return m.provider.trim() === "" === (m.model.trim() === "");
-}
 /** workStatusTexts 段校验：二维数组——外层每项都是非空字符串数组（档位文案，每档可多句随机）；空数组不可用 */
 function workStatusTextsValid(value) {
 	if (!Array.isArray(value) || value.length === 0) return false;
@@ -433,8 +427,6 @@ function topFieldValid(key, value) {
 		case "animationWeights": return weightsValid(value);
 		case "physics": return physicsValid(value);
 		case "font": return fontValid(value);
-		case "whisperModel":
-		case "chatModel": return modelSelectionValid(value);
 		case "workStatusTexts": return workStatusTextsValid(value);
 		case "sleepRefuseTexts":
 		case "sleepStartTexts":
@@ -2664,7 +2656,7 @@ async function saveUserLayer(deps, input) {
 	try {
 		const existing = readUserConfig(configPaths);
 		const clean = saveUserConfig(parsed, existing);
-		if (!clean) return failResult("bad-request", "invalid pet config: expected { pets:[{name?,id,size,sizePercent?,balanceEnabled,display,position:{corner,marginX,marginY}}] }（id 为非空字符串且去除首尾空白后唯一；sizePercent 可选，不小于 1 的数字；display 为 web/desktop/both/none 之一；可选顶层 notificationsEnabled / whisperImageEnabled / chatImageEnabled / chatAnimationEnabled / trayEnabled 布尔；可选宠物布尔 whisperEnabled / workStatusEnabled / fixedEnabled）");
+		if (!clean) return failResult("bad-request", "invalid pet config: expected { pets:[{name?,id,size,sizePercent?,display,position:{corner,marginX,marginY}}] }（id 为非空字符串且去除首尾空白后唯一；sizePercent 可选，不小于 1 的数字；display 为 web/desktop/both/none 之一；可选顶层 notificationsEnabled / trayEnabled 布尔；可选宠物布尔 workStatusEnabled / fixedEnabled）");
 		if (input.url.searchParams.get("force") !== "1" && userConfigUnparsable(configPaths)) return failResult("user-config-unparsable", "用户配置无法解析，需确认后重建", {
 			needConfirm: true,
 			userFile: userConfigPath
@@ -2770,7 +2762,7 @@ async function setPetDisplay(deps, input) {
 /** main 条目连同全局字段走 PUT /config，本端点只收「种类」层。 */
 const MAIN_ENTRY = "main";
 /** 实例数组非法时的统一文案：saveUserConfig 只回 null，细节必须在这里讲清。 */
-const INVALID_PETS = "pets 非法：必须是该种类的全部实例（至少 1 只），每只 id 唯一，size / balanceEnabled / display / position 齐全合法";
+const INVALID_PETS = "pets 非法：必须是该种类的全部实例（至少 1 只），每只 id 唯一，size / display / position 齐全合法";
 /**
 * 找出与其它条目冲突的实例 id。
 *

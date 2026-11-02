@@ -124,16 +124,6 @@ export function fontValid(value: unknown): boolean {
   return typeof f.followPet === 'boolean';
 }
 
-/** whisperModel / chatModel 段校验：{ provider, model } 两个字符串，
- *  要么都留空（= 跟随当前对话的模型）要么都非空——只填一半会拼出「用 A 家的模型名去问 B 家」
- *  这种必然失败的组合，按非法处理（告警 + 取默认）。 */
-export function modelSelectionValid(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const m = value as Record<string, unknown>;
-  if (typeof m.provider !== 'string' || typeof m.model !== 'string') return false;
-  return (m.provider.trim() === '') === (m.model.trim() === '');
-}
-
 /** workStatusTexts 段校验：二维数组——外层每项都是非空字符串数组（档位文案，每档可多句随机）；空数组不可用 */
 function workStatusTextsValid(value: unknown): boolean {
   if (!Array.isArray(value) || value.length === 0) return false;
@@ -174,9 +164,6 @@ export function topFieldValid(key: string, value: unknown): boolean {
       return physicsValid(value);
     case 'font':
       return fontValid(value);
-    case 'whisperModel':
-    case 'chatModel':
-      return modelSelectionValid(value);
     case 'workStatusTexts':
       return workStatusTextsValid(value);
     case 'sleepRefuseTexts':

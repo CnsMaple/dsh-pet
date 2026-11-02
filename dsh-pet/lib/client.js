@@ -2241,7 +2241,6 @@ const SETTINGS_CSS = [
 	".dsh-pet-cfg__inp{box-sizing:border-box;width:100%;min-height:28px;padding:4px 10px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;outline:none}",
 	".dsh-pet-cfg__inp:focus{border-color:var(--dsw-alias-state-business-primary)}",
 	".dsh-pet-cfg__inp:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}",
-	".dsh-pet-cfg__persona{display:flex;flex-direction:column;gap:2px;min-width:0}",
 	".dsh-pet-cfg__area{min-height:66px;resize:vertical;line-height:18px}",
 	".dsh-pet-cfg__count{font-size:11px;color:var(--dsw-alias-label-tertiary);text-align:right}",
 	".dsh-pet-cfg__toggle{display:flex;align-items:center;gap:6px;min-width:0;font-size:13px;color:var(--dsw-alias-label-primary)}",

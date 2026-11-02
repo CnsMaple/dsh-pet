@@ -1,4 +1,4 @@
-import type { FontConfig, ModelSelection, Pet, PhysicsParams } from '../../../shared/types.ts';
+import type { FontConfig, Pet, PhysicsParams } from '../../../shared/types.ts';
 import type { ModelCatalogGroup } from '../picker/index.ts';
 import type { MergedConfig } from './read.ts';
 /** 配置文件路径与存储位置清单；宿主按平台推导，反推不出 `profile` 时为空串。 */
@@ -32,8 +32,6 @@ export interface SaveFields {
     confineToScreen: boolean;
     trayEnabled: boolean;
     physics: PhysicsParams;
-    whisperModel: ModelSelection;
-    chatModel: ModelSelection;
     chatMemoryRounds: number;
     chatImageLimit: number;
     font: FontConfig;

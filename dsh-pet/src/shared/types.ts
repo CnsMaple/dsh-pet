@@ -125,10 +125,6 @@ export interface Pet {
   /** 条目级：工作状态气泡文案（外层索引 = 档位 0..5，内层每档可多句随机抽）。
    *  整字段缺失 = 不弹工作状态文本，只播动画。 */
   workStatusTexts?: string[][];
-  /** 全局默认：碎碎念单独指定的服务商 + 模型；provider 与 model 都为空 = 跟随当前对话的模型 */
-  whisperModel?: ModelSelection;
-  /** 全局默认：对话单独指定的服务商 + 模型，都为空 = 跟随当前对话的模型 */
-  chatModel?: ModelSelection;
   /** 全局默认：字体（种类 / 字号 / 是否随宠物大小缩放） */
   font?: FontConfig;
   /** 条目级：表情包清单（名称 → 给模型看的描述），合并器吹进每只实例、多实例共享。
@@ -224,10 +220,6 @@ export interface ClientConfig {
   animationWeights: Weights;
   /** 拖拽抛掷物理参数（全局，所有宠物共用；合并器已填默认） */
   physics: PhysicsParams;
-  /** 碎碎念用的服务商 + 模型（条目级；两者都为空 = 跟随当前对话的模型） */
-  whisperModel: ModelSelection;
-  /** 对话用的服务商 + 模型（条目级；两者都为空 = 跟随当前对话的模型） */
-  chatModel: ModelSelection;
   /** 事件刷新周期（秒）：事件名 → 间隔；balance = 余额数据刷新与动画触发间隔 */
   eventsRefreshSec: Record<string, number>;
 }

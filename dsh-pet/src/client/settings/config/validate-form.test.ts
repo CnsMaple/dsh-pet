@@ -27,8 +27,6 @@ const pet = (extra: Record<string, unknown> = {}): Pet =>
 const valid = (overrides: Partial<FormValues> = {}): FormValues => ({
   pets: [pet()],
   physics: { ...DEFAULT_PHYSICS },
-  whisperModel: { provider: '', model: '' },
-  chatModel: { provider: '', model: '' },
   chatMemory: 5,
   chatImageLimit: 10,
   font: { ...DEFAULT_FONT },
@@ -66,12 +64,6 @@ describe('validateForm —— 保存前校验', () => {
       null,
       '0 是合法边界（重力为零、完全弹性都没有下限限制误伤）',
     );
-  });
-
-  test('模型：只写一半非法，两边都空（跟随当前对话）合法', () => {
-    assert.equal(validateForm(valid({ whisperModel: { provider: 'openai', model: '' } })), 'invalidModel');
-    assert.equal(validateForm(valid({ chatModel: { provider: '', model: 'gpt-4o' } })), 'invalidModel');
-    assert.equal(validateForm(valid({ whisperModel: { provider: 'openai', model: 'gpt-4o' } })), null);
   });
 
   test('对话额度：负数非法，0 合法（0 = 不限制）', () => {

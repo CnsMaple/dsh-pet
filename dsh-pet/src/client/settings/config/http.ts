@@ -5,7 +5,7 @@
  * @module dsh-pet/src/client/settings/config/http
  */
 import { ROUTE_PATH } from '../../../shared/constants.ts';
-import type { FontConfig, ModelSelection, Pet, PhysicsParams } from '../../../shared/types.ts';
+import type { FontConfig, Pet, PhysicsParams } from '../../../shared/types.ts';
 import type { ModelCatalogGroup } from '../picker/index.ts';
 import type { MergedConfig } from './read.ts';
 
@@ -37,8 +37,6 @@ export interface SaveFields {
   confineToScreen: boolean;
   trayEnabled: boolean;
   physics: PhysicsParams;
-  whisperModel: ModelSelection;
-  chatModel: ModelSelection;
   chatMemoryRounds: number;
   chatImageLimit: number;
   font: FontConfig;
@@ -71,8 +69,6 @@ export function buildSaveBody(fields: SaveFields): Record<string, unknown> {
     confineToScreen: fields.confineToScreen,
     trayEnabled: fields.trayEnabled,
     physics: fields.physics,
-    whisperModel: fields.whisperModel,
-    chatModel: fields.chatModel,
     chatMemoryRounds: fields.chatMemoryRounds,
     chatImageLimit: fields.chatImageLimit,
     font: fields.font,

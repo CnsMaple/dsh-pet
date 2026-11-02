@@ -6,7 +6,7 @@
  */
 import { DEFAULT_FONT } from '../../../shared/fonts.ts';
 import { DEFAULT_PHYSICS } from '../../../shared/physics.ts';
-import type { FontConfig, ModelSelection, Pet, PhysicsParams } from '../../../shared/types.ts';
+import type { FontConfig, Pet, PhysicsParams } from '../../../shared/types.ts';
 
 /** 宿主返回的成品聚合：`main` 是大配置条目，其余键是文件定义的其他宠物条目。 */
 export type MergedConfig = Record<string, Record<string, unknown>>;
@@ -26,8 +26,6 @@ export interface MainConfigPatch {
   physics?: PhysicsParams;
   /** 字体：同物理参数。 */
   font?: FontConfig;
-  whisperModel?: ModelSelection;
-  chatModel?: ModelSelection;
   chatMemoryRounds?: number;
   chatImageLimit?: number;
   /** 回合完成通知时机。 */
@@ -44,13 +42,6 @@ export interface MainConfigPatch {
 const nonNegative = (value: unknown): number | undefined => {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? n : undefined;
-};
-
-/** 一对模型选择：两项都是字符串才算写全，只写一半视为没写（宿主会按非法拒绝）。 */
-const readModel = (value: unknown): ModelSelection | undefined => {
-  const model = value as Partial<ModelSelection> | undefined;
-  if (!model || typeof model.provider !== 'string' || typeof model.model !== 'string') return undefined;
-  return { provider: model.provider, model: model.model };
 };
 
 /**
@@ -79,10 +70,6 @@ export function readMainConfig(merged: MergedConfig): MainConfigPatch | null {
   if (main.font && typeof main.font === 'object') {
     patch.font = { ...DEFAULT_FONT, ...(main.font as FontConfig) };
   }
-  const whisperModel = readModel(main.whisperModel);
-  if (whisperModel) patch.whisperModel = whisperModel;
-  const chatModel = readModel(main.chatModel);
-  if (chatModel) patch.chatModel = chatModel;
   const rounds = nonNegative(main.chatMemoryRounds);
   if (rounds !== undefined) patch.chatMemoryRounds = rounds;
   const limit = nonNegative(main.chatImageLimit);

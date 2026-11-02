@@ -33,8 +33,6 @@ const ENTRY_FIELDS: Array<keyof Pet> = [
   'physics',
   'confineToScreen',
   'workStatusTexts',
-  'whisperModel',
-  'chatModel',
   'memes',
   'chatImageEnabled',
   'chatAnimationEnabled',

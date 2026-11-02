@@ -11,7 +11,7 @@ import { dirname } from 'node:path';
 import { CORNER_SET, isValidPetId, PET_DISPLAY_SET } from './constants.ts';
 import { isValidSizePercent } from '../../shared/pet-size.ts';
 import type { ConfigPaths } from './constants.ts';
-import { fontValid, modelSelectionValid, physicsValid, topFieldValid } from './validate.ts';
+import { fontValid, physicsValid, topFieldValid } from './validate.ts';
 
 /**
  * 保存用户层（PUT /config）：接受 pets + 全局开关 + physics / font / 两个模型 / 对话参数。
@@ -105,13 +105,6 @@ export function saveUserConfig(
   // 校验直接复用读取侧的 fontValid（family 白名单 / size 4~200 / followPet 布尔），读写同一份规则。
   const fo = o.font;
   if (fo !== undefined && !fontValid(fo)) return null;
-  // whisperModel / chatModel（碎碎念 / 对话各自的服务商 + 模型；设置页两个下拉框写的就是它们）：
-  // 与 physics 同一套语义——传了就整段校验后进白名单，没传则走下面的透传保留。
-  // 落盘时归一化成 { provider, model } 两个 trim 过的字符串（请求体多带的键不写进用户层）。
-  const wm = o.whisperModel;
-  if (wm !== undefined && !modelSelectionValid(wm)) return null;
-  const cm = o.chatModel;
-  if (cm !== undefined && !modelSelectionValid(cm)) return null;
   // chatMemoryRounds（对话历史条数；设置页「AI 模型与对话上下文」区的数字输入框写的就是它）：
   // 与 physics / 模型同语义——传了就校验后进白名单，没传则走下面的透传保留。
   // 校验直接复用读取侧的 topFieldValid（有限且 ≥ 0），读写同一份规则，不另写一套。
@@ -130,10 +123,6 @@ export function saveUserConfig(
   if (nqu !== undefined && !topFieldValid('notificationQuestion', nqu)) return null;
   const nso = o.notificationSound;
   if (nso !== undefined && !topFieldValid('notificationSound', nso)) return null;
-  const cleanModel = (v: Record<string, unknown>): { provider: string; model: string } => ({
-    provider: String(v.provider).trim(),
-    model: String(v.model).trim(),
-  });
   // 白名单可编辑字段：pets 来自请求体，其余（四个全局开关 / physics / 两个模型 /
   // 对话历史条数）同样只在请求体真的传了时才写（未传则走下面的透传保留，不凭空造值）
   const outConfig: { pets: unknown[]; [key: string]: unknown } = { pets: out };
@@ -145,8 +134,6 @@ export function saveUserConfig(
   if (te !== undefined) outConfig.trayEnabled = te;
   if (ph !== undefined) outConfig.physics = ph;
   if (fo !== undefined) outConfig.font = fo;
-  if (wm !== undefined) outConfig.whisperModel = cleanModel(wm as Record<string, unknown>);
-  if (cm !== undefined) outConfig.chatModel = cleanModel(cm as Record<string, unknown>);
   // 数值归一化落盘：请求体传 "9" 也存成 9（与读取侧 topFieldValid 的 Number() 口径一致）
   if (cmr !== undefined) outConfig.chatMemoryRounds = Number(cmr);
   if (cil !== undefined) outConfig.chatImageLimit = Number(cil);
@@ -167,8 +154,6 @@ export function saveUserConfig(
   if (te !== undefined) bodyOwned.add('trayEnabled');
   if (ph !== undefined) bodyOwned.add('physics');
   if (fo !== undefined) bodyOwned.add('font');
-  if (wm !== undefined) bodyOwned.add('whisperModel');
-  if (cm !== undefined) bodyOwned.add('chatModel');
   if (cmr !== undefined) bodyOwned.add('chatMemoryRounds');
   if (cil !== undefined) bodyOwned.add('chatImageLimit');
   if (nte !== undefined) bodyOwned.add('notificationTurnEnd');

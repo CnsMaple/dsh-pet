@@ -198,8 +198,6 @@ const GLOBAL_DEFAULT_KEYS = [
 	"chatAnimationEnabled",
 	"chatImageLimit",
 	"chatMemoryRounds",
-	"whisperModel",
-	"chatModel",
 	"eventsRefreshSec"
 ];
 /** 已告警过的 文件:字段（进程内去重：同一问题只告警一次，避免每请求刷屏；重启重置） */
@@ -704,10 +702,6 @@ function saveUserConfig(raw, existing) {
 	if (ph !== void 0 && !physicsValid(ph)) return null;
 	const fo = o.font;
 	if (fo !== void 0 && !fontValid(fo)) return null;
-	const wm = o.whisperModel;
-	if (wm !== void 0 && !modelSelectionValid(wm)) return null;
-	const cm = o.chatModel;
-	if (cm !== void 0 && !modelSelectionValid(cm)) return null;
 	const cmr = o.chatMemoryRounds;
 	if (cmr !== void 0 && !topFieldValid("chatMemoryRounds", cmr)) return null;
 	const cil = o.chatImageLimit;
@@ -720,10 +714,6 @@ function saveUserConfig(raw, existing) {
 	if (nqu !== void 0 && !topFieldValid("notificationQuestion", nqu)) return null;
 	const nso = o.notificationSound;
 	if (nso !== void 0 && !topFieldValid("notificationSound", nso)) return null;
-	const cleanModel = (v) => ({
-		provider: String(v.provider).trim(),
-		model: String(v.model).trim()
-	});
 	const outConfig = { pets: out };
 	if (ne !== void 0) outConfig.notificationsEnabled = ne;
 	if (cse !== void 0) outConfig.clickSoundEnabled = cse;
@@ -733,8 +723,6 @@ function saveUserConfig(raw, existing) {
 	if (te !== void 0) outConfig.trayEnabled = te;
 	if (ph !== void 0) outConfig.physics = ph;
 	if (fo !== void 0) outConfig.font = fo;
-	if (wm !== void 0) outConfig.whisperModel = cleanModel(wm);
-	if (cm !== void 0) outConfig.chatModel = cleanModel(cm);
 	if (cmr !== void 0) outConfig.chatMemoryRounds = Number(cmr);
 	if (cil !== void 0) outConfig.chatImageLimit = Number(cil);
 	if (nte !== void 0) outConfig.notificationTurnEnd = nte;
@@ -750,8 +738,6 @@ function saveUserConfig(raw, existing) {
 	if (te !== void 0) bodyOwned.add("trayEnabled");
 	if (ph !== void 0) bodyOwned.add("physics");
 	if (fo !== void 0) bodyOwned.add("font");
-	if (wm !== void 0) bodyOwned.add("whisperModel");
-	if (cm !== void 0) bodyOwned.add("chatModel");
 	if (cmr !== void 0) bodyOwned.add("chatMemoryRounds");
 	if (cil !== void 0) bodyOwned.add("chatImageLimit");
 	if (nte !== void 0) bodyOwned.add("notificationTurnEnd");

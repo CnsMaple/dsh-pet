@@ -2469,15 +2469,6 @@ const nonNegative = (value) => {
 	const n = Number(value);
 	return Number.isFinite(n) && n >= 0 ? n : void 0;
 };
-/** 一对模型选择：两项都是字符串才算写全，只写一半视为没写（宿主会按非法拒绝）。 */
-const readModel = (value) => {
-	const model = value;
-	if (!model || typeof model.provider !== "string" || typeof model.model !== "string") return void 0;
-	return {
-		provider: model.provider,
-		model: model.model
-	};
-};
 function readMainConfig(merged) {
 	const main = merged.main;
 	if (!main || !Array.isArray(main.pets)) return null;
@@ -2500,10 +2491,6 @@ function readMainConfig(merged) {
 		...DEFAULT_FONT,
 		...main.font
 	};
-	const whisperModel = readModel(main.whisperModel);
-	if (whisperModel) patch.whisperModel = whisperModel;
-	const chatModel = readModel(main.chatModel);
-	if (chatModel) patch.chatModel = chatModel;
 	const rounds = nonNegative(main.chatMemoryRounds);
 	if (rounds !== void 0) patch.chatMemoryRounds = rounds;
 	const limit = nonNegative(main.chatImageLimit);
@@ -2545,8 +2532,6 @@ function buildSaveBody(fields) {
 		confineToScreen: fields.confineToScreen,
 		trayEnabled: fields.trayEnabled,
 		physics: fields.physics,
-		whisperModel: fields.whisperModel,
-		chatModel: fields.chatModel,
 		chatMemoryRounds: fields.chatMemoryRounds,
 		chatImageLimit: fields.chatImageLimit,
 		font: fields.font,
@@ -2722,7 +2707,6 @@ async function syncSettings() {
 
 //#endregion
 //#region src/client/settings/config/validate-form.ts
-const modelPairValid = (model) => model.provider.trim() === "" === (model.model.trim() === "");
 /** 宠物：宽度必须为正数、百分比缺省或是不小于 1 的数字、两个偏移必须是有限数（负数合法，宠物可以压出屏外）。 */
 const petValid = (pet) => Number.isFinite(pet.size) && pet.size > 0 && (pet.sizePercent === void 0 || isValidSizePercent(pet.sizePercent)) && Number.isFinite(pet.position.marginX) && Number.isFinite(pet.position.marginY);
 /** 物理参数：与宿主 `physicsValid` 同名规则，客户端只覆盖数值字段（布尔项由宿主兜底）。 */
@@ -2732,7 +2716,6 @@ const fontValid = (font) => typeof font.family === "string" && font.family.lengt
 function validateForm(values) {
 	if (!values.pets.every(petValid)) return "invalid";
 	if (!physicsValid(values.physics)) return "invalidPhysics";
-	if (!modelPairValid(values.whisperModel) || !modelPairValid(values.chatModel)) return "invalidModel";
 	if (!Number.isFinite(values.chatMemory) || values.chatMemory < 0) return "invalidChatMemory";
 	if (!Number.isFinite(values.chatImageLimit) || values.chatImageLimit < 0) return "invalidChatImageLimit";
 	if (!fontValid(values.font)) return "invalidFont";
@@ -2749,8 +2732,6 @@ function createWriteFlow(deps) {
 		const invalid = validateForm({
 			pets: fields.pets,
 			physics: fields.physics,
-			whisperModel: fields.whisperModel,
-			chatModel: fields.chatModel,
 			chatMemory: fields.chatMemoryRounds,
 			chatImageLimit: fields.chatImageLimit,
 			font: fields.font
@@ -3277,8 +3258,6 @@ function flattenConfigPets(merged) {
 			sleepStartTexts: conf.sleepStartTexts,
 			sleepEndTexts: conf.sleepEndTexts,
 			sleepRefuseTexts: conf.sleepRefuseTexts,
-			whisperModel: conf.whisperModel,
-			chatModel: conf.chatModel,
 			memes: conf.memes,
 			chatImageEnabled: conf.chatImageEnabled,
 			chatAnimationEnabled: conf.chatAnimationEnabled,
@@ -5791,14 +5770,6 @@ function makePetConfigSection(rt) {
 		const [chatAnimation, setChatAnimation] = useState(true);
 		const [physics, setPhysics] = useState({ ...DEFAULT_PHYSICS });
 		const [font, setFont] = useState({ ...DEFAULT_FONT });
-		const [whisperModel, setWhisperModel] = useState({
-			provider: "",
-			model: ""
-		});
-		const [chatModel, setChatModel] = useState({
-			provider: "",
-			model: ""
-		});
 		const [chatMemory, setChatMemory] = useState(10);
 		const [chatImageLimit, setChatImageLimit] = useState(20);
 		const [notificationTurnEnd, setNotificationTurnEnd] = useState("unfocused");
@@ -5818,8 +5789,6 @@ function makePetConfigSection(rt) {
 			if (patch.trayEnabled !== void 0) setTrayEnabled(patch.trayEnabled);
 			if (patch.physics !== void 0) setPhysics(patch.physics);
 			if (patch.font !== void 0) setFont(patch.font);
-			if (patch.whisperModel !== void 0) setWhisperModel(patch.whisperModel);
-			if (patch.chatModel !== void 0) setChatModel(patch.chatModel);
 			if (patch.chatMemoryRounds !== void 0) setChatMemory(patch.chatMemoryRounds);
 			if (patch.chatImageLimit !== void 0) setChatImageLimit(patch.chatImageLimit);
 			if (patch.notificationTurnEnd !== void 0) setNotificationTurnEnd(patch.notificationTurnEnd);
@@ -5877,8 +5846,6 @@ function makePetConfigSection(rt) {
 				confineToScreen: confineScreen,
 				trayEnabled,
 				physics,
-				whisperModel,
-				chatModel,
 				chatMemoryRounds: chatMemory,
 				chatImageLimit,
 				font,

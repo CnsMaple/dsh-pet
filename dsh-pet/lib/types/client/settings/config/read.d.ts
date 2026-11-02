@@ -1,4 +1,4 @@
-import type { FontConfig, ModelSelection, Pet, PhysicsParams } from '../../../shared/types.ts';
+import type { FontConfig, Pet, PhysicsParams } from '../../../shared/types.ts';
 /** 宿主返回的成品聚合：`main` 是大配置条目，其余键是文件定义的其他宠物条目。 */
 export type MergedConfig = Record<string, Record<string, unknown>>;
 /** 表单要吃的补丁；字段缺省表示「这次响应里没有可信值」。 */
@@ -16,8 +16,6 @@ export interface MainConfigPatch {
     physics?: PhysicsParams;
     /** 字体：同物理参数。 */
     font?: FontConfig;
-    whisperModel?: ModelSelection;
-    chatModel?: ModelSelection;
     chatMemoryRounds?: number;
     chatImageLimit?: number;
     /** 回合完成通知时机。 */

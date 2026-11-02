@@ -264,8 +264,6 @@ function flattenConfigPets(merged) {
 			sleepStartTexts: conf.sleepStartTexts,
 			sleepEndTexts: conf.sleepEndTexts,
 			sleepRefuseTexts: conf.sleepRefuseTexts,
-			whisperModel: conf.whisperModel,
-			chatModel: conf.chatModel,
 			memes: conf.memes,
 			chatImageEnabled: conf.chatImageEnabled,
 			chatAnimationEnabled: conf.chatAnimationEnabled,

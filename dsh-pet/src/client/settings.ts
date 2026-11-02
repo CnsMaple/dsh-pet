@@ -6,7 +6,7 @@
  */
 import { DEFAULT_FONT } from '../shared/fonts.ts';
 import { DEFAULT_PHYSICS } from '../shared/physics.ts';
-import type { FontConfig, ModelSelection, PhysicsParams } from '../shared/types.ts';
+import type { FontConfig, PhysicsParams } from '../shared/types.ts';
 import type { FunctionComponent } from 'react';
 import { requestNotificationPermission } from './notify.ts';
 import { injectSettingsCss } from './settings/css.ts';
@@ -74,8 +74,6 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
     const [chatAnimation, setChatAnimation] = useState(true);
     const [physics, setPhysics] = useState<PhysicsParams>({ ...DEFAULT_PHYSICS });
     const [font, setFont] = useState<FontConfig>({ ...DEFAULT_FONT });
-    const [whisperModel, setWhisperModel] = useState<ModelSelection>({ provider: '', model: '' });
-    const [chatModel, setChatModel] = useState<ModelSelection>({ provider: '', model: '' });
     const [chatMemory, setChatMemory] = useState(10);
     const [chatImageLimit, setChatImageLimit] = useState(20);
     const [notificationTurnEnd, setNotificationTurnEnd] = useState<'never' | 'unfocused' | 'always'>('unfocused');
@@ -97,8 +95,6 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
         if (patch.trayEnabled !== undefined) setTrayEnabled(patch.trayEnabled);
         if (patch.physics !== undefined) setPhysics(patch.physics);
         if (patch.font !== undefined) setFont(patch.font);
-        if (patch.whisperModel !== undefined) setWhisperModel(patch.whisperModel);
-        if (patch.chatModel !== undefined) setChatModel(patch.chatModel);
         if (patch.chatMemoryRounds !== undefined) setChatMemory(patch.chatMemoryRounds);
         if (patch.chatImageLimit !== undefined) setChatImageLimit(patch.chatImageLimit);
         if (patch.notificationTurnEnd !== undefined) setNotificationTurnEnd(patch.notificationTurnEnd);
@@ -158,8 +154,6 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
         confineToScreen: confineScreen,
         trayEnabled,
         physics,
-        whisperModel,
-        chatModel,
         chatMemoryRounds: chatMemory,
         chatImageLimit,
         font,

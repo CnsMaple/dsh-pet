@@ -36,13 +36,6 @@ describe('readMainConfig —— 成品聚合 → 表单补丁', () => {
     assert.deepEqual(patch?.font, { ...DEFAULT_FONT, size: 20 });
   });
 
-  test('模型选择只写一半：整对都当没写（宿主会按非法拒绝）', () => {
-    const half = readMainConfig({ main: { pets: [], whisperModel: { provider: 'openai' } } });
-    assert.equal(half?.whisperModel, undefined);
-    const full = readMainConfig({ main: { pets: [], chatModel: { provider: 'a', model: 'b' } } });
-    assert.deepEqual(full?.chatModel, { provider: 'a', model: 'b' });
-  });
-
   test('数值字段：负数与非数字当没写，0 是合法值', () => {
     assert.equal(readMainConfig({ main: { pets: [], chatMemoryRounds: -1 } })?.chatMemoryRounds, undefined);
     assert.equal(readMainConfig({ main: { pets: [], chatMemoryRounds: 'x' } })?.chatMemoryRounds, undefined);

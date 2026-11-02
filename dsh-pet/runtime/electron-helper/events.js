@@ -406,12 +406,22 @@ function applyMenuLeaf(leaf) {
 /** 系统通知段：桌面端用 Electron 原生通知弹出；帧映射与过滤复用 shared 的 frameToToast（aborted/interrupted 等跳过）。 */
 function applyNotifyFrame(leaf) {
   if (!leaf || leaf.data === null) return;
-  if (typeof config !== 'undefined' && config && config.notificationsEnabled === false) return;
+  const cfg = typeof config !== 'undefined' ? config : null;
+  if (cfg && cfg.notificationsEnabled === false) return;
   if (!S.frameToToast || !window.petBridge || typeof window.petBridge.notify !== 'function') return;
-  const t = S.frameToToast(leaf.data);
+  const frame = leaf.data;
+  const type = frame && frame.type;
+  if (type === 'approval/requested' && cfg && cfg.notificationApproval === false) return;
+  if (type === 'question/requested' && cfg && cfg.notificationQuestion === false) return;
+  if (type === 'session/event' && cfg && cfg.notificationTurnEnd === 'never') {
+    const ev = (frame && frame.event) || {};
+    if (ev.type === 'turn/end') return;
+  }
+  const t = S.frameToToast(frame);
   if (!t) return;
-  const sessionId = leaf.data && typeof leaf.data.sessionId === 'string' ? leaf.data.sessionId : '';
-  window.petBridge.notify({ title: t.title, body: t.body, sessionId });
+  const sessionId = frame && typeof frame.sessionId === 'string' ? frame.sessionId : '';
+  const silent = !!(cfg && cfg.notificationSound === 'none');
+  window.petBridge.notify({ title: t.title, body: t.body, sessionId, silent });
 }
 
 /** 跑一拍 /state。返回 true = 按长轮询命中（宿主支持长轮询，可以立刻再请求）。 */

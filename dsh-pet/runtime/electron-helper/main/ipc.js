@@ -26,7 +26,7 @@ function registerIpc({ ipcMain, petWindows, shell, openTarget, petRoute }) {
       if (!Notification.isSupported()) return;
       const title = String((payload && payload.title) || 'DSH');
       const body = String((payload && payload.body) || '');
-      const n = new Notification({ title, body: body || undefined });
+      const n = new Notification({ title, body: body || undefined, silent: !!(payload && payload.silent) });
       liveNotifications.add(n);
       n.on('close', () => liveNotifications.delete(n));
       n.on('click', () => {

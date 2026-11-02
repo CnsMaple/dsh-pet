@@ -137,6 +137,16 @@
   // 不需要时改为 false（修改后刷新或重启生效）。必填布尔值，缺失即配置错误；
   // 也可在用户配置（main-config.jsonc）顶层覆盖，设置页保存宠物时会保留该字段。
   "notificationsEnabled": true,
+  // ===================== 通知行为（对齐 dsh-tauri-notification）=====================
+  // 回合完成（turn/end reason=completed）通知的弹出时机：
+  //   "never" = 从不弹；"unfocused"（默认）= 仅当 DSH 窗口失焦时弹；"always" = 总是弹。
+  "notificationTurnEnd": "unfocused",
+  // 权限审批申请（approval/requested）是否弹通知（默认 true）。
+  "notificationApproval": true,
+  // 模型提问（question/requested，等你回答）是否弹通知（默认 true）。
+  "notificationQuestion": true,
+  // 提示音："default" = 默认提示音；"classic" = 经典铃声；"none" = 静音。
+  "notificationSound": "default",
   // ===================== 点击音效开关 =====================
   // true（默认）= 点一下宠物播一声内置音效（assets/sound/click-duck.wav，音量固定 0.5；
   //   100ms 内的连续点击只响一次，多开时也不会叠成一片）。

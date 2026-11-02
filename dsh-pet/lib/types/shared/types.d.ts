@@ -188,6 +188,14 @@ export interface FontConfig {
 export interface ClientConfig {
     /** 系统通知总开关：true = 对话完成 / 生成失败 / 输出截断 / 权限申请 / 用户选择时弹出通知；缺失即配置错误 */
     notificationsEnabled: boolean;
+    /** 回合完成通知的弹出时机：never=从不；unfocused=仅窗口失焦时；always=总是。 */
+    notificationTurnEnd: 'never' | 'unfocused' | 'always';
+    /** 权限审批申请是否弹通知。 */
+    notificationApproval: boolean;
+    /** 模型提问是否弹通知。 */
+    notificationQuestion: boolean;
+    /** 提示音：default / classic / none。 */
+    notificationSound: 'default' | 'classic' | 'none';
     /** 点击音效开关：true = 点击宠物时播放内置 click-duck.wav（音量 0.5、100ms 内去重），false = 静音。
      *  内置默认 false（默认静音，不突袭既有用户）。只读 main 条目这一份，pet pack 不单独覆盖。 */
     clickSoundEnabled: boolean;

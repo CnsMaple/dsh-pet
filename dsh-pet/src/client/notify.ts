@@ -52,8 +52,21 @@ export const NOTIFY_ICONS = {
   test: PIC(ICON_NAMES.test),
 } as const;
 
-/** 当前生效的总开关；运行中可被 reloadNotifications 更新，设置页保存后即时生效。 */
-let notifyEnabled = true;
+/** 通知行为配置（总开关 + 回合完成三档 + 审批/问题开关 + 提示音）；运行中由 reloadNotifications 更新。 */
+interface NotifySettings {
+  enabled: boolean;
+  turnEnd: 'never' | 'unfocused' | 'always';
+  approval: boolean;
+  question: boolean;
+  sound: 'default' | 'classic' | 'none';
+}
+let settings: NotifySettings = {
+  enabled: true,
+  turnEnd: 'unfocused',
+  approval: true,
+  question: true,
+  sound: 'default',
+};
 
 /** 会话跳转与命名：由 app.ts 注入，取不到服务时退化为不跳会话、不认会话名。 */
 export interface SessionNavigator {
@@ -113,11 +126,32 @@ export function wireNotificationClick(n: Notification, sessionId?: string): void
 
 /** 发一条系统通知；总开关关闭、环境不支持、未授权或本页正在看时静默跳过。
  * 日志只在门之后记录：被拦下的触发不产生「弹窗」日志。 */
+function playNotifySound(): void {
+  if (settings.sound === 'none') return;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = settings.sound === 'classic' ? 880 : 640;
+    gain.gain.value = 0.05;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+    osc.onended = () => void ctx.close();
+  } catch {
+    /* 音频不可用：静默 */
+  }
+}
+
 function toast(title: string, body?: string, icon?: string, sessionId?: string): void {
-  if (!notifyEnabled) return;
-  if (isPageActive()) return;
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   console.log('[dsh-pet] 【弹窗】' + title + (body ? '：' + body : ''));
+  playNotifySound();
   try {
     const opts: NotificationOptions = {};
     if (body) opts.body = truncate(body);
@@ -134,7 +168,24 @@ function toast(title: string, body?: string, icon?: string, sessionId?: string):
  * 帧 → toast 并发出；未知帧静默跳过，帧里的 sessionId 一并透传给点击行为。
  * 标题优先用会话名：同一个宿主上可以并行跑多条会话，通知里必须能认出是哪一条回来了。
  */
+function shouldNotify(frame: NotifyFrame): boolean {
+  if (!settings.enabled) return false;
+  if (frame.type === 'approval/requested') return settings.approval;
+  if (frame.type === 'question/requested') return settings.question;
+  if (frame.type === 'host/agent-error') return true;
+  if (frame.type === 'session/event') {
+    const ev = (frame.event ?? {}) as { type?: string };
+    if (ev.type !== 'turn/end') return false;
+    if (settings.turnEnd === 'never') return false;
+    // 失焦模式：本页正在看（可见且聚焦）就跳过；「总是」模式则照弹。
+    if (settings.turnEnd === 'unfocused' && isPageActive()) return false;
+    return true;
+  }
+  return false;
+}
+
 function toastFrame(frame: NotifyFrame): void {
+  if (!shouldNotify(frame)) return;
   const sessionId = typeof frame.sessionId === 'string' ? frame.sessionId : undefined;
   const t = frameToToast(frame, sessionTitleFrom(sessionNavigator, sessionId));
   if (!t) return;
@@ -164,21 +215,35 @@ export async function requestNotificationPermission(): Promise<PermissionResult>
   }
 }
 
-/** 读系统通知总开关（成品配置 main 条目）；拉取或解析失败时按开启处理，不阻塞。 */
-async function readNotificationsEnabled(): Promise<boolean> {
+/** 读通知行为配置（成品配置 main 条目）；拉取或解析失败时沿用默认（开启 + 失焦弹 + 提示音 default）。 */
+async function readSettings(): Promise<void> {
   try {
     const r = await fetch(ROUTE_PATH + '/config');
-    if (!r.ok) return true;
-    const d = (await r.json().catch(() => null)) as { main?: { notificationsEnabled?: unknown } } | null;
-    return typeof d?.main?.notificationsEnabled === 'boolean' ? d.main.notificationsEnabled : true;
+    if (!r.ok) return;
+    const d = (await r.json().catch(() => null)) as { main?: Record<string, unknown> } | null;
+    const m = d && d.main;
+    if (!m) return;
+    settings = {
+      enabled: typeof m.notificationsEnabled === 'boolean' ? m.notificationsEnabled : true,
+      turnEnd:
+        m.notificationTurnEnd === 'never' || m.notificationTurnEnd === 'always'
+          ? (m.notificationTurnEnd as 'never' | 'always')
+          : 'unfocused',
+      approval: typeof m.notificationApproval === 'boolean' ? m.notificationApproval : true,
+      question: typeof m.notificationQuestion === 'boolean' ? m.notificationQuestion : true,
+      sound:
+        m.notificationSound === 'none' || m.notificationSound === 'classic'
+          ? (m.notificationSound as 'none' | 'classic')
+          : 'default',
+    };
   } catch {
-    return true;
+    /* 读不到按默认 */
   }
 }
 
 /** 重读总开关（设置页保存开关后调用）；之后新触发的通知按新值执行，无需刷新页面。 */
 export async function reloadNotifications(): Promise<void> {
-  notifyEnabled = await readNotificationsEnabled();
+  await readSettings();
 }
 
 /** 一帧通知 → toast；由容器统一轮询 `/state` 发现 `sections.notify` 变化后调用。 */
@@ -193,10 +258,9 @@ export function notifyFromFrame(frame: unknown): void {
  */
 export function initNotify(navigator?: SessionNavigator): () => void {
   sessionNavigator = navigator;
-  // 总开关读成品配置（拉取失败不阻塞，默认开启）；之后由设置页保存后 reloadNotifications 重读。
-  void readNotificationsEnabled().then((enabled) => {
-    notifyEnabled = enabled;
-    if (typeof Notification !== 'undefined' && enabled && Notification.permission === 'default') {
+  // 行为配置读成品配置（拉取失败不阻塞，沿用默认）；之后由设置页保存后 reloadNotifications 重读。
+  void readSettings().then(() => {
+    if (typeof Notification !== 'undefined' && settings.enabled && Notification.permission === 'default') {
       // 兜底申请；无手势时浏览器可能压制，真正的申请在设置页开关或按钮点击处。
       void requestNotificationPermission();
     }

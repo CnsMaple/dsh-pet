@@ -411,6 +411,10 @@ function topFieldValid(key, value) {
 			return Number.isFinite(n) && n >= 0;
 		}
 		case "notificationsEnabled": return typeof value === "boolean";
+		case "notificationTurnEnd": return value === "never" || value === "unfocused" || value === "always";
+		case "notificationApproval":
+		case "notificationQuestion": return typeof value === "boolean";
+		case "notificationSound": return value === "default" || value === "classic" || value === "none";
 		case "clickSoundEnabled": return typeof value === "boolean";
 		case "whisperImageEnabled": return typeof value === "boolean";
 		case "voiceEnabled": return typeof value === "boolean";

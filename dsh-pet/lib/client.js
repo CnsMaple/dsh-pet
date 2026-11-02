@@ -2031,8 +2031,13 @@ const NOTIFY_ICONS = {
 	question: PIC(NOTIFY_ICONS$1.question),
 	test: PIC(NOTIFY_ICONS$1.test)
 };
-/** 当前生效的总开关；运行中可被 reloadNotifications 更新，设置页保存后即时生效。 */
-let notifyEnabled = true;
+let settings = {
+	enabled: true,
+	turnEnd: "unfocused",
+	approval: true,
+	question: true,
+	sound: "default"
+};
 /** 当前生效的会话跳转器（app.ts 注入；旧版 DSH 没有 uiWorkspace 时为 undefined）。 */
 let sessionNavigator;
 function sessionTitleFrom(navigator$1, sessionId) {
@@ -2060,11 +2065,28 @@ function wireNotificationClick(n, sessionId) {
 }
 /** 发一条系统通知；总开关关闭、环境不支持、未授权或本页正在看时静默跳过。
 * 日志只在门之后记录：被拦下的触发不产生「弹窗」日志。 */
+function playNotifySound() {
+	if (settings.sound === "none") return;
+	try {
+		const AC = window.AudioContext || window.webkitAudioContext;
+		if (!AC) return;
+		const ctx = new AC();
+		const osc = ctx.createOscillator();
+		const gain = ctx.createGain();
+		osc.type = "sine";
+		osc.frequency.value = settings.sound === "classic" ? 880 : 640;
+		gain.gain.value = .05;
+		osc.connect(gain);
+		gain.connect(ctx.destination);
+		osc.start();
+		osc.stop(ctx.currentTime + .12);
+		osc.onended = () => void ctx.close();
+	} catch {}
+}
 function toast(title, body, icon, sessionId) {
-	if (!notifyEnabled) return;
-	if (isPageActive()) return;
 	if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
 	console.log("[dsh-pet] 【弹窗】" + title + (body ? "：" + body : ""));
+	playNotifySound();
 	try {
 		const opts = {};
 		if (body) opts.body = truncate(body);
@@ -2077,7 +2099,22 @@ function toast(title, body, icon, sessionId) {
 * 帧 → toast 并发出；未知帧静默跳过，帧里的 sessionId 一并透传给点击行为。
 * 标题优先用会话名：同一个宿主上可以并行跑多条会话，通知里必须能认出是哪一条回来了。
 */
+function shouldNotify(frame) {
+	if (!settings.enabled) return false;
+	if (frame.type === "approval/requested") return settings.approval;
+	if (frame.type === "question/requested") return settings.question;
+	if (frame.type === "host/agent-error") return true;
+	if (frame.type === "session/event") {
+		const ev = frame.event ?? {};
+		if (ev.type !== "turn/end") return false;
+		if (settings.turnEnd === "never") return false;
+		if (settings.turnEnd === "unfocused" && isPageActive()) return false;
+		return true;
+	}
+	return false;
+}
 function toastFrame(frame) {
+	if (!shouldNotify(frame)) return;
 	const sessionId = typeof frame.sessionId === "string" ? frame.sessionId : void 0;
 	const t = frameToToast(frame, sessionTitleFrom(sessionNavigator, sessionId));
 	if (!t) return;
@@ -2113,28 +2150,33 @@ async function requestNotificationPermission() {
 		};
 	}
 }
-/** 读系统通知总开关（成品配置 main 条目）；拉取或解析失败时按开启处理，不阻塞。 */
-async function readNotificationsEnabled() {
+/** 读通知行为配置（成品配置 main 条目）；拉取或解析失败时沿用默认（开启 + 失焦弹 + 提示音 default）。 */
+async function readSettings() {
 	try {
 		const r = await fetch(ROUTE_PATH + "/config");
-		if (!r.ok) return true;
+		if (!r.ok) return;
 		const d = await r.json().catch(() => null);
-		return typeof d?.main?.notificationsEnabled === "boolean" ? d.main.notificationsEnabled : true;
-	} catch {
-		return true;
-	}
+		const m = d && d.main;
+		if (!m) return;
+		settings = {
+			enabled: typeof m.notificationsEnabled === "boolean" ? m.notificationsEnabled : true,
+			turnEnd: m.notificationTurnEnd === "never" || m.notificationTurnEnd === "always" ? m.notificationTurnEnd : "unfocused",
+			approval: typeof m.notificationApproval === "boolean" ? m.notificationApproval : true,
+			question: typeof m.notificationQuestion === "boolean" ? m.notificationQuestion : true,
+			sound: m.notificationSound === "none" || m.notificationSound === "classic" ? m.notificationSound : "default"
+		};
+	} catch {}
 }
 async function reloadNotifications() {
-	notifyEnabled = await readNotificationsEnabled();
+	await readSettings();
 }
 function notifyFromFrame(frame) {
 	toastFrame(frame);
 }
 function initNotify(navigator$1) {
 	sessionNavigator = navigator$1;
-	readNotificationsEnabled().then((enabled) => {
-		notifyEnabled = enabled;
-		if (typeof Notification !== "undefined" && enabled && Notification.permission === "default") requestNotificationPermission();
+	readSettings().then(() => {
+		if (typeof Notification !== "undefined" && settings.enabled && Notification.permission === "default") requestNotificationPermission();
 	});
 	return initFocusTracking();
 }
@@ -5584,7 +5626,7 @@ function makePetConfigSection(rt) {
 		const { pets, mainPets, selId, update, remove, replace, packWrites } = usePetList(rt, setDialog);
 		const { paths } = useRemoteData(rt);
 		useEffect(() => attachTipLayer(), []);
-		const [notifyEnabled$1, setNotifyEnabled] = useState(true);
+		const [notifyEnabled, setNotifyEnabled] = useState(true);
 		const [clickSound, setClickSound] = useState(true);
 		const [confineScreen, setConfineScreen] = useState(false);
 		const [trayEnabled, setTrayEnabled] = useState(true);
@@ -5644,7 +5686,7 @@ function makePetConfigSection(rt) {
 		});
 		const cur = pets.find((p) => p.id === selId) ?? null;
 		const globalFlags = {
-			notificationsEnabled: notifyEnabled$1,
+			notificationsEnabled: notifyEnabled,
 			clickSoundEnabled: clickSound,
 			confineToScreen: confineScreen,
 			trayEnabled
@@ -5663,7 +5705,7 @@ function makePetConfigSection(rt) {
 		const write = createWriteFlow({
 			fields: () => ({
 				pets: mainPets,
-				notificationsEnabled: notifyEnabled$1,
+				notificationsEnabled: notifyEnabled,
 				clickSoundEnabled: clickSound,
 				whisperImageEnabled: whisperImage,
 				chatImageEnabled: chatImage,

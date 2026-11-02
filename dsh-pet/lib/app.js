@@ -4831,7 +4831,7 @@ function sessionTitleFrom(session$1) {
 	return "";
 }
 function registerSessionWatch(deps) {
-	const { ctx, cancelTerminalCleanup, lastTodoText, lastReplyText, notifyActivityTimers, publishWorkStatus, pushNotifyFrame, scheduleCompletionNotify, scheduleTerminalCleanup, terminalTimers, toolsInFlight, turnFlags, workStatus, sessionTitles } = deps;
+	const { ctx, cancelTerminalCleanup, lastTodoText, lastReplyText, notifyActivityTimers, publishWorkStatus, pushNotifyFrame, scheduleCompletionNotify, scheduleTerminalCleanup, terminalTimers, toolsInFlight, turnFlags, workStatus, sessionTitles, lastTools } = deps;
 	ctx.effect(() => {
 		const dispose = ctx.on("session/event", (session$1, event) => {
 			const type = event?.type;
@@ -4869,6 +4869,7 @@ function registerSessionWatch(deps) {
 				workStatus.setTask(sessionId, null);
 				lastTodoText.delete(sessionId);
 				toolsInFlight.delete(sessionId);
+				lastTools.delete(sessionId);
 				publishWorkStatus();
 			}
 			if (type === "tool/call" && String(event?.data?.name ?? "") === GOAL_UPDATE_TOOL) {
@@ -4889,6 +4890,7 @@ function registerSessionWatch(deps) {
 					cancelTerminalCleanup(sessionId);
 					lastTodoText.delete(sessionId);
 					toolsInFlight.delete(sessionId);
+					lastTools.delete(sessionId);
 					workStatus.clear(sessionId);
 					publishWorkStatus();
 				}
@@ -4896,6 +4898,13 @@ function registerSessionWatch(deps) {
 			}
 			const seq = Number(event.seq ?? 0);
 			const detail = type === "tool/call" ? toolDetailFromEvent(event) : null;
+			if (type === "tool/call") {
+				const toolName$1 = String(event.data?.name ?? "");
+				if (toolName$1) lastTools.set(sessionId, {
+					name: toolName$1,
+					detail: detail ?? ""
+				});
+			}
 			const outcome = trackToolEvent(toolsInFlight, sessionId, {
 				type,
 				callId: toolCallIdOf(event),
@@ -6492,6 +6501,8 @@ function apply(ctx) {
 	const { pushNotifyFrame, turnFlags, terminalTimers, lastTodoText, lastReplyText, toolsInFlight, cancelTerminalCleanup, scheduleTerminalCleanup, notifyActivityTimers, scheduleCompletionNotify } = sessionNotify;
 	/** 会话 id → 标题（session-watch 从事件里抓，优先用它）。 */
 	const sessionTitles = new Map();
+	/** 会话 id → 最后一次工具调用（名字 + 细节），供会话气泡展示。 */
+	const lastTools = new Map();
 	/** 取会话标题：优先事件缓存，其次 DSH sessions 服务；取不到退回「会话 · id末4位」。 */
 	const sessionTitleOf = (id) => {
 		try {
@@ -6510,11 +6521,14 @@ function apply(ctx) {
 			if (e.state === "success" || e.state === "error") continue;
 			const bucket = toolsInFlight.get(e.sessionId);
 			const tools = bucket ? Array.from(bucket.values()).slice(0, 3) : [];
+			const last = lastTools.get(e.sessionId);
 			rows.push({
 				id: e.sessionId,
 				title: sessionTitles.get(e.sessionId) || sessionTitleOf(e.sessionId),
 				state: e.state,
 				tools,
+				tool: last?.name,
+				detail: last?.detail,
 				seq: e.seq
 			});
 		}
@@ -6523,7 +6537,9 @@ function apply(ctx) {
 			id: r.id,
 			title: r.title,
 			state: r.state,
-			tools: r.tools
+			tools: r.tools,
+			tool: r.tool,
+			detail: r.detail
 		})));
 	};
 	/** 一次工作状态写入 = 同时刷新 workStatus 与 sessions 两段（在途工具变化也走这里）。 */
@@ -6569,7 +6585,8 @@ function apply(ctx) {
 		toolsInFlight,
 		turnFlags,
 		workStatus,
-		sessionTitles
+		sessionTitles,
+		lastTools
 	});
 	registerTodoReminders({
 		ctx,

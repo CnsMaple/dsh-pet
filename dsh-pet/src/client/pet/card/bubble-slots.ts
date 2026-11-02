@@ -27,11 +27,11 @@ export interface BubbleSlotInput {
 /** 决定当前挂哪个气泡。 */
 export function decideBubbleSlot(input: BubbleSlotInput): BubbleSlot {
   if (input.todoOn) return 'todo';
+  // 工作状态气泡只保留「完成/失败」终态那个（庆祝用），非终态不再弹工作气泡（交给会话气泡）。
   if (!input.suppressWork) {
     if (input.workTerminal && input.workOn && input.workText && input.workStatusEnabled) return 'work-terminal';
   }
   if (input.sayOn && input.sayText) return 'say';
-  if (!input.suppressWork && input.workOn && input.workText && input.workStatusEnabled) return 'work';
   return 'none';
 }
 

@@ -59,7 +59,7 @@ Object.assign(PetSprite.prototype, {
       return;
     }
     const shown = this.showAllSessions ? list : list.slice(0, 1);
-    const STATE_WORD = { thinking: '思考中', working: '运行中', result: '出结果', waiting: '等待确认' };
+    const STATE_WORD = { thinking: '思考中', waiting: '等待确认' };
     box.innerHTML = '';
     for (const it of shown) {
       const b = document.createElement('div');
@@ -68,13 +68,20 @@ Object.assign(PetSprite.prototype, {
       t.className = 'dst';
       t.textContent = it.title || '';
       b.appendChild(t);
-      if (it.state) {
+      // 第二行：优先「最后调用的工具 · 细节」；无工具时仅对 思考中/等待确认 显示档位词。
+      if (it.tool) {
+        const k = document.createElement('div');
+        k.className = 'dsk';
+        k.textContent = it.detail ? it.tool + ' · ' + it.detail : it.tool;
+        b.appendChild(k);
+      } else if (STATE_WORD[it.state]) {
         const s = document.createElement('div');
         s.className = 'dss';
-        s.textContent = STATE_WORD[it.state] || it.state;
+        s.textContent = STATE_WORD[it.state];
         b.appendChild(s);
       }
-      for (const tool of Array.isArray(it.tools) ? it.tools : []) {
+      const extra = (Array.isArray(it.tools) ? it.tools : []).filter((x) => x !== it.detail).slice(0, 2);
+      for (const tool of extra) {
         const k = document.createElement('div');
         k.className = 'dsk';
         k.textContent = '· ' + tool;
@@ -104,10 +111,11 @@ Object.assign(PetSprite.prototype, {
       this.syncInputBusy();
       return;
     }
-    const workOn = !!(this.workOn && this.workText);
     const sayOn = !!(this.whisperOn && this.whisperText);
     const workTerminal = this.workState === 'success' || this.workState === 'error';
-    const slot = workTerminal && workOn ? 'work' : sayOn ? 'say' : workOn ? 'work' : 'none';
+    // 工作状态气泡只保留终态（完成/失败）那个；非终态不再弹工作气泡（交给会话气泡）。
+    const workOn = !!(this.workOn && this.workText && workTerminal);
+    const slot = workOn ? 'work' : sayOn ? 'say' : 'none';
     this.bubble.classList.toggle('is-whisper', slot === 'work' || slot === 'say');
     this.bubble.classList.remove('is-clickable', 'is-expanded');
     if (slot === 'none') {

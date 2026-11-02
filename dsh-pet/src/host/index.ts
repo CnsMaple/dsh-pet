@@ -70,6 +70,8 @@ export function apply(ctx: any): void {
 
   /** 会话 id → 标题（session-watch 从事件里抓，优先用它）。 */
   const sessionTitles = new Map<string, string>();
+  /** 会话 id → 最后一次工具调用（名字 + 细节），供会话气泡展示。 */
+  const lastTools = new Map<string, { name: string; detail: string }>();
 
   /** 取会话标题：优先事件缓存，其次 DSH sessions 服务；取不到退回「会话 · id末4位」。 */
   const sessionTitleOf = (id: string): string => {
@@ -86,23 +88,34 @@ export function apply(ctx: any): void {
 
   /** 写 sections.sessions：所有进行中的会话（thinking/working/result/waiting）及在途工具细节。 */
   const publishSessions = (): void => {
-    const rows: Array<{ id: string; title: string; state: string; tools: string[]; seq: number }> = [];
+    const rows: Array<{
+      id: string;
+      title: string;
+      state: string;
+      tools: string[];
+      tool?: string;
+      detail?: string;
+      seq: number;
+    }> = [];
     for (const e of workStatus.entries()) {
       if (e.state === 'success' || e.state === 'error') continue;
       const bucket = toolsInFlight.get(e.sessionId);
       const tools = bucket ? Array.from(bucket.values()).slice(0, 3) : [];
+      const last = lastTools.get(e.sessionId);
       rows.push({
         id: e.sessionId,
         title: sessionTitles.get(e.sessionId) || sessionTitleOf(e.sessionId),
         state: e.state,
         tools,
+        tool: last?.name,
+        detail: last?.detail,
         seq: e.seq,
       });
     }
     rows.sort((a, b) => b.seq - a.seq);
     state.writeSection(
       'sessions',
-      rows.map((r) => ({ id: r.id, title: r.title, state: r.state, tools: r.tools })),
+      rows.map((r) => ({ id: r.id, title: r.title, state: r.state, tools: r.tools, tool: r.tool, detail: r.detail })),
     );
   };
 
@@ -151,6 +164,7 @@ export function apply(ctx: any): void {
     turnFlags,
     workStatus,
     sessionTitles,
+    lastTools,
   });
 
   registerTodoReminders({

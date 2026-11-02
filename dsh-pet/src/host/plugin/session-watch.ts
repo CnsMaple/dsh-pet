@@ -38,6 +38,8 @@ export type SessionWatchInput = {
   Pick<HostSetup, 'workStatus'> & {
     /** 会话 id → 标题缓存（从 session 事件里抓，供 sessions 段用）。 */
     sessionTitles: Map<string, string>;
+    /** 会话 id → 最后一次工具调用（名字 + 细节），供会话气泡展示。 */
+    lastTools: Map<string, { name: string; detail: string }>;
   };
 
 /** 一次工具事件在记账表里的形态：调用开始（带详情）或结果返回（按标识移除一条）。 */
@@ -159,6 +161,7 @@ export function registerSessionWatch(deps: SessionWatchInput): void {
     turnFlags,
     workStatus,
     sessionTitles,
+    lastTools,
   } = deps;
   // 工作状态联动：监听 DSH 会话事件 → 聚合当前活动状态（WorkStatusStore → 展示快照）。
   // 消费 turn/start、user/message（goal 续跑轮判定）、tool/call、tool/result、approval/asked、
@@ -208,6 +211,7 @@ export function registerSessionWatch(deps: SessionWatchInput): void {
         workStatus.setTask(sessionId, null);
         lastTodoText.delete(sessionId); // 上一轮的清单文案，不该被下一轮的工具跑完时「恢复」回来
         toolsInFlight.delete(sessionId); // 上一轮若有工具没等到 tool/result（被打断），别拖累这一轮
+        lastTools.delete(sessionId); // 新一轮开始：上一轮的最后工具不再代表当前
         publishWorkStatus(); // 清掉上一轮任务文案也要写 S
       }
       if (
@@ -234,6 +238,7 @@ export function registerSessionWatch(deps: SessionWatchInput): void {
           cancelTerminalCleanup(sessionId); // 条目都要清了，别留一个到点后无事可做的定时器
           lastTodoText.delete(sessionId); // 按会话记的两份缓存跟着会话一起消失（防泄漏）
           toolsInFlight.delete(sessionId);
+          lastTools.delete(sessionId);
           workStatus.clear(sessionId); // 条目连同任务详情文案一起消失（clear 内部会重算展示）
           publishWorkStatus(); // 回合被打断 → 回到空闲：前端据此收起常驻气泡
         }
@@ -246,6 +251,10 @@ export function registerSessionWatch(deps: SessionWatchInput): void {
       // 顺序反了这一句会被静默丢弃（不报错，最难查的那种）。
       const detail =
         type === 'tool/call' ? toolDetailFromEvent(event as { data?: { name?: unknown; arguments?: unknown } }) : null;
+      if (type === 'tool/call') {
+        const toolName = String((event as { data?: { name?: unknown } }).data?.name ?? '');
+        if (toolName) lastTools.set(sessionId, { name: toolName, detail: detail ?? '' });
+      }
       const outcome = trackToolEvent(toolsInFlight, sessionId, {
         type,
         callId: toolCallIdOf(event),

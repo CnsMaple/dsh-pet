@@ -84,17 +84,24 @@ export function makeSessionBubbles(rt: {
     if (shown.length === 0) return null;
     return h('div', {
       className: 'dsh-pet-sessions',
-      children: shown.map((it) =>
-        h('div', {
+      children: shown.map((it) => {
+        // 第二行：优先「最后调用的工具 · 细节」；无工具时仅对 思考中/等待确认 显示档位词（不再显示“运行中”）。
+        const word = it.state === 'thinking' || it.state === 'waiting' ? STATE_WORD[it.state] : undefined;
+        const main = it.tool
+          ? h('div', { className: 'dsk', children: it.detail ? it.tool + ' · ' + it.detail : it.tool })
+          : word
+            ? h('div', { className: 'dss', children: word })
+            : null;
+        const extra = (it.tools ?? [])
+          .filter((t) => t !== it.detail)
+          .slice(0, 2)
+          .map((t, i) => h('div', { key: 'x' + i, className: 'dsk', children: '· ' + t }));
+        return h('div', {
           key: it.id,
           className: 'dsh-pet-session-bubble',
-          children: [
-            h('div', { className: 'dst', children: it.title }),
-            it.state ? h('div', { className: 'dss', children: STATE_WORD[it.state] ?? it.state }) : null,
-            ...it.tools.map((tool, i) => h('div', { key: i, className: 'dsk', children: '· ' + tool })),
-          ].filter((x) => x !== null),
-        }),
-      ),
+          children: [h('div', { className: 'dst', children: it.title }), main, ...extra].filter((x) => x !== null),
+        });
+      }),
     });
   };
 }

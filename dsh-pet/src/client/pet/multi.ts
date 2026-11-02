@@ -167,6 +167,8 @@ export function createPetMulti(
           title: typeof o.title === 'string' ? o.title : '',
           state: typeof o.state === 'string' ? o.state : '',
           tools: Array.isArray(o.tools) ? o.tools.filter((t): t is string => typeof t === 'string') : [],
+          tool: typeof o.tool === 'string' ? o.tool : undefined,
+          detail: typeof o.detail === 'string' ? o.detail : undefined,
         });
       }
       return out;

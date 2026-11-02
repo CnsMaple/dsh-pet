@@ -1057,25 +1057,33 @@ function makeSessionBubbles(rt) {
 		if (shown.length === 0) return null;
 		return h("div", {
 			className: "dsh-pet-sessions",
-			children: shown.map((it) => h("div", {
-				key: it.id,
-				className: "dsh-pet-session-bubble",
-				children: [
-					h("div", {
-						className: "dst",
-						children: it.title
-					}),
-					it.state ? h("div", {
-						className: "dss",
-						children: STATE_WORD[it.state] ?? it.state
-					}) : null,
-					...it.tools.map((tool, i) => h("div", {
-						key: i,
-						className: "dsk",
-						children: "· " + tool
-					}))
-				].filter((x) => x !== null)
-			}))
+			children: shown.map((it) => {
+				const word = it.state === "thinking" || it.state === "waiting" ? STATE_WORD[it.state] : void 0;
+				const main = it.tool ? h("div", {
+					className: "dsk",
+					children: it.detail ? it.tool + " · " + it.detail : it.tool
+				}) : word ? h("div", {
+					className: "dss",
+					children: word
+				}) : null;
+				const extra = (it.tools ?? []).filter((t) => t !== it.detail).slice(0, 2).map((t, i) => h("div", {
+					key: "x" + i,
+					className: "dsk",
+					children: "· " + t
+				}));
+				return h("div", {
+					key: it.id,
+					className: "dsh-pet-session-bubble",
+					children: [
+						h("div", {
+							className: "dst",
+							children: it.title
+						}),
+						main,
+						...extra
+					].filter((x) => x !== null)
+				});
+			})
 		});
 	};
 }
@@ -6331,7 +6339,6 @@ function decideBubbleSlot(input) {
 		if (input.workTerminal && input.workOn && input.workText && input.workStatusEnabled) return "work-terminal";
 	}
 	if (input.sayOn && input.sayText) return "say";
-	if (!input.suppressWork && input.workOn && input.workText && input.workStatusEnabled) return "work";
 	return "none";
 }
 function createBubbleSlots(rt, components) {
@@ -8593,7 +8600,9 @@ function createPetMulti(rt, Card) {
 					id: o.id,
 					title: typeof o.title === "string" ? o.title : "",
 					state: typeof o.state === "string" ? o.state : "",
-					tools: Array.isArray(o.tools) ? o.tools.filter((t) => typeof t === "string") : []
+					tools: Array.isArray(o.tools) ? o.tools.filter((t) => typeof t === "string") : [],
+					tool: typeof o.tool === "string" ? o.tool : void 0,
+					detail: typeof o.detail === "string" ? o.detail : void 0
 				});
 			}
 			return out;

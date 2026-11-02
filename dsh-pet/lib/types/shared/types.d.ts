@@ -168,4 +168,8 @@ export interface SessionBubble {
     state: string;
     /** 在途工具的单行细节文案（最多若干条）。 */
     tools: string[];
+    /** 该会话最后一次调用的工具名。 */
+    tool?: string;
+    /** 该最后一次工具调用的细节文案。 */
+    detail?: string;
 }

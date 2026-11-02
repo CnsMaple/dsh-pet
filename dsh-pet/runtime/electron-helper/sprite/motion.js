@@ -100,91 +100,14 @@ Object.assign(PetSprite.prototype, {
     this.throwState = null;
   },
 
-  /** 抛掷驱动：重力 + 边缘反弹 + 落地摩擦，落定后写入 customPos */
-  startThrow(px, py, vx, vy) {
+  /** 纯落位：拖拽/弹弓/被撞都直接定在该点，不再抛掷、重力、反弹或跨窗碰撞（物理引擎已移除）。 */
+  startThrow(px, py) {
     this.stopDragFollow();
     this.stopMove();
-    // 边界 = 工作区并集：空洞是墙，屏缝不是墙（跨屏弹跳照旧）。confineToScreen 开启时改为锁定
-    // 松手这一刻所在的那块屏，飞行途中不重取；relayout 改了屏数时由 throwStepRegion 退回不锁定。
-    const lockScreen = this.confineToScreen ? S.screenOfBox(this.throwSpaceOf(), px, py) : -1;
-    const token = ++this.throwToken;
-    let state = { x: px, y: py, vx, vy };
-    let last = performance.now();
-    let prevGrounded = false; // 落地 Q 弹：只在空中→地面转换帧触发一次
-    const step = () => {
-      if (this.throwToken !== token) return;
-      const now = performance.now();
-      const dt = (now - last) / 1000;
-      last = now;
-      const fallingVy = state.vy; // 本帧积分前的竖直速度（正=下落）：即落地冲击速度
-      // 每帧重取：显示器变化时 relayout() 会让缓存失效，res.screen 必须与这一份对应
-      const sp = this.throwSpaceOf();
-      // 细分积分：弹弓没有速度上限，一帧可能跨过上百 px；不拆会跳过落地/反弹那几帧，
-      // Q 弹、地面摩擦与 atRest 判定都会漏。普通甩抛算出 1 步，与单步积分逐位相同。
-      const substeps = S.throwSubsteps(state.vx, state.vy, dt);
-      let res = S.throwStepRegion(state, dt / substeps, sp, this.physics, lockScreen);
-      for (let i = 1; i < substeps && !res.atRest; i++) {
-        res = S.throwStepRegion(res, dt / substeps, sp, this.physics, lockScreen);
-      }
-      state = { x: res.x, y: res.y, vx: res.vx, vy: res.vy };
-      this.throwState = state;
-      // 上报飞行状态（节流 ~30ms）：主进程 broker 汇聚后广播，其它窗口据此做跨窗碰撞检测；
-      // broker 协议单位是物理像素，这里 ×scale。
-      if (window.petBridge && window.petBridge.reportFlight && now - this.lastFlightReport > 30) {
-        window.petBridge.reportFlight({
-          x: toScreen(state.x),
-          y: toScreen(state.y),
-          vx: toScreen(state.vx),
-          vy: toScreen(state.vy),
-          size: toScreen(this.size),
-          bottomPad: toScreen(this.bottomPad),
-        });
-        this.lastFlightReport = now;
-      }
-      // 宠物间碰撞（仅 petCollision 开启）：飞行中的自己撞到其它宠物 → 动量弹开
-      if (this.physics && this.physics.petCollision) {
-        const myBody = S.bodyPixelBox({ x: state.x, y: state.y, size: this.size, bottomPad: this.bottomPad });
-        for (const pid of Object.keys(this.others)) {
-          const o = this.others[pid];
-          if (!o || !o.size) continue;
-          const otherBody = S.bodyPixelBox({ x: o.x, y: o.y, size: o.size, bottomPad: o.bottomPad });
-          if (!S.rectsOverlap(myBody, otherBody)) continue;
-          const hit = S.collidePet(
-            { x: state.x, y: state.y, vx: state.vx, vy: state.vy, size: this.size },
-            { x: o.x, y: o.y, vx: o.vx, vy: o.vy, size: o.size },
-          );
-          if (hit) {
-            // 飞行方：按动量结果继续弹开；被撞方：主进程转发给目标窗口 → 目标窗 startThrow
-            state.vx = hit.fvx;
-            state.vy = hit.fvy;
-            this.throwState = state;
-            if (window.petBridge && window.petBridge.reportCollide) {
-              // 被撞方初速同为 broker 物理像素协议：×scale
-              window.petBridge.reportCollide(pid, toScreen(hit.hvx), toScreen(hit.hvy));
-            }
-            break; // 一帧只处理一次碰撞（避免连锁触发抖动）
-          }
-        }
-      }
-      this.sendBounds(res.x, res.y);
-      // 落地 Q 弹：只在空中→地面转换帧触发一次，力度随冲击速度；「地面」是当前所在屏的底边。
-      const curBounds = sp.bounds[res.screen] || sp.bounds[0];
-      const grounded = curBounds ? res.y >= curBounds.maxY - 1 : false;
-      if (res.bounced && grounded && !prevGrounded) {
-        const frontEl = this.front === 0 ? this.videoA : this.videoB;
-        this.startSquash(frontEl, S.landingSquash(fallingVy));
-      }
-      prevGrounded = grounded;
-      if (res.atRest) {
-        this.throwRef = null;
-        this.throwState = null;
-        this.customPos = { rx: (this.pos.x + this.halfW) / VIEW.w, ry: (this.pos.y + this.halfH) / VIEW.h };
-        window.__dshPetDebug.lastDragRelease = { x: this.pos.x, y: this.pos.y };
-        return;
-      }
-      this.throwRef = requestAnimationFrame(step);
-    };
-    this.throwRef = requestAnimationFrame(step);
+    this.stopThrow();
+    this.sendBounds(px, py);
+    this.customPos = { rx: (this.pos.x + this.halfW) / VIEW.w, ry: (this.pos.y + this.halfH) / VIEW.h };
+    window.__dshPetDebug.lastDragRelease = { x: this.pos.x, y: this.pos.y };
   },
 
   // 位置 / 抛掷指令（POST /position、POST /throw）

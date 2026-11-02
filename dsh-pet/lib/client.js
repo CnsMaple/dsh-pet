@@ -2014,7 +2014,7 @@ const NOTIFY_ICONS = {
 };
 let settings = {
 	enabled: true,
-	turnEnd: "unfocused",
+	turnEnd: "always",
 	approval: true,
 	question: true,
 	sound: "default"
@@ -2082,7 +2082,7 @@ function toast(title, body, icon, sessionId) {
 */
 function shouldNotify(frame) {
 	if (!settings.enabled) return false;
-	if (frame.type === "host/test") return true;
+	if (frame.type === "host/test") return false;
 	if (frame.type === "approval/requested") return settings.approval;
 	if (frame.type === "question/requested") return settings.question;
 	if (frame.type === "host/agent-error") return true;
@@ -2142,7 +2142,7 @@ async function readSettings() {
 		if (!m) return;
 		settings = {
 			enabled: typeof m.notificationsEnabled === "boolean" ? m.notificationsEnabled : true,
-			turnEnd: m.notificationTurnEnd === "never" || m.notificationTurnEnd === "always" ? m.notificationTurnEnd : "unfocused",
+			turnEnd: m.notificationTurnEnd === "never" || m.notificationTurnEnd === "always" ? m.notificationTurnEnd : "always",
 			approval: typeof m.notificationApproval === "boolean" ? m.notificationApproval : true,
 			question: typeof m.notificationQuestion === "boolean" ? m.notificationQuestion : true,
 			sound: m.notificationSound === "none" || m.notificationSound === "classic" ? m.notificationSound : "default"
@@ -3070,30 +3070,19 @@ async function runNotificationTest(deps) {
 		kind: "",
 		text: ""
 	});
-	const result = await requestNotificationPermission();
-	if (!result.ok) {
-		const reason = result.reason === "unsupported" ? t("notifyDenyUnsupported") : result.reason === "denied" ? t("notifyDenyBlocked") : result.reason === "rejected" ? t("notifyDenyRejected") : t("notifyDenyError") + (result.message ? "：" + result.message : "");
-		report({
-			kind: "err",
-			text: reason + (result.reason === "unsupported" ? "" : " " + t("notifyGuide"))
-		});
-		return;
-	}
 	try {
 		const resp = await fetch(ROUTE_PATH + "/notify-test", { method: "POST" });
 		if (!resp.ok) throw new Error("notify-test HTTP " + resp.status);
-	} catch {
-		try {
-			wireNotificationClick(new Notification("测试通知", {
-				body: "【dsh-pet】系统通知已就绪。",
-				icon: NOTIFY_ICONS.test
-			}));
-		} catch {}
+		report({
+			kind: "ok",
+			text: t("notifyTestOk")
+		});
+	} catch (e) {
+		report({
+			kind: "err",
+			text: t("notifyDenyError") + (e instanceof Error ? "：" + e.message : String(e))
+		});
 	}
-	report({
-		kind: "ok",
-		text: t("notifyTestOk")
-	});
 }
 
 //#endregion
@@ -5726,7 +5715,7 @@ function makePetConfigSection(rt) {
 		const [confineScreen, setConfineScreen] = useState(false);
 		const [trayEnabled, setTrayEnabled] = useState(true);
 		const [font, setFont] = useState({ ...DEFAULT_FONT });
-		const [notificationTurnEnd, setNotificationTurnEnd] = useState("unfocused");
+		const [notificationTurnEnd, setNotificationTurnEnd] = useState("always");
 		const [notificationApproval, setNotificationApproval] = useState(true);
 		const [notificationQuestion, setNotificationQuestion] = useState(true);
 		const [notificationSound, setNotificationSound] = useState("default");

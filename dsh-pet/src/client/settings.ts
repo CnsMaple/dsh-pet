@@ -70,7 +70,7 @@ export function makePetConfigSection(rt: SettingsRuntime): FunctionComponent<{ c
     const [trayEnabled, setTrayEnabled] = useState(true);
     // 以下字段保留在写盘载荷里（配置 schema 尚未裁剪），但设置页已无对应控件，默认值随加载覆盖。
     const [font, setFont] = useState<FontConfig>({ ...DEFAULT_FONT });
-    const [notificationTurnEnd, setNotificationTurnEnd] = useState<'never' | 'unfocused' | 'always'>('unfocused');
+    const [notificationTurnEnd, setNotificationTurnEnd] = useState<'never' | 'unfocused' | 'always'>('always');
     const [notificationApproval, setNotificationApproval] = useState(true);
     const [notificationQuestion, setNotificationQuestion] = useState(true);
     const [notificationSound, setNotificationSound] = useState<'default' | 'classic' | 'none'>('default');

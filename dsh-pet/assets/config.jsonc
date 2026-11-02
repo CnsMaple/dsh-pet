@@ -84,7 +84,7 @@
   // ===================== 通知行为（对齐 dsh-tauri-notification）=====================
   // 回合完成（turn/end reason=completed）通知的弹出时机：
   //   "never" = 从不弹；"unfocused"（默认）= 仅当 DSH 窗口失焦时弹；"always" = 总是弹。
-  "notificationTurnEnd": "unfocused",
+  "notificationTurnEnd": "always",
   // 权限审批申请（approval/requested）是否弹通知（默认 true）。
   "notificationApproval": true,
   // 模型提问（question/requested，等你回答）是否弹通知（默认 true）。

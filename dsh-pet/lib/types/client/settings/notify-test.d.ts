@@ -8,8 +8,6 @@ export interface NotificationTestDeps {
 }
 /**
  * 跑一次「测试弹窗」。
- *
  * @param deps - 翻译与反馈回调。
- * @returns 无返回值；结果全部经 `report` 回传。
  */
 export declare function runNotificationTest(deps: NotificationTestDeps): Promise<void>;

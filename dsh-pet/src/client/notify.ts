@@ -62,7 +62,7 @@ interface NotifySettings {
 }
 let settings: NotifySettings = {
   enabled: true,
-  turnEnd: 'unfocused',
+  turnEnd: 'always',
   approval: true,
   question: true,
   sound: 'default',
@@ -170,8 +170,8 @@ function toast(title: string, body?: string, icon?: string, sessionId?: string):
  */
 function shouldNotify(frame: NotifyFrame): boolean {
   if (!settings.enabled) return false;
-  // 测试通知：走真实链路，不看焦点，总是展示。
-  if (frame.type === 'host/test') return true;
+  // 测试通知：桌面宠物窗口（Electron）弹原生即可，网页端不重复弹 Web 通知。
+  if (frame.type === 'host/test') return false;
   if (frame.type === 'approval/requested') return settings.approval;
   if (frame.type === 'question/requested') return settings.question;
   if (frame.type === 'host/agent-error') return true;
@@ -230,7 +230,7 @@ async function readSettings(): Promise<void> {
       turnEnd:
         m.notificationTurnEnd === 'never' || m.notificationTurnEnd === 'always'
           ? (m.notificationTurnEnd as 'never' | 'always')
-          : 'unfocused',
+          : 'always',
       approval: typeof m.notificationApproval === 'boolean' ? m.notificationApproval : true,
       question: typeof m.notificationQuestion === 'boolean' ? m.notificationQuestion : true,
       sound:

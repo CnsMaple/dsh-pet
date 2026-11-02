@@ -81,6 +81,7 @@ export function apply(ctx: any): void {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DSH 注入 ctx 无静态类型
       const anyCtx: any = ctx;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DSH 服务对象无静态类型
       const getSvc = (n: string): any => (typeof anyCtx?.get === 'function' ? anyCtx.get(n) : undefined);
       const sessionsSvc = getSvc('sessions');
       const session = typeof sessionsSvc?.get === 'function' ? sessionsSvc.get(id) : undefined;

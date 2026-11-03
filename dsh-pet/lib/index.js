@@ -5605,8 +5605,22 @@ function createRemoteDesktopHelper(deps) {
 	let desktopModeEverActive = false;
 	let disposed = false;
 	let stopped = false;
+	let respawnTimer;
+	let respawnDelayMs = 2e3;
 	const assetRootFor = (ext) => join(PACKAGE_ROOT, "assets", animSubdirFor(ext));
 	const userRootFor = (ext) => join(thumbUserRoot, animSubdirFor(ext));
+	/** 显示层意外退出后的自动重启（带指数退避，封顶 30s）；stopHelper/卸载后不再重启。 */
+	const scheduleRespawn = () => {
+		if (respawnTimer !== void 0 || disposed || stopped) return;
+		const delay = respawnDelayMs;
+		respawnDelayMs = Math.min(respawnDelayMs * 2, 3e4);
+		log.warn("[dsh-pet] 显示层意外退出，" + delay + "ms 后自动重启");
+		respawnTimer = setTimeout(() => {
+			respawnTimer = void 0;
+			if (disposed || stopped) return;
+			startHelper();
+		}, delay);
+	};
 	/** 启动 RPC 服务并拉起显示层；重复调用返回同一件事。 */
 	async function ensureStarted() {
 		if (disposed) return;
@@ -5636,9 +5650,11 @@ function createRemoteDesktopHelper(deps) {
 		});
 		if (result.ok) {
 			child = result.child;
+			respawnDelayMs = 2e3;
 			child.once("exit", (code) => {
 				log.warn("[dsh-pet] Windows 显示层已退出（code=" + String(code) + "）");
 				if (child === result.child) child = void 0;
+				if (!disposed && !stopped) scheduleRespawn();
 			});
 		} else {
 			log.warn("[dsh-pet] Windows 显示层未能自动拉起：" + result.reason);
@@ -5661,6 +5677,10 @@ function createRemoteDesktopHelper(deps) {
 		if (stopped) return;
 		stopped = true;
 		disposed = true;
+		if (respawnTimer !== void 0) {
+			clearTimeout(respawnTimer);
+			respawnTimer = void 0;
+		}
 		log.info("[dsh-pet] 停止远程显示（" + reason + "）");
 		stopWindowsDisplayLayer(child);
 		try {
@@ -5676,6 +5696,10 @@ function createRemoteDesktopHelper(deps) {
 	};
 	const markDisposed = () => {
 		disposed = true;
+		if (respawnTimer !== void 0) {
+			clearTimeout(respawnTimer);
+			respawnTimer = void 0;
+		}
 	};
 	return {
 		startHelper,

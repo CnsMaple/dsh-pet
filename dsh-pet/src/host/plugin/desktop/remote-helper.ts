@@ -59,9 +59,24 @@ export function createRemoteDesktopHelper(deps: DesktopHelperDeps) {
   let desktopModeEverActive = false;
   let disposed = false; // 阻止后续 startHelper（卸载后不再拉起）
   let stopped = false; // stopHelper 幂等：与 disposed 分开，避免 markDisposed 先置位把真正收尾短路
+  let respawnTimer: ReturnType<typeof setTimeout> | undefined; // 意外退出后的自动重启定时器（带退避）
+  let respawnDelayMs = 2000;
 
   const assetRootFor = (ext: string): string => join(PACKAGE_ROOT, 'assets', animSubdirFor(ext));
   const userRootFor = (ext: string): string => join(thumbUserRoot, animSubdirFor(ext));
+
+  /** 显示层意外退出后的自动重启（带指数退避，封顶 30s）；stopHelper/卸载后不再重启。 */
+  const scheduleRespawn = (): void => {
+    if (respawnTimer !== undefined || disposed || stopped) return;
+    const delay = respawnDelayMs;
+    respawnDelayMs = Math.min(respawnDelayMs * 2, 30_000);
+    log.warn('[dsh-pet] 显示层意外退出，' + delay + 'ms 后自动重启');
+    respawnTimer = setTimeout(() => {
+      respawnTimer = undefined;
+      if (disposed || stopped) return;
+      startHelper();
+    }, delay);
+  };
 
   /** 启动 RPC 服务并拉起显示层；重复调用返回同一件事。 */
   async function ensureStarted(): Promise<void> {
@@ -97,9 +112,12 @@ export function createRemoteDesktopHelper(deps: DesktopHelperDeps) {
     });
     if (result.ok) {
       child = result.child;
+      respawnDelayMs = 2000; // 成功拉起后重置退避
       child.once('exit', (code) => {
         log.warn('[dsh-pet] Windows 显示层已退出（code=' + String(code) + '）');
         if (child === result.child) child = undefined;
+        // 非主动停止/卸载：自动重启，避免宠物偶然消失后一直不回来。
+        if (!disposed && !stopped) scheduleRespawn();
       });
     } else {
       log.warn('[dsh-pet] Windows 显示层未能自动拉起：' + result.reason);
@@ -126,6 +144,10 @@ export function createRemoteDesktopHelper(deps: DesktopHelperDeps) {
     if (stopped) return;
     stopped = true;
     disposed = true;
+    if (respawnTimer !== undefined) {
+      clearTimeout(respawnTimer);
+      respawnTimer = undefined;
+    }
     log.info('[dsh-pet] 停止远程显示（' + reason + '）');
     stopWindowsDisplayLayer(child);
     // Linux 侧 kill 未必触及 Windows 进程树：再按显示层写下的 Windows PID 精确 taskkill。
@@ -147,6 +169,10 @@ export function createRemoteDesktopHelper(deps: DesktopHelperDeps) {
 
   const markDisposed = (): void => {
     disposed = true;
+    if (respawnTimer !== undefined) {
+      clearTimeout(respawnTimer);
+      respawnTimer = undefined;
+    }
   };
 
   return {

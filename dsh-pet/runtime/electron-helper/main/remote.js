@@ -8,7 +8,9 @@
 'use strict';
 
 /** 连续失败多少次判定宿主已消失（每拍约 1–2s）。 */
-const HOST_DEAD_AFTER_FAILURES = 5;
+const HOST_DEAD_AFTER_FAILURES = 20;
+/** 只有连续失败持续这么久才判定宿主确实没了：宿主单线程偶发卡顿会让探测短暂失败，别误杀。 */
+const HOST_DEAD_AFTER_MS = 60 * 1000;
 
 /**
  * 把宿主 `/config` 返回的成品聚合拍平成桌面窗口列表（与渲染端 flattenConfigPets 同序同口径）。
@@ -45,6 +47,7 @@ function createRemoteSupervisor(deps) {
   const { bridge, petWindows, petRoute, onHostGone } = deps;
   let lastSignature = null;
   let failures = 0;
+  let firstFailureAt = null;
   let timer = null;
   let stopped = false;
 
@@ -53,9 +56,10 @@ function createRemoteSupervisor(deps) {
     try {
       // 先做一次短超时探活：宿主消失时跨 WSL 的连接可能被黑洞、不会立刻回 RST，
       // 直接拉 /config 会卡到 RPC 的 60s 超时，宠物窗口要几分钟才收得掉。
-      await bridge.probe(3000);
+      await bridge.probe(8000);
       const resp = await bridge.hostRequest('GET', petRoute + '/config');
       failures = 0;
+      firstFailureAt = null;
       const merged = JSON.parse((resp && resp.body) || '{}');
       const pets = petsFromMerged(merged);
       // 签名用整份成品聚合：字体/字号（含「随宠物大小缩放」）/显示等任何渲染相关字段变化都要重建窗口——
@@ -67,12 +71,16 @@ function createRemoteSupervisor(deps) {
       }
     } catch (error) {
       failures += 1;
-      if (failures >= HOST_DEAD_AFTER_FAILURES) {
+      if (firstFailureAt === null) firstFailureAt = Date.now();
+      const sustained = Date.now() - firstFailureAt >= HOST_DEAD_AFTER_MS;
+      if (failures >= HOST_DEAD_AFTER_FAILURES && sustained) {
         stopped = true;
         console.error(
           '[dsh-pet] 连续 ' +
             failures +
-            ' 次拉取配置失败，判定宿主已退出：' +
+            ' 次拉取配置失败且持续 ' +
+            Math.round((Date.now() - firstFailureAt) / 1000) +
+            's，判定宿主已退出：' +
             String(error && error.message ? error.message : error),
         );
         onHostGone();

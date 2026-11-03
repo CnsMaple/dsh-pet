@@ -8,7 +8,11 @@
 'use strict';
 
 Object.assign(PetSprite.prototype, {
-  setTip(on) {
+  setTip(_on) {
+    // 悬浮提示已移除：无论进出命中区都不显示。
+    return;
+  },
+  _unusedSetTip(on) {
     const next = !!on;
     if (next === this.tipOn) return;
     this.tipOn = next;

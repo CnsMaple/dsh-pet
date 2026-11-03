@@ -8229,7 +8229,7 @@ function createCardRuntime(rt) {
 			size: effectiveSizePx
 		});
 		const { actions, state } = card;
-		const { corner, customPos, dragging, facing, margin, size, tipOn } = state;
+		const { corner, customPos, dragging, facing, margin, size } = state;
 		const liveRef = useRef({});
 		const menuActionsRef = useRef(null);
 		const entryRef = useRef(null);
@@ -8443,7 +8443,7 @@ function createCardRuntime(rt) {
 			size,
 			stageRef,
 			stageStyle,
-			tipOn,
+			tipOn: false,
 			tipRef,
 			videoARef,
 			videoBRef

@@ -77,7 +77,7 @@ export function createCardRuntime(rt: PetRuntime) {
       size: effectiveSizePx,
     });
     const { actions, state } = card;
-    const { corner, customPos, dragging, facing, margin, size, tipOn } = state;
+    const { corner, customPos, dragging, facing, margin, size } = state;
 
     // 驱动实例与跨关注点入口：创建顺序见模块头，填充只在本函数内。
     const liveRef = useRef<CardLive>({} as CardLive);
@@ -327,7 +327,8 @@ export function createCardRuntime(rt: PetRuntime) {
       size,
       stageRef,
       stageStyle,
-      tipOn,
+      // 悬浮提示已移除：始终不显示。
+      tipOn: false,
       tipRef,
       videoARef,
       videoBRef,

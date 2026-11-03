@@ -12,13 +12,6 @@ Object.assign(PetSprite.prototype, {
     // 悬浮提示已移除：无论进出命中区都不显示。
     return;
   },
-  _unusedSetTip(on) {
-    const next = !!on;
-    if (next === this.tipOn) return;
-    this.tipOn = next;
-    this.renderTip();
-  },
-
   /**
    * 悬浮提示渲染：文本 = 宠物显示名（宿主已保证非空）；位置 = 光标右下（装不下自动翻边），
    * 摆位判据与浏览器端共用 shared 的 tooltipPlacement。
